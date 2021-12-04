@@ -1,9 +1,7 @@
 <template>
   <div>
-    <CommonHeader />
     <div class="">
-    <Nuxt />
+      Header
     </div>
-    <CommonFooter />
   </div>
 </template>
