@@ -3,8 +3,11 @@
     <div class="my-5 px-5 outer">
       <img src="/shrine.png" alt="" class="img-fluid shrine">
       <div class="inner">
-        <button @click="GitHubAuth" class="btn btn-lg btn-success py-4 px-5">
+        <button @click="GitHubAuth" class="btn btn-lg btn-success py-4 px-5" v-if="isLogin">
           GitHubにログインして<br>
+          おみくじを引く
+        </button>
+        <button @click="GitHubAuth" class="btn btn-lg btn-success py-4 px-5" v-else>
           おみくじを引く
         </button>
       </div>
@@ -14,8 +17,10 @@
 
 <script>
 import { getAuth, GithubAuthProvider, signInWithPopup } from "firebase/auth";
+import { mapGetters } from "vuex";
 
 export default {
+  // middlewareでセッションチェックを行い、GitHubのログインチェックをしない
   data () {
     return {
     }
@@ -34,6 +39,9 @@ export default {
           console.error(error)
         })
     }
+  },
+  computed: {
+    ...mapGetters["isLogin"]
   }
 }
 
