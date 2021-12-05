@@ -1,9 +1,14 @@
 <template>
   <div class="text-center">
-    <button @click="GitHubAuth" class="btn btn-success" href="/omikuji">
-      GitHubにログインして<br>
-      おみくじを引く
-    </button>
+    <div class="my-5 px-5 outer">
+      <img src="/shrine.png" alt="" class="img-fluid shrine">
+      <div class="inner">
+        <button @click="GitHubAuth" class="btn btn-lg btn-success py-4 px-5">
+          GitHubにログインして<br>
+          おみくじを引く
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -21,10 +26,9 @@ export default {
       const auth = getAuth()
       signInWithPopup(auth, provider)
         .then((result) => {
-          console.log(result)
+          this.$store.commit('login', "is_login")
           // resultはAPIアクセス
           // その結果をもっておみくじを引く
-
           this.$router.push({ path: '/omikuji' })
         }).catch((error) => {
           console.error(error)
@@ -33,5 +37,22 @@ export default {
   }
 }
 
-
 </script>
+
+<style scoped>
+.shrine {
+  opacity: 0.3;
+}
+.outer {
+  position: relative;
+}
+.inner{
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  margin: auto;
+  width: 80%;
+  height: 3.2rem;}
+</style>
