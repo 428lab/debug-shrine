@@ -13,7 +13,7 @@
             <a class="nav-link active" aria-current="page" href="#">マイページ</a>
           </li>
           <li class="nav-item">
-            <button class="btn btn-secondary">ログアウト</button>
+            <button class="btn btn-secondary" @click="logout">ログアウト</button>
           </li>
         </ul>
       </div>
@@ -27,6 +27,11 @@ import { mapGetters } from "vuex";
 export default {
   data () {
     return {
+    }
+  },
+  methods: {
+    logout() {
+      this.$store.commit('logout');
     }
   },
   computed: {
