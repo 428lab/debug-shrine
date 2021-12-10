@@ -13,11 +13,13 @@
     "@nuxtjs/dotenv": "^1.4.1",
     "@nuxtjs/firebase": "^8.1.1",
     "@nuxtjs/pwa": "^3.0.2",
+    "chart.js": "2.8",
     "core-js": "^3.6.5",
     "firebase": "^9.6.0",
     "matter-js": "^0.17.1",
     "nuxt": "^2.14.6",
-    "poly-decomp": "^0.3.0"
+    "poly-decomp": "^0.3.0",
+    "vue-chartjs": "^3.5.1"
   },
   "devDependencies": {}
 }
