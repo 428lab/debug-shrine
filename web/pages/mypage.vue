@@ -8,6 +8,8 @@
           </div>
           <div class="col-9">
             <p class="fs-3">{{ userName }}</p>
+            <div class="badge bg-secondary">新人コントリビューター</div>
+            <div class="badge bg-secondary">称号２</div>
           </div>
         </div>
       </div>
@@ -19,25 +21,54 @@
         <p class="text-end w-100">NEXT 2234EXP</p>
       </div>
     </div>
-    <div class="row my-2 gap-2">
-      <div class="col-3 bg-light p-2 rounded">
-        <h5>つよさ</h5>
-        <RadarChart :chartData="chartData" :options="options" />
+    <div class="row">
+      <div class="col-3 my-2 py-0 ps-0 pe-2">
+        <div class="list-group">
+          <a href="#" class="list-group-item list-group-item-action active" aria-current="true">
+            DASHBOARD
+          </a>
+          <a href="#" class="list-group-item list-group-item-action">Profile Setting</a>
+          <a href="#" class="list-group-item list-group-item-action">Acount Setting</a>
+        </div>
       </div>
-      <div class="col bg-light p-2 rounded">
-        <h5>ポイント獲得履歴</h5>
-      </div>
-    </div>
-    <div class="row my-2">
-      <div class="col bg-light p-2 rounded">
-        <h5>アクティビティ</h5>
+      <div class="col">
+        <div class="row my-2 gap-2">
+          <div class="col-4 bg-light p-3 rounded">
+            <h5>つよさ</h5>
+            <RadarChart :chartData="chartData" :options="options" />
+          </div>
+          <div class="col bg-light p-3 rounded">
+            <h5>ポイント獲得履歴</h5>
+            <div class="list-group list-group-flush">
+              <div class="list-group list-group-flush">
+                <div class="list-group-item">
+                  <div class="d-flex w-100 justify-content-between">
+                    <h5 class="mb-1">Created commit</h5>
+                    <small class="text-muted">3 days ago</small>
+                  </div>
+                  <p class="mb-1 small">
+                    <i>アイコン</i> +10pt
+                    <i>アイコン</i> +10exp
+                  </p>
+                  <small class="text-muted">428lab/debug-shrine</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row my-2">
+          <div class="col bg-light p-3 rounded">
+            <h5>アクティビティ</h5>
+
+          </div>
+        </div>
       </div>
     </div>
   </main>
 </template>
 
 <script>
-import { getAuth, onAuthStateChanged, ProviderId } from 'firebase/auth';
+import { getAuth, getMultiFactorResolver, onAuthStateChanged, ProviderId } from 'firebase/auth';
 import RadarChart from '@/components/charts/powerChart.vue';
 
 export default {
@@ -62,13 +93,34 @@ export default {
         }]
       },
       options: {
-        pointLabels: {
+        animation: {
+          // アニメーション実行時間（ms）
+          duration: 1000,
+          // イージング指定（https://easings.net/）
+          easing: "easeInOutCirc"
+        },
+        legend: {
+          // 凡例を表示しない
           display: false
+        },
+        tooltips: {
+          // ツールチップを表示しない
+          enabled: false
+        },
+        pointLabels: {
+          //
+          display: true,
+          fontSize: 10
         },
         scale: {
           ticks: {
+            // メモリ線を表示しない
+            display: false,
+            // 0からの表示を有効可
             beginAtZero: true,
+            // 最小値を0に固定
             min: 0,
+            // 最大値を100に固定
             max: 100
           }
         }
