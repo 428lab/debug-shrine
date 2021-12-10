@@ -4,11 +4,10 @@
       <div class="col border-end">
         <div class="row">
           <div class="col-3">
-            <img src="http://placehold.it/460x460" alt="userName" class="w-100">
+            <img :src="photoURL" alt="userName" class="w-100 rounded">
           </div>
           <div class="col-9">
-            <p class="fs-3">userNickname</p>
-            <p class="fs-4">userName</p>
+            <p class="fs-3">{{ userName }}</p>
           </div>
         </div>
       </div>
@@ -35,3 +34,34 @@
     </div>
   </main>
 </template>
+
+<script>
+import { getAuth, onAuthStateChanged, ProviderId } from 'firebase/auth';
+
+export default {
+  data() {
+    return {
+      userName: "",
+      userNickname: "",
+      photoURL: ""
+    }
+  },
+  mounted() {
+    // gituhubユーザ情報取得
+    const auth = getAuth();
+
+    onAuthStateChanged(auth, (user) => {
+      // サインイン状態の確認
+      if ( user ) {
+        // サインインしている場合
+        user.providerData.forEach((profile) => {
+          if (profile.providerId == "github.com") {
+            this.userName = profile.displayName;
+            this.photoURL = profile.photoURL;
+          }
+        });
+      }
+    });
+  }
+}
+</script>
