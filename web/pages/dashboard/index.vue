@@ -4,19 +4,19 @@
       <div class="col border-end">
         <div class="row">
           <div class="col-3">
-            <img :src="photoURL" alt="userName" class="w-100 rounded">
+            <img :src="user.photoURL" alt="userName" class="w-100 rounded">
           </div>
           <div class="col-9">
-            <p class="fs-3">{{ userName }}</p>
+            <p class="fs-3">{{ user.userNickname }}</p>
             <div class="badge bg-secondary">新人コントリビューター</div>
             <div class="badge bg-secondary">称号２</div>
           </div>
         </div>
       </div>
       <div class="col">
-        <p class="fs-5">RANK 12</p>
+        <p class="fs-5">RANK {{ user.level }}</p>
         <div class="progress">
-          <div class="progress-bar progress-bar-striped" role="progressbar" style="width: 10%" aria-valuenow="10" aria-valuemin="0" aria-valuemax="100"></div>
+          <div class="progress-bar progress-bar-striped" role="progressbar" style="width: 10%" aria-valuenow="10" aria-valuemin="0" aria-valuemax="100">{{ user.experiencePoint }}exp</div>
         </div>
         <p class="text-end w-100">NEXT 2234EXP</p>
       </div>
@@ -75,9 +75,25 @@ export default {
   components: { RadarChart },
   data() {
     return {
-      userName: "",
-      userNickname: "",
-      photoURL: "",
+      user: {
+        // ユーザー名（未使用）
+        userName: "",
+        // ユーザーニックネーム
+        userNickname: "",
+        // ユーザー画像URL
+        photoURL: "",
+        // 経験値
+        experiencePoint: 0,
+        // レベル
+        level: 0,
+        // ポイント
+        point: 0,
+        // 称号
+        titles: [
+          "newContributor",
+          "newContributor"
+        ]
+      },
       chartData: {
         labels: ["ちから", "たいりょく", "しゅびりょく", "きようさ", "すばやさ", "かしこさ"],
         datasets: [{
@@ -107,11 +123,6 @@ export default {
           // ツールチップを表示しない
           enabled: false
         },
-        pointLabels: {
-          //
-          display: true,
-          fontSize: 10
-        },
         scale: {
           ticks: {
             // メモリ線を表示しない
@@ -138,8 +149,8 @@ export default {
         user.providerData.forEach((profile) => {
           // プロバイダーデータの取得
           if (profile.providerId == "github.com") {
-            this.userName = profile.displayName;
-            this.photoURL = profile.photoURL;
+            this.user.userNickname = profile.displayName;
+            this.user.photoURL = profile.photoURL;
           }
         });
       } else {
