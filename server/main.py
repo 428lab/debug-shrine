@@ -6,3 +6,5 @@ import model.activities as activities
 
 test = activities.activities()
 test.get_activities_from_github('ShinoharaTa')
+test.firebase_test()
+

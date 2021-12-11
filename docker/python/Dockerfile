@@ -16,5 +16,7 @@ RUN pip install --upgrade pip
 RUN pip install --upgrade setuptools
 RUN pip install scipy
 RUN pip install matplotlib
+RUN pip install firebase-admin
+RUN pip install python-dotenv
 
 WORKDIR /var/www/src

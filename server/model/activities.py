@@ -3,7 +3,15 @@
 
 import requests
 import datetime
+import os
+import json
 
+import firebase_admin
+from firebase_admin import credentials
+from firebase_admin import firestore
+
+from dotenv import load_dotenv
+load_dotenv()
 class activities:
 
     def __init__(self):
@@ -37,5 +45,15 @@ class activities:
     def get_activities_from_github(self, user_name):
         payload = {"Accept": "application/vnd.github.v3+json"}
         response = requests.get('https://api.github.com/users/' + user_name + '/events/public?per_page=100', headers=payload).json()
-        # print(response)
         return response
+
+    def firebase_test(self):
+        cred = credentials.Certificate(json.loads(os.getenv("FIREBASE_KEY")))
+        app = firebase_admin.initialize_app(cred)
+
+        db = firestore.client()
+        ref = db.collection(u'products')
+        docs = ref.stream()
+
+        for doc in docs:
+            print(u'{} => {}'.format(doc.id, doc.to_dict()))
