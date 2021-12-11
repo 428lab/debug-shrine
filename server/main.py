@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import GitHubActivities
+import model.activities as activities
 
-itemFilter = ["IssuesEvent"]
+# itemFilter = ["IssuesEvent"]
 
-test = GitHubActivities.GitHubActivities()
-test.get_activities('ShinoharaTa', itemFilter)
+test = activities.activities()
+test.get_activities_from_github('ShinoharaTa')
