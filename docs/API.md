@@ -8,17 +8,13 @@
 
 ## ユーザーログイン・登録
 
-POST：`/login`
+POST：`/update`
 
-GitHubログイン後のユーザー情報を使用する。
-ユーザーがなければ作り、あったら更新。（Upsertする）
+GitHubのアクティビティを取得、firestoreを更新(backend)
 
 ### 必須パラメータ
 
-- Authトークン
-- id
-- userName
-- imagePath
+- firebase.Authトークン
 
 ### レスポンス
 
@@ -29,7 +25,6 @@ status:200のみ
 POST：`/activities`
 
 ユーザーアクティビティの取得
-DBとの差分比較も行うため、時間がかかるとは思われる。
 
 ### 必須パラメータ
 
@@ -38,6 +33,7 @@ DBとの差分比較も行うため、時間がかかるとは思われる。
 ### レスポンス
 
 - activities_count: 参拝可否を返す。ない場合は0
+- github_update: 現在更新中か、更新してるなら1, してないなら0
 - last_action: 最終の貢献日時、ない場合は空白文字列
 
 ## マイページ情報取得
