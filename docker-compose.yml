@@ -8,6 +8,9 @@ services:
     tty: true
     ports:
       - "127.0.0.1:8080:80"
+    environment:
+      FLASK_ENV: development
+    command: sh -c "python main.py"
   node:
     build: 
       context: ./docker/nodejs
@@ -16,3 +19,7 @@ services:
     tty: true
     ports:
       - 3000:3000
+    environment:
+      PORT: 3000
+      HOST: 0.0.0.0
+    command: sh -c "yarn install && yarn dev"

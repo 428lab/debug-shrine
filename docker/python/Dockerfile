@@ -20,4 +20,6 @@ RUN pip install firebase-admin
 RUN pip install python-dotenv
 RUN pip install flask
 
+EXPOSE 80
+
 WORKDIR /var/www/server
