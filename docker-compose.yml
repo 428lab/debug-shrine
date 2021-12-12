@@ -8,3 +8,11 @@ services:
     tty: true
     ports:
       - "127.0.0.1:8080:80"
+  node:
+    build: 
+      context: ./docker/nodejs
+    volumes:
+      - ./web:/var/www
+    tty: true
+    ports:
+      - 3000:3000
