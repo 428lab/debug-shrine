@@ -18,5 +18,6 @@ RUN pip install scipy
 RUN pip install matplotlib
 RUN pip install firebase-admin
 RUN pip install python-dotenv
+RUN pip install flask
 
-WORKDIR /var/www/src
+WORKDIR /var/www/server
