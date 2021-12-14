@@ -36,7 +36,7 @@
         <div class="row my-2 gap-2">
           <div class="col-4 bg-light p-3 rounded">
             <h5>つよさ</h5>
-            <RadarChart :chartData="chartData" :options="options" />
+            <RadarChart :chartData="chartData" />
           </div>
           <div class="col bg-light p-3 rounded">
             <h5>ポイント獲得履歴</h5>
@@ -108,34 +108,6 @@ export default {
           pointHoverBackgroundColor: '#fff',
           pointHoverBorderColor: 'rgb(255, 99, 132)'
         }]
-      },
-      options: {
-        animation: {
-          // アニメーション実行時間（ms）
-          duration: 1000,
-          // イージング指定（https://easings.net/）
-          easing: "easeInOutCirc"
-        },
-        legend: {
-          // 凡例を表示しない
-          display: false
-        },
-        tooltips: {
-          // ツールチップを表示しない
-          enabled: false
-        },
-        scale: {
-          ticks: {
-            // メモリ線を表示しない
-            display: false,
-            // 0からの表示を有効可
-            beginAtZero: true,
-            // 最小値を0に固定
-            min: 0,
-            // 最大値を100に固定
-            max: 100
-          }
-        }
       }
     }
   },
