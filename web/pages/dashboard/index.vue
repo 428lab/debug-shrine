@@ -29,6 +29,7 @@
           </a>
           <a href="#" class="list-group-item list-group-item-action">Profile Setting</a>
           <a href="#" class="list-group-item list-group-item-action">Acount Setting</a>
+          <a href="#" class="list-group-item list-group-item-action" @click="logout">Acount Setting</a>
         </div>
       </div>
       <div class="col">
@@ -158,6 +159,11 @@ export default {
         redirect('/');
       }
     });
+  },
+  methods: {
+    logout: function() {
+      this.$store.commit('logout');
+    }
   }
 }
 </script>

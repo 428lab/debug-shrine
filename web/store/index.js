@@ -1,3 +1,5 @@
+import { getAuth, signOut } from 'firebase/auth';
+
 export const state = () => ({
   user: null
 })
@@ -7,7 +9,16 @@ export const mutations = {
     state.user = user
   },
   logout(state) {
-    state.user = null
+    const auth = getAuth();
+
+    signOut(auth).then(() => {
+      console.log("LOGOUT");
+
+      state.user = null;
+
+      // redirect
+      this.$router.push('/');
+    });
   }
 }
 
