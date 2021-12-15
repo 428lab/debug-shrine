@@ -73,6 +73,7 @@ import { getAuth, getMultiFactorResolver, onAuthStateChanged, ProviderId } from 
 import RadarChart from '@/components/charts/powerChart.vue';
 
 export default {
+  middleware: 'auth',
   components: { RadarChart },
   data() {
     return {
