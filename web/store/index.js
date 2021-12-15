@@ -4,21 +4,26 @@ export const state = () => ({
   user: null
 })
 
+export const actions = {
+  async logout({ commit }) {
+    // ログアウト処理の呼び出し
+    await commit('logout');
+
+    // ログアウト後リダイレクト処理
+    this.$router.push('/');
+  }
+}
+
 export const mutations = {
   login(state, user) {
     state.user = user
   },
-  logout(state) {
+  async logout(state) {
+    // 認証インスタンスの取得
     const auth = getAuth();
 
-    signOut(auth).then(() => {
-      console.log("LOGOUT");
-
-      state.user = null;
-
-      // redirect
-      this.$router.push('/');
-    });
+    // ログアウト処理
+    await signOut(auth);
   }
 }
 

@@ -126,15 +126,12 @@ export default {
             this.user.photoURL = profile.photoURL;
           }
         });
-      } else {
-        // 非ログイン時 トップページへリダイレクト
-        redirect('/');
       }
     });
   },
   methods: {
     logout: function() {
-      this.$store.commit('logout');
+      this.$store.dispatch('logout');
     }
   }
 }
