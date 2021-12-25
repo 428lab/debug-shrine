@@ -1,4 +1,4 @@
-import createPersistedState from 'vuex-persistedstate'
+// import createPersistedState from 'vuex-persistedstate'
 import { getAuth, signOut, deleteUser } from 'firebase/auth';
 
 export const state = () => ({
@@ -24,6 +24,7 @@ export const actions = {
   async logout({ commit }) {
     const auth = getAuth();
     await signOut(auth);
+    commit("clear");
     this.$router.push('/');
   },
   async deleateUser({ commit }) {
@@ -31,5 +32,6 @@ export const actions = {
     const user = auth.currentUser;
     await deleateUser(user);
     commit("clear");
+    this.$router.push('/');
   }
 }

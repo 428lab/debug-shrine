@@ -21,7 +21,7 @@ import { mapGetters } from "vuex";
 
 export default {
   // middlewareでセッションチェックを行い、GitHubのログインチェックをしない
-  middleware: ['auth'],
+  // middleware: ['auth'],
   data () {
     return {
     }
