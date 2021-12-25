@@ -13,29 +13,23 @@ export default {
           easing: "easeInOutCirc"
         },
         legend: {
-          // 凡例を表示しない
           display: false
         },
         tooltips: {
-          // ツールチップを表示しない
           enabled: false
         },
         scale: {
           ticks: {
-            // メモリ線を表示しない
             display: false,
-            // 0からの表示を有効可
             beginAtZero: true,
-            // 最小値を0に固定
             min: 0,
-            // 最大値を100に固定
             max: 100
           }
         }
       }
     }
   },
-  props:['chartData'],
+  props:['chartData', 'chartConfig'],
   mounted() {
     this.renderChart(this.chartData, this.options);
   }

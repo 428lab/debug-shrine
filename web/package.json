@@ -19,7 +19,8 @@
     "matter-js": "^0.17.1",
     "nuxt": "^2.14.6",
     "poly-decomp": "^0.3.0",
-    "vue-chartjs": "^3.5.1"
+    "vue-chartjs": "^3.5.1",
+    "vuex-persistedstate": "^4.1.0"
   },
   "devDependencies": {}
 }

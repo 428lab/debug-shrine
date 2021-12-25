@@ -1,11 +1,11 @@
 <template>
   <div class="text-center">
-    <a class="btn btn-success" :href="`/result/` + `0123456789`">
+    <button class="btn btn-success" @click="sanpai">
       ダブルタップして祈る
-    </a>
+    </button>
     <div id="testLabel">Testing</div>
     <div id="drawhere"></div>
-    debug:{{JSON.stringify(debug)}}
+    debug:{{ JSON.stringify(debug) }}
   </div>
 </template>
 
@@ -24,22 +24,22 @@ import {
   Mouse,
   MouseConstraint,
   Query,
-  Common
+  Common,
 } from "matter-js";
 import decomp from "poly-decomp";
 export default {
-  data: function() {
+  data: function () {
     return {
       debug: null,
       canvasProp: {
-        wallWidth: 1
-      }
+        wallWidth: 1,
+      },
     };
   },
   computed: {
     myObjStyle(top, left) {
       return `position:absolute;top:${top};left:${left}`;
-    }
+    },
   },
   mounted() {
     if (process.client) {
@@ -50,8 +50,8 @@ export default {
           enableSleeping: true,
           timing: {
             //timestamp: 0.5,
-            timeScale: 0.5
-          }
+            timeScale: 0.5,
+          },
         },
         renderOptions = {
           width,
@@ -75,7 +75,7 @@ export default {
           showVertexNumbers: false,
           showConvexHulls: false,
           showInternalEdges: false,
-          showMousePosition: true
+          showMousePosition: true,
         };
       // create an engine
       let engine = Engine.create(engineOptions),
@@ -84,7 +84,7 @@ export default {
       var render = Render.create({
         element: document.querySelector("#drawhere"),
         engine,
-        options: renderOptions
+        options: renderOptions,
       });
       //Bootstrap Mouse Controls
       // add mouse control
@@ -94,24 +94,24 @@ export default {
           constraint: {
             stiffness: 0.5,
             render: {
-              visible: true
-            }
-          }
+              visible: true,
+            },
+          },
         });
       World.add(world, mouseConstraint);
       // keep the mouse in sync with rendering
       render.mouse = mouse;
       // an example of using mouse events on a mouse
       var fsa = [];
-      Events.on(mouseConstraint, "startdrag", function(event) {
-        fsa = event.body.parts.map(v => v.render.fillStyle);
-        event.body.parts = event.body.parts.map(v => {
+      Events.on(mouseConstraint, "startdrag", function (event) {
+        fsa = event.body.parts.map((v) => v.render.fillStyle);
+        event.body.parts = event.body.parts.map((v) => {
           v.render.fillStyle = "#FF0000";
           return v;
         });
         //console.log("startdrag", fsa);
       });
-      Events.on(mouseConstraint, "enddrag", function(event) {
+      Events.on(mouseConstraint, "enddrag", function (event) {
         event.body.parts.map(
           (v, i) => (event.body.parts[i].render.fillStyle = fsa[i])
         );
@@ -150,7 +150,7 @@ export default {
       World.add(world, [leftWall, rightWall, topWall, bottomWall]);
       // Moving Stick
       var boxA = Bodies.rectangle(width / 2, height / 2, width / 4, 16, {
-        isStatic: false
+        isStatic: false,
       });
       Body.setAngularVelocity(boxA, Math.PI / 18);
       Body.setVelocity(boxA, { x: -10, y: -10 });
@@ -169,7 +169,7 @@ export default {
         { isStatic: true }
       );
       // add all of the bodies to the world
-      Events.on(boxA, "sleepEnd", e => console.log);
+      Events.on(boxA, "sleepEnd", (e) => console.log);
       World.add(world, [boxA, boxB, ball]);
       //Trying Chiainign
       var boxes = Composites.stack(
@@ -184,7 +184,7 @@ export default {
       var chain = Composites.chain(boxes, 0, 0, 0.1, 0.1, {
         dampening: 1,
         stiffness: 1,
-        render: { strokeStyle: "transparent", lineWidth: 0 }
+        render: { strokeStyle: "transparent", lineWidth: 0 },
       });
       Composite.add(
         boxes,
@@ -196,8 +196,8 @@ export default {
           dampening: 1,
           render: {
             strokeStyle: "transparent",
-            type: "line"
-          }
+            type: "line",
+          },
         })
       );
       World.add(world, chain);
@@ -209,7 +209,7 @@ export default {
           "#4ECDC4",
           "#C7F464",
           "#FF6B6B",
-          "#C44D58"
+          "#C44D58",
         ]),
         jf = Bodies.fromVertices(
           width / 2,
@@ -219,8 +219,8 @@ export default {
             render: {
               fillStyle: jfColor,
               strokeStyle: "transparent",
-              lineWidth: 0
-            }
+              lineWidth: 0,
+            },
           },
           true
         );
@@ -236,11 +236,11 @@ export default {
           strokeStyle: jfColor,
           type: "line",
           anchors: true,
-          visible: true
-        }
+          visible: true,
+        },
       });
       World.add(world, [jf, jfConstraint]);
-      Events.on(render, "afterRender", e => {
+      Events.on(render, "afterRender", (e) => {
         let el = document.querySelector("#testLabel");
         el.style.position = "absolute";
         el.style.top = `${boxes.bodies[0].position.y - el.clientHeight / 2}px`;
@@ -251,6 +251,11 @@ export default {
       // run the renderer
       Render.run(render);
     }
-  }
+  },
+  methods: {
+    sanpai() {
+      this.$router.push("/result/" + "0123456789");
+    },
+  },
 };
 </script>

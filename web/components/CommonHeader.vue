@@ -1,7 +1,7 @@
 <template>
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container-fluid">
-      <a class="navbar-brand" href="/">デバッグ神社</a>
+      <nuxt-link class="navbar-brand" to="/">デバッグ神社</nuxt-link>
       <button
         class="navbar-toggler"
         type="button"
@@ -17,8 +17,8 @@
         <ul class="navbar-nav me-auto mb-2 mb-lg-0"></ul>
         <ul class="navbar-nav mb-2 mb-lg-0" v-if="isLogin">
           <li class="nav-item">
-            <a class="nav-link active" aria-current="page" href="#"
-              >マイページ</a
+            <nuxt-link class="nav-link active" aria-current="page" to="/dashboard"
+              >マイページ</nuxt-link
             >
           </li>
           <li class="nav-item">
@@ -39,6 +39,9 @@ export default {
   data() {
     return {};
   },
+  mounted() {
+    console.log(this.isLogin);
+  },
   methods: {
     logout() {
       this.$store.dispatch("logout");
@@ -48,3 +51,4 @@ export default {
     ...mapGetters(["isLogin"]),
   },
 };
+</script>

@@ -1,45 +1,39 @@
 <template>
-  <main class="container">
-    <div class="bg-light p-5 row align-items-center">
-      <div class="col border-end">
-        <div class="row">
-          <div class="col-3">
-            <img :src="user.photoURL" alt="userName" class="w-100 rounded">
-          </div>
-          <div class="col-9">
-            <p class="fs-3">{{ user.userNickname }}</p>
-            <div class="badge bg-secondary">新人コントリビューター</div>
-            <div class="badge bg-secondary">称号２</div>
-          </div>
+  <main class="container p-3">
+    <div class="bg-light p-3">
+      <div class="row">
+        <div class="col-3">
+          <img :src="user.photoURL" alt="userName" class="w-100 rounded" />
         </div>
-      </div>
-      <div class="col">
-        <p class="fs-5">RANK {{ user.level }}</p>
-        <div class="progress">
-          <div class="progress-bar progress-bar-striped" role="progressbar" style="width: 10%" aria-valuenow="10" aria-valuemin="0" aria-valuemax="100">{{ user.experiencePoint }}exp</div>
+        <div class="col-9">
+          <p class="fs-3">{{ user.userNickname }}</p>
+          <div class="badge bg-secondary">新人コントリビューター</div>
+          <div class="badge bg-secondary">称号２</div>
         </div>
-        <p class="text-end w-100">NEXT 2234EXP</p>
       </div>
     </div>
-    <div class="row">
-      <div class="col-3 my-2 py-0 ps-0 pe-2">
-        <div class="list-group">
-          <a href="#" class="list-group-item list-group-item-action active" aria-current="true">
-            DASHBOARD
-          </a>
-          <a href="#" class="list-group-item list-group-item-action">Profile Setting</a>
-          <a href="#" class="list-group-item list-group-item-action">Acount Setting</a>
-          <a href="#" class="list-group-item list-group-item-action" @click="logout">Acount Setting</a>
+    <div class="bg-light mt-3 p-3">
+      <p class="fs-5">RANK {{ user.level }}</p>
+      <div class="progress">
+        <div
+          class="progress-bar p-2"
+          role="progressbar"
+          style="width: 30%"
+          aria-valuenow="10"
+          aria-valuemin="0"
+          aria-valuemax="100"
+        >
+          {{ user.experiencePoint }}exp
         </div>
       </div>
-      <div class="col">
-        <div class="row my-2 gap-2">
-          <div class="col-4 bg-light p-3 rounded">
-            <h5>つよさ</h5>
-            <RadarChart :chartData="chartData" />
-          </div>
-          <div class="col bg-light p-3 rounded">
-            <h5>ポイント獲得履歴</h5>
+      <p class="text-end w-100">NEXT 2234EXP</p>
+    </div>
+    <div class="bg-light mt-3 p-3 rounded">
+      <h5>つよさ</h5>
+      <RadarChart :chartData="chartData" />
+    </div>
+    <div class="col bg-light p-3 rounded">
+      <!-- <h5>ポイント獲得履歴</h5>
             <div class="list-group list-group-flush">
               <div class="list-group list-group-flush">
                 <div class="list-group-item">
@@ -54,26 +48,22 @@
                   <small class="text-muted">428lab/debug-shrine</small>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-        <div class="row my-2">
-          <div class="col bg-light p-3 rounded">
-            <h5>アクティビティ</h5>
-
-          </div>
-        </div>
-      </div>
+            </div> -->
     </div>
   </main>
 </template>
 
 <script>
-import { getAuth, getMultiFactorResolver, onAuthStateChanged, ProviderId } from 'firebase/auth';
-import RadarChart from '@/components/charts/powerChart.vue';
+import {
+  getAuth,
+  getMultiFactorResolver,
+  onAuthStateChanged,
+  ProviderId,
+} from "firebase/auth";
+import RadarChart from "@/components/charts/powerChart.vue";
 
 export default {
-  middleware: 'auth',
+  middleware: "auth",
   components: { RadarChart },
   data() {
     return {
@@ -91,26 +81,32 @@ export default {
         // ポイント
         point: 0,
         // 称号
-        titles: [
-          "newContributor",
-          "newContributor"
-        ]
+        titles: ["newContributor", "newContributor"],
       },
       chartData: {
-        labels: ["ちから", "たいりょく", "しゅびりょく", "きようさ", "すばやさ", "かしこさ"],
-        datasets: [{
-          type: "radar",
-          data: [50, 30, 40, 20, 45, 25],
-          fill: true,
-          backgroundColor: 'rgba(255, 99, 132, 0.2)',
-          borderColor: 'rgb(255, 99, 132)',
-          pointBackgroundColor: 'rgb(255, 99, 132)',
-          pointBorderColor: '#fff',
-          pointHoverBackgroundColor: '#fff',
-          pointHoverBorderColor: 'rgb(255, 99, 132)'
-        }]
-      }
-    }
+        labels: [
+          "ちから",
+          "たいりょく",
+          "しゅびりょく",
+          "きようさ",
+          "すばやさ",
+          "かしこさ",
+        ],
+        datasets: [
+          {
+            type: "radar",
+            data: [50, 30, 40, 20, 45, 25],
+            fill: true,
+            backgroundColor: "rgba(255, 99, 132, 0.2)",
+            borderColor: "rgb(255, 99, 132)",
+            pointBackgroundColor: "rgb(255, 99, 132)",
+            pointBorderColor: "#fff",
+            pointHoverBackgroundColor: "#fff",
+            pointHoverBorderColor: "rgb(255, 99, 132)",
+          },
+        ],
+      },
+    };
   },
   mounted() {
     // gituhubユーザ情報取得
@@ -118,7 +114,7 @@ export default {
 
     onAuthStateChanged(auth, (user) => {
       // サインイン状態の確認
-      if ( user ) {
+      if (user) {
         // サインインしている場合
         user.providerData.forEach((profile) => {
           // プロバイダーデータの取得
@@ -131,9 +127,9 @@ export default {
     });
   },
   methods: {
-    logout: function() {
-      this.$store.dispatch('logout');
-    }
-  }
-}
+    logout: function () {
+      this.$store.dispatch("logout");
+    },
+  },
+};
 </script>
