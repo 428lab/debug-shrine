@@ -1,0 +1,31 @@
+.text-twitter {
+  color: #1da1f2;
+}
+.text-facebook {
+  color: #1778f2;
+}
+.text-hatena {
+  color: #1da1f2;
+}
+.text-github {
+  color: #333;
+}
+.text-connpass {
+  color: #666;
+}
+
+.bg-twitter {
+  background-color: #1da1f2;
+}
+.bg-facebook {
+  background-color: #1778f2;
+}
+.bg-line {
+  background-color: #00B900;
+}
+.bg-hatena {
+  background-color: #1da1f2;
+}
+.bg-github {
+  background-color: #333;
+}

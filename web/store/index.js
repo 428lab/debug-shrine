@@ -23,7 +23,7 @@ export const actions = {
 
 export const mutations = {
   login(state, user) {
-    state.user = user
+    state.user = user;
   },
   async logout(state) {
     // 認証インスタンスの取得

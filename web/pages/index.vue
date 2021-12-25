@@ -3,7 +3,7 @@
     <div class="my-5 px-5 outer">
       <img src="/shrine.png" alt="" class="img-fluid shrine">
       <div class="inner">
-        <button @click="GitHubAuth" class="btn btn-lg btn-success py-4 px-5" v-if="isLogin">
+        <button @click="GitHubAuth" class="btn btn-lg btn-success py-4 px-5" v-if="!isLogin">
           GitHubにログインして<br>
           おみくじを引く
         </button>
@@ -21,6 +21,7 @@ import { mapGetters } from "vuex";
 
 export default {
   // middlewareでセッションチェックを行い、GitHubのログインチェックをしない
+  middleware: ['auth'],
   data () {
     return {
     }
@@ -41,7 +42,7 @@ export default {
     }
   },
   computed: {
-    ...mapGetters["isLogin"]
+    ...mapGetters(["isLogin"])
   }
 }
 

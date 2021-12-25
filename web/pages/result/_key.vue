@@ -8,9 +8,9 @@
       {{ omikujiNo }}
     </p>
     <div>SNSで結果をシェア</div>
-    <button>Twitter</button>
-    <button>Facebook</button>
-    <button>LINE</button>
+    <a href="#" class="btn btn-large text-white bg-twitter">Twitter</a>
+    <a href="#" class="btn btn-large text-white bg-facebook">Facebook</a>
+    <a href="#" class="btn btn-large text-white bg-line">LINE</a>
   </div>
 </template>
 
