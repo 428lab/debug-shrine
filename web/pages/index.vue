@@ -1,14 +1,44 @@
 <template>
-  <div class="text-center">
-    <div class="my-5 px-5 outer">
-      <img src="/shrine.png" alt="" class="img-fluid shrine">
-      <div class="inner">
-        <button @click="GitHubAuth" class="btn btn-lg btn-success py-4 px-5" v-if="!isLogin">
-          GitHubにログインして<br>
-          おみくじを引く
+  <div>
+    <div class="container py-5">
+      <h1>でばっぐ神社とは</h1>
+      <div>あらましをここに書く。</div>
+      <div class="text-center mt-5">
+        <button @click="GitHubAuth" class="btn btn-lg btn-primary">
+          GitHubでログインして<br />
+          参拝する
         </button>
-        <button @click="GitHubAuth" class="btn btn-lg btn-success py-4 px-5" v-else>
-          おみくじを引く
+      </div>
+    </div>
+    <div class="bg-github py-5">
+      <div class="container">
+        <div class="row align-items-center">
+          <div class="col resizeimage">
+            <img src="/github.svg" class="img-fluid" />
+          </div>
+          <div class="col resizeimage">
+            <img src="/activity.svg" class="img-fluid" />
+          </div>
+          <div class="col resizeimage">
+            <img src="/shrine.png" class="img-fluid" />
+          </div>
+        </div>
+        <div>
+          <h1 class="text-white">GitHub Avtivityと連携</h1>
+        </div>
+      </div>
+    </div>
+    <div class="container py-5">
+      <h1>レーダーチャートであなたの活動を可視化</h1>
+    </div>
+    <div class="container py-5">
+      <h1>プロフィールがそのまま名刺になる</h1>
+    </div>
+    <div class="py-5 px-5">
+      <div class="text-center">
+        <button @click="GitHubAuth" class="btn btn-lg btn-primary">
+          GitHubでログインして<br />
+          参拝する
         </button>
       </div>
     </div>
@@ -21,47 +51,34 @@ import { mapGetters } from "vuex";
 
 export default {
   // middlewareでセッションチェックを行い、GitHubのログインチェックをしない
-  // middleware: ['auth'],
-  data () {
-    return {
-    }
+  middleware: ['auth'],
+  data() {
+    return {};
   },
   methods: {
-    GitHubAuth () {
-      const provider = new GithubAuthProvider()
-      const auth = getAuth()
+    GitHubAuth() {
+      const provider = new GithubAuthProvider();
+      const auth = getAuth();
       signInWithPopup(auth, provider)
         .then((result) => {
-          this.$store.commit('login', "is_login")
+          this.$store.commit("login", "is_login");
           // resultはAPIアクセス
           // その結果をもっておみくじを引く
-          this.$router.push({ path: '/omikuji' })
-        }).catch((error) => {
-          console.error(error)
+          this.$router.push({ path: "/omikuji" });
         })
-    }
+        .catch((error) => {
+          console.error(error);
+        });
+    },
   },
   computed: {
-    ...mapGetters(["isLogin"])
-  }
-}
-
+    ...mapGetters(["isLogin"]),
+  },
+};
 </script>
 
 <style scoped>
-.shrine {
-  opacity: 0.3;
+.resizeimage img {
+  width: 100%;
 }
-.outer {
-  position: relative;
-}
-.inner{
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  margin: auto;
-  width: 80%;
-  height: 3.2rem;}
 </style>
