@@ -4,7 +4,6 @@ services:
   firebase:
     build: .
     container_name: firebase-templete
-    env_file: ./.env
     ports:
       - 4000:4000 # Emulator Suite UI
       - 5000:5000 # Firebase Hosting

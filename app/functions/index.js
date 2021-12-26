@@ -2,7 +2,8 @@ const functions = require("firebase-functions")
 const axios = require('axios')
 var moment = require("moment")
 
-const env = process.env
+const client_id = functions.config().github.client_id
+const client_secret = functions.config().github.client_secret
 
 // Create and Deploy Your First Cloud Functions
 // https://firebase.google.com/docs/functions/write-firebase-functions
@@ -22,7 +23,7 @@ function get_level(points) {
 
 async function get_feed(user, per_page=100) {
   try {
-    url = `https://api.github.com/users/${user}/events/public?per_page=${per_page}&client_id=${env.client_id}&client_secret=${env.client_secret}`
+    url = `https://api.github.com/users/${user}/events/public?per_page=${per_page}&client_id=${client_id}&client_secret=${client_secret}`
     const res = await axios.get(url);
     const items = res.data;
     return items
