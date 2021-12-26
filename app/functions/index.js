@@ -119,7 +119,7 @@ exports.status = functions.https.onRequest(async (request, response) => {
     hp += continuous_count * 2
   }
 
-　var json = {}
+  var json = {}
   json["user"] = request.query.user
 
   json["points"] = hp + power + intelligence + defence + agility
