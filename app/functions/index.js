@@ -35,6 +35,7 @@ async function get_feed(user, per_page=100) {
 
 
 exports.status = functions.https.onRequest(async (request, response) => {
+  response.set("Access-Control-Allow-Origin", "*")
   functions.logger.info("status", {structuredData: true})
   functions.logger.info(request.query.user, {structuredData: true})
   const items = await get_feed(request.query.user)
