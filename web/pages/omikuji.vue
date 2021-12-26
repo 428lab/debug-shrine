@@ -1,8 +1,30 @@
 <template>
   <div class="text-center">
-    <button class="btn btn-success" @click="sanpai">
-      ダブルタップして祈る
-    </button>
+    <div class="container py-5">
+      <h1>参拝ありがとう！</h1>
+      <h2>ポイントを獲得しました</h2>
+      <h2>＋20 exp</h2>
+      <p class="fs-5">RANK {{ 20 }}</p>
+      <div class="progress">
+        <div
+          class="progress-bar p-2"
+          role="progressbar"
+          style="width: 30%"
+          aria-valuenow="10"
+          aria-valuemin="0"
+          aria-valuemax="100"
+        >
+          {{ 20 }}exp
+        </div>
+      </div>
+      <p class="text-end w-100">NEXT 2234EXP</p>
+    </div>
+    <!-- <button class="btn btn-lg btn-primary" @click="sanpai">
+      マイページを見る
+    </button> -->
+    <nuxt-link class="btn btn-lg btn-primary" to="/dashboard">
+      マイページを見る
+    </nuxt-link>
     <!-- <div id="testLabel">Testing</div>
     <div id="drawhere"></div> -->
     <!-- debug:{{ JSON.stringify(debug) }} -->

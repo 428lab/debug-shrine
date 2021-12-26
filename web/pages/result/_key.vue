@@ -7,10 +7,7 @@
     <p>
       {{ omikujiNo }}
     </p>
-    <div>SNSで結果をシェア</div>
-    <a href="#" class="btn btn-large text-white bg-twitter">Twitter</a>
-    <a href="#" class="btn btn-large text-white bg-facebook">Facebook</a>
-    <a href="#" class="btn btn-large text-white bg-line">LINE</a>
+    <Share title="SNSでシェア"></Share>
   </div>
 </template>
 
