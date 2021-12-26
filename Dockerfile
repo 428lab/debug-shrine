@@ -1,4 +1,4 @@
-FROM node:16
+FROM node:16-buster-slim
 
 RUN apt-get update && \
     apt-get -y install locales && \
@@ -9,9 +9,12 @@ ENV LC_ALL ja_JP.UTF-8
 ENV TZ JST-9
 ENV TERM xterm
 ENV HOST 0.0.0.0
-EXPOSE 3000
 
 RUN apt-get update && \
     apt-get install -y vim less
 
-WORKDIR /var/www
+RUN apt-get install -y curl openjdk-11-jre-headless
+
+RUN npm install -g firebase-tools
+
+WORKDIR /app

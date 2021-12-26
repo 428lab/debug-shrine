@@ -1,25 +1,25 @@
 version: '3'
+
 services:
-  python:
-    build:
-      context: ./docker/python
-    volumes:
-      - ./server:/var/www/server
-    tty: true
+  firebase:
+    build: .
+    container_name: firebase-templete
     ports:
-      - "127.0.0.1:8080:80"
-    environment:
-      FLASK_ENV: development
-    command: sh -c "python main.py"
-  node:
-    build: 
-      context: ./docker/nodejs
+      - 4000:4000 # Emulator Suite UI
+      - 5000:5000 # Firebase Hosting
+      - 5001:5001 # Clound Functions
+      - 8080:8080 # Cloud Firestore
+      - 9005:9005
+      - 9099:9099 # auth emulator
+      - 9199:9199 # storage emulator
+#      - 8085:8085 # Cloud Pub/Sub
+#      - 9000:9000 # Realtime Database
     volumes:
-      - ./web:/var/www
+      - ./firebase/emulators/:/app:cached
+      - ./firebase/bin/:/root/.cache:cached
+      - ./firebase/config/:/root/.config:cached
+      - ./app:/app
+    working_dir: /app
     tty: true
-    ports:
-      - 3000:3000
-    environment:
-      PORT: 3000
-      HOST: 0.0.0.0
-    command: sh -c "yarn install && yarn dev"
+    stdin_open: true
+    command: /bin/bash
