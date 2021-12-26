@@ -133,5 +133,5 @@ exports.status = functions.https.onRequest(async (request, response) => {
   level = get_level(points)
   json["level"] = level
 
-  response.json(JSON.stringify(json))
+  response.json(json)
 })
