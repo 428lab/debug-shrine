@@ -22,7 +22,7 @@ function get_level(points) {
 
 async function get_feed(user, per_page=100) {
   try {
-    url = `https://api.github.com/users/${user}/events/public?per_page=${per_page}&client_id=${env.CLIENT_ID}&client_secret=${env.CLIENT_SECRET}`
+    url = `https://api.github.com/users/${user}/events/public?per_page=${per_page}&client_id=${env.client_id}&client_secret=${env.client_secret}`
     const res = await axios.get(url);
     const items = res.data;
     return items
