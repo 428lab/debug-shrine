@@ -61,6 +61,7 @@ import {
   ProviderId,
 } from "firebase/auth";
 import RadarChart from "@/components/charts/powerChart.vue";
+import axios from "axios";
 
 export default {
   middleware: "auth",
@@ -83,6 +84,47 @@ export default {
         // 称号
         titles: ["newContributor", "newContributor"],
       },
+    };
+  },
+  async asyncData() {
+    // gituhubユーザ情報取得
+    // const auth = getAuth();
+    // let screenName = "";
+    // onAuthStateChanged(auth, (user) => {
+    //   if (user) {
+    //     screenName = user.reloadUserInfo.screenName;
+    //     // return user;
+    //     // サインインしている場合
+    //     // user.providerData.forEach((profile) => {
+
+    //     // プロバイダーデータの取得
+    //     // if (profile.providerId == "github.com") {
+    //     // console.log(profile);
+    //     // this.user.userNickname = profile.displayName;
+    //     // this.user.photoURL = profile.photoURL;
+    //     // }
+    //     // });
+    //     console.log(screenName);
+
+    //     // if(user)
+    //     // console.log(this.user.userNickname);
+    //   }
+    // });
+    // this.chartData.datasets.data.push(userResponse.power);
+    let userResponse = await axios.get("status?user=ShinoharaTa");
+    console.log(userResponse);
+    let userChart = [];
+    userChart.push(userResponse.power);
+    userChart.push(userResponse.hp);
+    userChart.push(userResponse.defence);
+    userChart.push(userResponse.agility);
+    userChart.push(userResponse.intelligence);
+    let status = {
+      level: userResponse.level,
+      point: userResponse.point,
+    };
+    return {
+      status: status,
       chartData: {
         labels: [
           "ちから",
@@ -90,12 +132,12 @@ export default {
           "しゅびりょく",
           "きようさ",
           "すばやさ",
-          "かしこさ",
+          // "かしこさ",
         ],
         datasets: [
           {
             type: "radar",
-            data: [50, 30, 40, 20, 45, 25],
+            data: userChart,
             fill: true,
             backgroundColor: "rgba(255, 99, 132, 0.2)",
             borderColor: "rgb(255, 99, 132)",
@@ -107,24 +149,6 @@ export default {
         ],
       },
     };
-  },
-  mounted() {
-    // gituhubユーザ情報取得
-    const auth = getAuth();
-
-    onAuthStateChanged(auth, (user) => {
-      // サインイン状態の確認
-      if (user) {
-        // サインインしている場合
-        user.providerData.forEach((profile) => {
-          // プロバイダーデータの取得
-          if (profile.providerId == "github.com") {
-            this.user.userNickname = profile.displayName;
-            this.user.photoURL = profile.photoURL;
-          }
-        });
-      }
-    });
   },
   methods: {
     logout: function () {
