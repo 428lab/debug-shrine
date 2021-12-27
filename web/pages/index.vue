@@ -51,7 +51,7 @@ import { mapGetters } from "vuex";
 
 export default {
   // middlewareでセッションチェックを行い、GitHubのログインチェックをしない
-  middleware: ['auth'],
+  middleware: ["auth"],
   data() {
     return {};
   },
@@ -61,9 +61,16 @@ export default {
       const auth = getAuth();
       signInWithPopup(auth, provider)
         .then((result) => {
-          this.$store.commit("login", "is_login");
-          // resultはAPIアクセス
-          // その結果をもっておみくじを引く
+          console.log(result);
+          let userData = {
+            github_id: result.user.providerData[0].uid,
+            display_name: result.user.displayName,
+            screen_name: result._tokenResponse.screenName,
+            image_path: result.user.photoURL,
+          };
+          // console.log(userData);
+          this.$store.commit("login", userData);
+          this.$axios.post("register", userData);
           this.$router.push({ path: "/omikuji" });
         })
         .catch((error) => {
