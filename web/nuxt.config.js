@@ -48,6 +48,7 @@ export default {
     '@nuxtjs/axios',
     '@nuxtjs/pwa',
     '@nuxtjs/firebase',
+    '@nuxtjs/markdownit'
   ],
 
   firebase:
@@ -73,5 +74,10 @@ export default {
 
   // Build Configuration (https://go.nuxtjs.dev/config-build)
   build: {
+  },
+
+  markdownit: {
+    injected: true,   // $mdを使ってどこからでも使えるようになる
+    breaks: true      // 改行を<br>に変換してくれる
   }
 }

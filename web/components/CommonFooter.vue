@@ -5,10 +5,7 @@
       <div class="container">
         <div class="d-md-flex justify-content-center">
           <nuxt-link class="p-2 footer-link" to="/terms"> 利用規約 </nuxt-link>
-          <nuxt-link class="p-2 footer-link" to="/policy"> 免責事項 </nuxt-link>
-          <nuxt-link class="p-2 footer-link" to="/privacy">
-            プライバシーポリシー
-          </nuxt-link>
+          <nuxt-link class="p-2 footer-link" to="/privacy-policy"> プライバシーポリシー </nuxt-link>
         </div>
         <div class="mt-3">
           Copyright 2021 -

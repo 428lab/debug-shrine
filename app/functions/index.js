@@ -236,7 +236,10 @@ async function createOgp(username) {
 exports.register = functions.https.onRequest(async (requeset, response)=>{
   response.set("Access-Control-Allow-Origin", "*")
   if(requeset.method != "POST"){
-    response.send("bad request")
+    response.json({
+      status: "faild"
+    })
+    return
   }
 
   // firestore に投げられたデータを保存
@@ -245,7 +248,6 @@ exports.register = functions.https.onRequest(async (requeset, response)=>{
   // }
   // firestoreに書き込み
   // key: github_id
-  functions.logger.info(requeset.body)
   if(
     !requeset.body.github_id ||
     !requeset.body.display_name ||
