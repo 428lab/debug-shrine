@@ -236,9 +236,10 @@ async function createOgp(username) {
 exports.register = functions.https.onRequest(async (requeset, response)=>{
   response.set('Access-Control-Allow-Headers', '*')
   response.set("Access-Control-Allow-Origin", "*")
+  response.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS, POST')
   if(requeset.method != "POST"){
     response.json({
-      status: "faild"
+      status: "missing request"
     })
     return
   }
@@ -255,9 +256,10 @@ exports.register = functions.https.onRequest(async (requeset, response)=>{
     !requeset.body.screen_name ||
     !requeset.body.image_path
     ){
-    response.json({
-      status: "faild"
-    })
+      // functions.logger.info(requeset.body)
+      response.json({
+        status: "faild parameter"
+      })
     return
   }
 
