@@ -1,55 +1,93 @@
 <template>
-  <main class="container">
-    <div class="bg-light p-5 row align-items-center">
-      <div class="col border-end">
-        <div class="row">
-          <div class="col-3">
-            <img :src="photoURL" alt="userName" class="w-100 rounded">
-          </div>
-          <div class="col-9">
-            <p class="fs-3">{{ userName }}</p>
-            <div class="badge bg-secondary">新人コントリビューター</div>
-            <div class="badge bg-secondary">称号２</div>
-          </div>
+  <main class="container p-3">
+    <div class="p-3 profile-outline">
+      <div class="bg-dark p-4 ">
+        <div>
+          <span class="">{{ user.nickName }}</span>
+          <span class="ms-3">{{ user.screenName }}</span>
+        </div>
+        <div class="flex mt-3">
+          <img :src="user.profileImage" alt="" class="w-35 img-fluid" />
+        </div>
+        <div class="mt-3">
+          <div>れべる：{{ status.level }}</div>
+          <div>ポイント：{{ status.points }}</div>
+          <div>せんとうりょく：{{ status.total }}</div>
         </div>
       </div>
-      <div class="col">
-        <p class="fs-5">RANK 12</p>
-        <div class="progress">
-          <div class="progress-bar progress-bar-striped" role="progressbar" style="width: 10%" aria-valuenow="10" aria-valuemin="0" aria-valuemax="100"></div>
-        </div>
-        <p class="text-end w-100">NEXT 2234EXP</p>
-      </div>
-    </div>
-    <div class="row my-2 gap-2">
-      <div class="col-4 bg-light p-3 rounded">
-        <h5>つよさ</h5>
-        <RadarChart :chartData="chartData" :options="options" />
-      </div>
-      <div class="col bg-light p-3 rounded">
-        <h5>ポイント獲得履歴</h5>
-        <div class="list-group list-group-flush">
-          <div class="list-group list-group-flush">
-            <div class="list-group-item">
-              <div class="d-flex w-100 justify-content-between">
-                <h5 class="mb-1">Created commit</h5>
-                <small class="text-muted">3 days ago</small>
-              </div>
-              <p class="mb-1 small">
-                <i>アイコン</i> +10pt
-                <i>アイコン</i> +10exp
-              </p>
-              <small class="text-muted">428lab/debug-shrine</small>
-            </div>
+      <div class="row mt-4">
+        <div class="col-8">
+          <div class="bg-primary text-center d-inline-block p-2 debug-title">
+            <small>でばっぐ<br />のうりょく</small>
           </div>
+          <RadarChart :chartData="chartData" />
         </div>
-      </div>
-    </div>
-    <div class="row my-2">
-      <div class="col bg-light p-3 rounded">
-        <h5>アクティビティ</h5>
-
+        <div class="col-4 align-items-center">
+          <img src="/profile_parts.png" class="img-fluid" alt="" />
+        </div>
       </div>
     </div>
   </main>
 </template>
+
+<script>
+import RadarChart from "@/components/charts/powerChart.vue";
+
+export default {
+  components: { RadarChart },
+  async asyncData({ $axios }) {
+    let response = await $axios.get("status?user=ShinoharaTa");
+    console.log(response.data);
+    let userChart = [];
+    userChart.push(response.data.hp);
+    userChart.push(response.data.power);
+    userChart.push(response.data.agility);
+    userChart.push(response.data.defence);
+    userChart.push(response.data.intelligence);
+    userChart.push(0);
+    return {
+      user: {
+        nickName: "T.Shinohara",
+        screenName: "ShinoharaTa",
+        profileImage: "https://placehold.jp/150x150.png",
+      },
+      status: {
+        level: response.data.level,
+        points: response.data.points,
+        total: response.data.total,
+      },
+      chartData: {
+        labels: [
+          "たいりょく",
+          "ちから",
+          "きようさ",
+          "しゅびりょく",
+          "すばやさ",
+          "かしこさ",
+        ],
+        datasets: [
+          {
+            type: "radar",
+            data: userChart,
+            fill: true,
+            backgroundColor: "rgba(255, 99, 132, 0.6)",
+            borderWidth: 0,
+            pointStyle: "dash",
+          },
+        ],
+      },
+    };
+  },
+};
+</script>
+
+<style scoped>
+.profile-outline {
+  background-color: #000;
+  border-radius: 15px;
+}
+
+.debug-title {
+  border-radius: 10px;
+}
+</style>

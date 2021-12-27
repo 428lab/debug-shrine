@@ -3,7 +3,7 @@
     <div class="bg-light p-3">
       <div class="row">
         <div class="col-3">
-          <img :src="user.photoURL" alt="userName" class="w-100 rounded" />
+          <img :src="user.imagePath" alt="userName" class="w-100 rounded" />
         </div>
         <div class="col-9">
           <p class="fs-3">{{ user.userNickname }}</p>
@@ -61,53 +61,56 @@ import {
   ProviderId,
 } from "firebase/auth";
 import RadarChart from "@/components/charts/powerChart.vue";
-import axios from "axios";
 
 export default {
   middleware: "auth",
   components: { RadarChart },
-  data() {
+  async asyncData({ $axios }) {
+    let response = await $axios.get("status?user=ShinoharaTa");
+    // console.log(userResponse.data);
+    // responseData = userResponse.data;
+    let userChart = [];
+    userChart.push(response.data.hp);
+    userChart.push(response.data.power);
+    userChart.push(response.data.agility);
+    userChart.push(response.data.defence);
+    userChart.push(response.data.intelligence);
+    userChart.push(0);
+    // let status = {
+    //   level: response.level,
+    //   point: response.point,
+    // };
+
     return {
       user: {
-        // ユーザー名（未使用）
-        userName: "",
-        // ユーザーニックネーム
-        userNickname: "",
-        // ユーザー画像URL
-        photoURL: "",
-        // 経験値
-        experiencePoint: 0,
-        // レベル
+        userName: "ShinoharaTa",
+        userNickname: "T.Shinohara",
+        imagePath: "https://placehold.jp/150x150.png",
+        exp: 0,
         level: 0,
-        // ポイント
         point: 0,
-        // 称号
         titles: ["newContributor", "newContributor"],
       },
       chartData: {
         labels: [
-          "ちから",
           "たいりょく",
-          "しゅびりょく",
+          "ちから",
           "きようさ",
+          "しゅびりょく",
           "すばやさ",
-          // "かしこさ",
+          "かしこさ",
         ],
         datasets: [
           {
             type: "radar",
-            data: [],
+            data: userChart,
             fill: true,
             backgroundColor: "rgba(255, 99, 132, 0.2)",
-            borderColor: "rgb(255, 99, 132)",
-            pointBackgroundColor: "rgb(255, 99, 132)",
-            pointBorderColor: "#fff",
-            pointHoverBackgroundColor: "#fff",
-            pointHoverBorderColor: "rgb(255, 99, 132)",
+            borderWidth: 0,
+            pointStyle: "dash"
           },
         ],
       },
-
     };
   },
   async beforeMount() {
@@ -134,23 +137,6 @@ export default {
     //     // console.log(this.user.userNickname);
     //   }
     // });
-    // this.chartData.datasets.data.push(userResponse.power);
-    let userResponse = await this.$axios.get("status?user=ShinoharaTa");
-    // console.log(userResponse.data);
-    // responseData = userResponse.data;
-    let userChart = [];
-    this.chartData.datasets[0].data.push(userResponse.data.power);
-    this.chartData.datasets[0].data.push(userResponse.data.hp);
-    this.chartData.datasets[0].data.push(userResponse.data.defence);
-    this.chartData.datasets[0].data.push(userResponse.data.agility);
-    this.chartData.datasets[0].data.push(userResponse.data.intelligence);
-    let status = {
-      level: userResponse.level,
-      point: userResponse.point,
-    };
-    // return {
-    //   status: status,
-    // };
   },
   methods: {
     logout: function () {

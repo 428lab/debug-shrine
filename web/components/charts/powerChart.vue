@@ -1,37 +1,33 @@
 <script>
-import { Radar } from 'vue-chartjs';
+import { Radar } from "vue-chartjs";
 
 export default {
   extends: Radar,
-  data: function() {
+  data: function () {
     return {
       options: {
         animation: {
-          // アニメーション実行時間（ms）
-          duration: 1000,
-          // イージング指定（https://easings.net/）
-          easing: "easeInOutCirc"
+          duration: 0,
         },
         legend: {
-          display: false
+          display: false,
         },
         tooltips: {
-          enabled: false
+          enabled: false,
         },
         scale: {
           ticks: {
             display: false,
-            beginAtZero: true,
-            min: 0,
-            max: 100
-          }
-        }
-      }
-    }
+          },
+          gridLines: { color: "rgba(255, 255, 255, 0.7)" },
+          angleLines: { color: "rgba(255, 255, 255, 0.7)" },
+        },
+      },
+    };
   },
-  props:['chartData', 'chartConfig'],
+  props: ["chartData", "chartConfig"],
   mounted() {
     this.renderChart(this.chartData, this.options);
-  }
-}
+  },
+};
 </script>

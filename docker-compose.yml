@@ -2,7 +2,7 @@ version: '3'
 
 services:
   firebase:
-    build: .
+    build: ./docker/firebase
     container_name: firebase-templete
     ports:
       - 4000:4000 # Emulator Suite UI
@@ -24,3 +24,16 @@ services:
     stdin_open: true
     command: /bin/bash
     platform: linux/x86_64
+  nuxt:
+    build: ./docker/nuxt
+    container_name: nuxt
+    ports: 
+      - 3000:3000
+    volumes:
+      - ./web:/var/www
+    tty: true
+    environment:
+      PORT: 3000
+      HOST: 0.0.0.0
+    command: /bin/bash
+    # command: sh -c "yarn install && yarn dev"

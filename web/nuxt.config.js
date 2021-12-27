@@ -23,6 +23,7 @@ export default {
     '~/assets/css/bootstrap.min.css',
     '~/assets/css/font.css',
     '~/assets/css/color.css',
+    '~/assets/css/common.css',
   ],
 
   script: [

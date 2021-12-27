@@ -3,8 +3,9 @@ const axios = require('axios')
 var moment = require("moment")
 const admin = require("firebase-admin")
 const { getStorage } = require('firebase-admin/storage');
+const { getFirestore, Timestamp, FieldValue } = require("firebase-admin/firestore")
 const { createCanvas, loadImage } = require("canvas")
-const fs = require("fs")
+const fs = require("fs");
 
 if(process.env.FIREBASE_CONFIG){
   admin.initializeApp()
@@ -17,6 +18,7 @@ if(process.env.FIREBASE_CONFIG){
 // admin.initializeApp()
 
 const bucket = getStorage().bucket()
+const db = getFirestore()
 
 const client_id = functions.config().github.client_id
 const client_secret = functions.config().github.client_secret
@@ -230,3 +232,42 @@ async function createOgp(username) {
 
   return getOgpUrl(username)
 }
+
+exports.register = functions.https.onRequest(async (requeset, response)=>{
+  response.set("Access-Control-Allow-Origin", "*")
+  if(requeset.method != "POST"){
+    response.send("bad request")
+  }
+
+  // firestore に投げられたデータを保存
+  // {
+  //   github_id, display_name, screen_name, image_path 
+  // }
+  // firestoreに書き込み
+  // key: github_id
+  functions.logger.info(requeset.body)
+  if(
+    !requeset.body.github_id ||
+    !requeset.body.display_name ||
+    !requeset.body.screen_name ||
+    !requeset.body.image_path
+    ){
+    response.json({
+      status: "faild"
+    })
+    return
+  }
+
+  const userRef = db.collection("users").doc(`${requeset.body.github_id}`)
+  
+  userRef.set({
+    github_id: requeset.body.github_id,
+    display_name: requeset.body.display_name,
+    screen_name: requeset.body.screen_name,
+    image_path: requeset.body.image_path
+  })
+
+  response.json({
+    status: "success"
+  })
+})
