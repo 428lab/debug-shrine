@@ -84,9 +84,33 @@ export default {
         // 称号
         titles: ["newContributor", "newContributor"],
       },
+      chartData: {
+        labels: [
+          "ちから",
+          "たいりょく",
+          "しゅびりょく",
+          "きようさ",
+          "すばやさ",
+          // "かしこさ",
+        ],
+        datasets: [
+          {
+            type: "radar",
+            data: [],
+            fill: true,
+            backgroundColor: "rgba(255, 99, 132, 0.2)",
+            borderColor: "rgb(255, 99, 132)",
+            pointBackgroundColor: "rgb(255, 99, 132)",
+            pointBorderColor: "#fff",
+            pointHoverBackgroundColor: "#fff",
+            pointHoverBorderColor: "rgb(255, 99, 132)",
+          },
+        ],
+      },
+
     };
   },
-  async asyncData() {
+  async beforeMount() {
     // gituhubユーザ情報取得
     // const auth = getAuth();
     // let screenName = "";
@@ -111,44 +135,22 @@ export default {
     //   }
     // });
     // this.chartData.datasets.data.push(userResponse.power);
-    let userResponse = await axios.get("status?user=ShinoharaTa");
-    console.log(userResponse);
+    let userResponse = await this.$axios.get("status?user=ShinoharaTa");
+    // console.log(userResponse.data);
+    // responseData = userResponse.data;
     let userChart = [];
-    userChart.push(userResponse.power);
-    userChart.push(userResponse.hp);
-    userChart.push(userResponse.defence);
-    userChart.push(userResponse.agility);
-    userChart.push(userResponse.intelligence);
+    this.chartData.datasets[0].data.push(userResponse.data.power);
+    this.chartData.datasets[0].data.push(userResponse.data.hp);
+    this.chartData.datasets[0].data.push(userResponse.data.defence);
+    this.chartData.datasets[0].data.push(userResponse.data.agility);
+    this.chartData.datasets[0].data.push(userResponse.data.intelligence);
     let status = {
       level: userResponse.level,
       point: userResponse.point,
     };
-    return {
-      status: status,
-      chartData: {
-        labels: [
-          "ちから",
-          "たいりょく",
-          "しゅびりょく",
-          "きようさ",
-          "すばやさ",
-          // "かしこさ",
-        ],
-        datasets: [
-          {
-            type: "radar",
-            data: userChart,
-            fill: true,
-            backgroundColor: "rgba(255, 99, 132, 0.2)",
-            borderColor: "rgb(255, 99, 132)",
-            pointBackgroundColor: "rgb(255, 99, 132)",
-            pointBorderColor: "#fff",
-            pointHoverBackgroundColor: "#fff",
-            pointHoverBorderColor: "rgb(255, 99, 132)",
-          },
-        ],
-      },
-    };
+    // return {
+    //   status: status,
+    // };
   },
   methods: {
     logout: function () {
