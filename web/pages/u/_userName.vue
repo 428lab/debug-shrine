@@ -1,19 +1,31 @@
 <template>
   <main class="container p-3">
-    <div class="p-3 card text-white">
-      <div>
-        <span class="h1">{{ user.nickName }}</span
-        ><span class="h4">{{ user.screenName }}</span>
+    <div class="p-3 profile-outline">
+      <div class="bg-dark p-4 ">
+        <div>
+          <span class="">{{ user.nickName }}</span>
+          <span class="ms-3">{{ user.screenName }}</span>
+        </div>
+        <div class="flex mt-3">
+          <img :src="user.profileImage" alt="" class="w-35 img-fluid" />
+        </div>
+        <div class="mt-3">
+          <div>れべる：{{ status.level }}</div>
+          <div>ポイント：{{ status.points }}</div>
+          <div>せんとうりょく：{{ status.total }}</div>
+        </div>
       </div>
-      <div class="flex">
-        <img :src="user.profileImage" alt="" class="w-25 img-fluid" />
+      <div class="row mt-4">
+        <div class="col-8">
+          <div class="bg-primary text-center d-inline-block p-2 debug-title">
+            <small>でばっぐ<br />のうりょく</small>
+          </div>
+          <RadarChart :chartData="chartData" />
+        </div>
+        <div class="col-4 align-items-center">
+          <img src="/profile_parts.png" class="img-fluid" alt="" />
+        </div>
       </div>
-      <div class="mt-2">
-        <div>れべる：{{ status.level }}</div>
-        <div>ポイント：{{ status.points }}</div>
-        <div>せんとうりょく：{{ status.total }}</div>
-      </div>
-      <RadarChart :chartData="chartData" />
     </div>
   </main>
 </template>
@@ -60,12 +72,7 @@ export default {
             fill: true,
             backgroundColor: "rgba(255, 99, 132, 0.6)",
             borderWidth: 0,
-            pointStyle: "dash"
-            // borderColor: "rgb(255, 99, 132, 0.2)",
-            // pointBackgroundColor: "rgb(255, 99, 132)",
-            // pointBorderColor: "#fff",
-            // pointHoverBackgroundColor: "#fff",
-            // pointHoverBorderColor: "rgb(255, 99, 132)",
+            pointStyle: "dash",
           },
         ],
       },
@@ -75,11 +82,12 @@ export default {
 </script>
 
 <style scoped>
-.container {
-  background-color: #888;
+.profile-outline {
+  background-color: #000;
+  border-radius: 15px;
 }
 
-.card {
-  background-color: #000;
+.debug-title {
+  border-radius: 10px;
 }
 </style>

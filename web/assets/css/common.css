@@ -8,3 +8,7 @@ body {
 a {
     color: #ccc;
 }
+
+.w-35 {
+    width: 35%;
+}
