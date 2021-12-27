@@ -234,6 +234,7 @@ async function createOgp(username) {
 }
 
 exports.register = functions.https.onRequest(async (requeset, response)=>{
+  response.set('Access-Control-Allow-Headers', '*')
   response.set("Access-Control-Allow-Origin", "*")
   if(requeset.method != "POST"){
     response.json({
