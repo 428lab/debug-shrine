@@ -1,6 +1,22 @@
 const functions = require("firebase-functions")
 const axios = require('axios')
 var moment = require("moment")
+const admin = require("firebase-admin")
+const { getStorage } = require('firebase-admin/storage');
+const { createCanvas, loadImage } = require("canvas")
+const fs = require("fs")
+
+if(process.env.FIREBASE_CONFIG){
+  admin.initializeApp()
+}else(
+  admin.initializeApp({
+    credential: admin.credential.applicationDefault(),
+    storageBucket: "d-shrine-dev.appspot.com"
+  })
+)
+// admin.initializeApp()
+
+const bucket = getStorage().bucket()
 
 const client_id = functions.config().github.client_id
 const client_secret = functions.config().github.client_secret
@@ -135,3 +151,82 @@ exports.status = functions.https.onRequest(async (request, response) => {
 
   response.json(json)
 })
+
+exports.userOGP = functions.https.onRequest(async (request, response) => {
+
+  functions.logger.info(request.query)
+  if(!request.query.user){
+    // 404で返す
+    response.send("not found")
+    return
+  }
+
+  const username = request.query.user
+  const filepath = `ogps/${username}.png`
+
+  fileExists = await isStrageExists(filepath)
+  functions.logger.info(`file ${filepath}: ${fileExists}`)
+
+  if(fileExists){
+    url = getOgpUrl
+    // response.send(url) // debug
+    response.redirect(url)
+  }else{
+
+    newOgpPath = await createOgp(username)
+    response.redirect(newOgpPath)
+  }
+})
+
+// strageに指定ファイル名のものが存在するか
+async function isStrageExists(filepath) {
+  data = await bucket.file(filepath).exists()
+  return data[0]
+}
+
+function getOgpUrl(username) {
+  url = `https://firebasestrage.googleapis.com/v0/b/d-shrine-dev.appspot.com/o/${encodeURIComponent(username)}.png?alt=media`
+  if(process.env.FUNCTIONS_EMULATOR){
+    url = `http://${process.env.FIREBASE_STORAGE_EMULATOR_HOST}/download/storage/v1/b/d-shrine-dev.appspot.com/o/ogps%2F${username}.png?alt=media`
+  }
+
+  return url
+}
+
+async function createOgp(username) {
+  const basePath = "base.png"
+  const localBasePath = "/tmp/base.png"
+  const targetPath = `ogps/${username}.png`
+  const localTargetPath = "/tmp/target.png"
+
+  baseexists = await isStrageExists(basePath)
+
+  functions.logger.info(`${basePath} is ${baseexists}`)
+  df = await bucket.file(basePath).download({
+    destination: localBasePath,
+    validation: false // エミュレーター時必要
+  })
+
+  functions.logger.info(df)
+
+  // init image
+  const baseImage = await loadImage(localBasePath)
+  const canvas  = createCanvas(baseImage.width, baseImage.height)
+  const ctx = canvas.getContext("2d")
+  ctx.drawImage(baseImage, 0, 0, baseImage.width, baseImage.height)
+
+  // generate
+
+  // // upload
+  const buf = canvas.toBuffer()
+  fs.writeFileSync(localTargetPath, buf)
+
+  await bucket.upload(localTargetPath, {
+    destination: targetPath
+  })
+
+  fs.unlinkSync(localBasePath)
+  fs.unlinkSync(localTargetPath)
+
+  return getOgpUrl(username)
+}
