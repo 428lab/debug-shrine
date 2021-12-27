@@ -3,13 +3,13 @@
 </template>
 
 <script>
-import article from '~/static/terms/termsOfService.md';
+import article from "~/static/terms/termsOfService.md";
 
 export default {
-  computed: {
-    article() {
-      return article;
-    }
-  }
-}
+  asyncData() {
+    return {
+      article: article,
+    };
+  },
+};
 </script>
