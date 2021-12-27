@@ -1,5 +1,15 @@
 <template>
-  <div>
-    <h1>利用規約</h1>
-  </div>
+  <div v-html="article"></div>
 </template>
+
+<script>
+import article from '~/static/terms/termsOfService.md';
+
+export default {
+  computed: {
+    article() {
+      return article;
+    }
+  }
+}
+</script>
