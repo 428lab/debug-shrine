@@ -19,6 +19,7 @@ services:
       - ./firebase/bin/:/root/.cache:cached
       - ./firebase/config/:/root/.config:cached
       - ./app:/app
+      - ./web/dist:/app/dist
     working_dir: /app
     tty: true
     stdin_open: true
