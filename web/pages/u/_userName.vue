@@ -41,10 +41,10 @@ export default {
     let userChart = [];
     userChart.push(response.data.hp);
     userChart.push(response.data.power);
-    userChart.push(response.data.agility);
-    userChart.push(response.data.defence);
     userChart.push(response.data.intelligence);
-    userChart.push(0);
+    userChart.push(response.data.defence);
+    userChart.push(response.data.agility);
+    // userChart.push(0);
     return {
       user: {
         nickName: "T.Shinohara",
@@ -60,10 +60,9 @@ export default {
         labels: [
           "たいりょく",
           "ちから",
-          "きようさ",
+          "かしこさ",
           "しゅびりょく",
           "すばやさ",
-          "かしこさ",
         ],
         datasets: [
           {

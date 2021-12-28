@@ -67,19 +67,12 @@ export default {
   components: { RadarChart },
   async asyncData({ $axios }) {
     let response = await $axios.get("status?user=ShinoharaTa");
-    // console.log(userResponse.data);
-    // responseData = userResponse.data;
     let userChart = [];
     userChart.push(response.data.hp);
     userChart.push(response.data.power);
-    userChart.push(response.data.agility);
-    userChart.push(response.data.defence);
     userChart.push(response.data.intelligence);
-    userChart.push(0);
-    // let status = {
-    //   level: response.level,
-    //   point: response.point,
-    // };
+    userChart.push(response.data.defence);
+    userChart.push(response.data.agility);
 
     return {
       user: {
@@ -95,10 +88,9 @@ export default {
         labels: [
           "たいりょく",
           "ちから",
-          "きようさ",
+          "かしこさ",
           "しゅびりょく",
           "すばやさ",
-          "かしこさ",
         ],
         datasets: [
           {
