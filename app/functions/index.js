@@ -23,6 +23,12 @@ const db = getFirestore()
 const client_id = functions.config().github.client_id
 const client_secret = functions.config().github.client_secret
 
+const fontStyle = {
+  font: '60px "Noto Sans JP"',
+  lineHight: 100,
+  color: "#FFFFFF"
+}
+
 // Create and Deploy Your First Cloud Functions
 // https://firebase.google.com/docs/functions/write-firebase-functions
 
@@ -42,6 +48,18 @@ function get_level(points) {
 async function get_feed(user, per_page=100) {
   try {
     url = `https://api.github.com/users/${user}/events/public?per_page=${per_page}&client_id=${client_id}&client_secret=${client_secret}`
+    const res = await axios.get(url);
+    const items = res.data;
+    return items
+  } catch (error) {
+    const {status,statusText} = error.response;
+    functions.logger.error(`Error! HTTP Status: ${status} ${statusText}`, {structuredData: true})
+  }
+}
+
+async function get_user(username) {
+  try {
+    url = `https://api.github.com/users/${username}`
     const res = await axios.get(url);
     const items = res.data;
     return items
@@ -155,6 +173,9 @@ exports.status = functions.https.onRequest(async (request, response) => {
 })
 
 exports.userOGP = functions.https.onRequest(async (request, response) => {
+  response.set('Access-Control-Allow-Headers', '*')
+  response.set("Access-Control-Allow-Origin", "*")
+  response.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS, POST')
 
   functions.logger.info(request.query)
   if(!request.query.user){
@@ -169,13 +190,15 @@ exports.userOGP = functions.https.onRequest(async (request, response) => {
   fileExists = await isStrageExists(filepath)
   functions.logger.info(`file ${filepath}: ${fileExists}`)
 
+  // fileExists = false
   if(fileExists){
-    url = getOgpUrl
+    url = getOgpUrl(username)
     // response.send(url) // debug
     response.redirect(url)
   }else{
 
     newOgpPath = await createOgp(username)
+    // response.send(url) // debug
     response.redirect(newOgpPath)
   }
 })
@@ -204,12 +227,16 @@ async function createOgp(username) {
   baseexists = await isStrageExists(basePath)
 
   functions.logger.info(`${basePath} is ${baseexists}`)
-  df = await bucket.file(basePath).download({
+  if(!baseexists){
+    functions.logger.warn(`missing base.png!: ${baseexists}`)
+    response.status(500).send("server missing.")
+    return
+  }
+  await bucket.file(basePath).download({
     destination: localBasePath,
     validation: false // エミュレーター時必要
   })
 
-  functions.logger.info(df)
 
   // init image
   const baseImage = await loadImage(localBasePath)
@@ -217,7 +244,49 @@ async function createOgp(username) {
   const ctx = canvas.getContext("2d")
   ctx.drawImage(baseImage, 0, 0, baseImage.width, baseImage.height)
 
+  const userData = await get_user(username)
+  const imageURL = userData.avatar_url
+  const userDisplayName = userData.name ? userData.name :userData.login
+
   // generate
+  ctx.font = fontStyle.font
+  ctx.fillStyle = fontStyle.color
+  ctx.textBaseline = "top"
+
+  // 名前
+  const userPos = {
+    x: 700,
+    y: 323,
+    max: 1280
+  }
+  ctx.fillText(userDisplayName, userPos.x, userPos.y, (userPos.max-userPos.x))
+
+  // アイコン
+  const userIcon = await loadImage(imageURL)
+  functions.logger.info(`icon w: ${userIcon.width}, h:${userIcon.height}`)
+  const iconPos = {
+    x: 680,
+    y: 431,
+    range: 893-784,
+    iconSize: 215 // アイコンの大きさ
+  }
+  const userIconCanvas = createCanvas(userIcon.width, userIcon.height)
+  const userCtx = userIconCanvas.getContext("2d")
+  // 切り取られてないアイコンがあるので切り取り
+  userCtx.beginPath()
+  wi = userIcon.width/2
+  yi = userIcon.height/2
+  ri = userIcon.width/2*0.9
+  rr = Math.PI*360/180
+  userCtx.arc(wi, yi, ri, 0, rr, false)
+  userCtx.clip()
+  userCtx.drawImage(userIcon, 0, 0, userIcon.width, userIcon.height)
+
+  ctx.drawImage(userIconCanvas, iconPos.x, iconPos.y, iconPos.iconSize, iconPos.iconSize)
+  
+  // レベル
+
+  // チャート
 
   // // upload
   const buf = canvas.toBuffer()
