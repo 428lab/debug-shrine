@@ -1,6 +1,8 @@
 <template>
   <div>
-    <CommonHeader />
+    <header>
+      <CommonHeader />
+    </header>
     <main>
       <Nuxt />
     </main>
