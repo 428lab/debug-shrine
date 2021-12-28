@@ -1,5 +1,7 @@
 <template>
-  <div v-html="article"></div>
+  <div class="container">
+    <div v-html="article" class="p-2"></div>
+  </div>
 </template>
 
 <script>

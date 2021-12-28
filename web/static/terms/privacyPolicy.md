@@ -69,5 +69,6 @@
 
 E-mail : 【メールアドレス】
 
-
+<div style="text-align: right;">
 2021年12月28日策定
+</div>
