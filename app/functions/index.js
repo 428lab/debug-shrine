@@ -190,7 +190,7 @@ exports.userOGP = functions.https.onRequest(async (request, response) => {
   fileExists = await isStrageExists(filepath)
   functions.logger.info(`file ${filepath}: ${fileExists}`)
 
-  // fileExists = false
+  fileExists = false
   if(fileExists){
     url = getOgpUrl(username)
     // response.send(url) // debug
@@ -198,8 +198,8 @@ exports.userOGP = functions.https.onRequest(async (request, response) => {
   }else{
 
     newOgpPath = await createOgp(username)
-    // response.send(url) // debug
-    response.redirect(newOgpPath)
+    response.send(url) // debug
+    // response.redirect(newOgpPath)
   }
 })
 
@@ -285,7 +285,19 @@ async function createOgp(username) {
   ctx.drawImage(userIconCanvas, iconPos.x, iconPos.y, iconPos.iconSize, iconPos.iconSize)
   
   // レベル
+  const userDataStr = [
+    "れべる：" + 33,
+    "ポイント：" + 11,
+    "せんとうりょく：" + 4000
+  ]
 
+  for (let idx=0; idx < userDataStr.length; idx++) {
+    ctx.fillText(
+      userDataStr[idx],
+      680,
+      740 + fontStyle.lineHight * idx
+    )
+  }
   // チャート
 
   // // upload
