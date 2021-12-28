@@ -259,7 +259,7 @@ async function createOgp(username) {
   // 名前
   const userPos = {
     x: 700,
-    y: 323,
+    y: 310,
     max: 1280
   }
   ctx.fillText(userDisplayName, userPos.x, userPos.y, (userPos.max-userPos.x))
@@ -303,7 +303,7 @@ async function createOgp(username) {
   }
   // チャート
   const chartPost = {
-    x: 1300,
+    x: 1325,
     y: 300
   }
   const chartWidht = 550
