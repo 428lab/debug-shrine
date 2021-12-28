@@ -10,8 +10,8 @@
         <nav id="footer-nav" class="container-sm py-2">
           <ul>
             <li class="px-2"><nuxt-link to="/">トップ</nuxt-link></li>
-            <li class="px-2"><nuxt-link to="/">利用規約</nuxt-link></li>
-            <li class="px-2"><nuxt-link to="/">プライバシーポリシー</nuxt-link></li>
+            <li class="px-2"><nuxt-link to="/terms">利用規約</nuxt-link></li>
+            <li class="px-2"><nuxt-link to="/privacy-policy">プライバシーポリシー</nuxt-link></li>
           </ul>
         </nav>
         <!-- SNSリンク -->
@@ -22,7 +22,7 @@
     </div>
     <div class="footer-rights">
       <div class="py-2 text-right container-lg">
-        &copy; 2021 428lab.
+        &copy;428lab.
       </div>
     </div>
   </div>
