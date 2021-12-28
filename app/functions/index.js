@@ -72,20 +72,17 @@ async function get_user(username) {
   }
 }
 
+function user_performance(items) {
+  let user_data = {
+    hp: 0,
+    power: 0,
+    defence: 0,
+    dex: 0,
+    agility: 0,
+    intelligence: 0
+  }
 
-exports.status = functions.https.onRequest(async (request, response) => {
-  response.set("Access-Control-Allow-Origin", "*")
-  functions.logger.info("status", {structuredData: true})
-  functions.logger.info(request.query.user, {structuredData: true})
-  const items = await get_feed(request.query.user)
-  var power = 0
-  var hp = 0
-  var power = 0
-  var defence = 0
-  var dex = 0
-  var agility = 0
-  var intelligence = 0
-
+  
   previousItem = null
   continuous_count = 0
   let sorted_item = items.sort(function(a, b) {
@@ -97,82 +94,91 @@ exports.status = functions.https.onRequest(async (request, response) => {
       current_time = moment(item.created_at)
       diff = current_time.diff(previous_time)/1000
       if (30 < diff && diff <= 120) {
-        agility += 6
+        user_data.agility += 6
       } else if (diff <= 180) {
-        agility += 3
+        user_data.agility += 3
       } else if (diff <= 300) {
-        agility += 2
+        user_data.agility += 2
       } else if (diff <= 1200) {
-        agility += 1
+        user_data.agility += 1
       }
       if (diff <= 7200) {
         continuous_count++
       } else {
-        hp += continuous_count * 2
+        user_data.hp += continuous_count * 2
         continuous_count = 0
       }
     }
     switch (item.type) {
       case "ForkEvent":
-        power += 1
+        user_data.power += 1
         break
       case "PushEvent":
-        power += 2
+        user_data.power += 2
         break
       case "CreateEvent":
       case "DeleteEvent":
-        power += 1
+        user_data.power += 1
         break
       case "PullRequestEvent":
-        power += 3
+        user_data.power += 3
         break
       case "IssuesEvent":
         switch (item.payload) {
           case "opened":
-            intelligence += 3
+            user_data.intelligence += 3
             break
           case "closed":
-            defence += 5
+            user_data.defence += 5
             break
         }
         break
       case "IssueCommentEvent":
-        intelligence += 2
+        user_data.intelligence += 2
         break
       case "PullRequestReviewEvent":
-        defence += 3
+        user_data.defence += 3
         break
       case "PullRequestReviewCommentEvent":
-        defence += 3
+        user_data.defence += 3
         break
       case "GollumEvent":
-        defence += 3
+        user_data.defence += 3
         break
       case "ReleaseEvent":
-        defence += 10
+        user_data.defence += 10
         break
     }
     previousItem = item
   }
   if (continuous_count > 0) {
-    hp += continuous_count * 2
+    user_data.hp += continuous_count * 2
   }
 
-  var json = {}
-  json["user"] = request.query.user
+  return user_data
+}
 
-  json["points"] = hp + power + intelligence + defence + agility
-  json["hp"] = hp
-  json["power"] = power
-  json["intelligence"] = intelligence
-  json["defence"] = defence
-  json["agility"] = agility
-  json["total"] = hp + power + intelligence + defence + agility
-  points = json["points"]
-  level = get_level(points)
-  json["level"] = level
+exports.status = functions.https.onRequest(async (request, response) => {
+  response.set("Access-Control-Allow-Origin", "*")
+  functions.logger.info("status", {structuredData: true})
+  functions.logger.info(request.query.user, {structuredData: true})
+  const items = await get_feed(request.query.user)
+  let user_data = user_performance(items)
 
-  response.json(json)
+  let return_Data = {
+    user: request.query.user,
+    points: user_data.hp + user_data.power + user_data.intelligence + user_data.defence + user_data.agility,
+    hp: user_data.hp,
+    power: user_data.power,
+    intelligence: user_data.intelligence,
+    defence: user_data.defence,
+    agility: user_data.agility,
+    total: user_data.hp + user_data.power + user_data.intelligence + user_data.defence + user_data.agility,
+    level: 0
+  }
+  return_Data.level = get_level(return_Data.points)
+
+  response.json(return_Data)
 })
 
 exports.userOGP = functions.https.onRequest(async (request, response) => {
