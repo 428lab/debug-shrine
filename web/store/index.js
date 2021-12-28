@@ -27,10 +27,10 @@ export const actions = {
     commit("clear");
     this.$router.push('/');
   },
-  async deleateUser({ commit }) {
+  async deleteUser({ commit }) {
     const auth = getAuth();
     const user = auth.currentUser;
-    await deleateUser(user);
+    await deleteUser(user);
     commit("clear");
     this.$router.push('/');
   }
