@@ -6,6 +6,7 @@ const { getStorage } = require('firebase-admin/storage');
 const { getFirestore, Timestamp, FieldValue } = require("firebase-admin/firestore")
 const { createCanvas, loadImage } = require("canvas")
 const fs = require("fs");
+const { ChartJSNodeCanvas } = require("chartjs-node-canvas")
 
 if(process.env.FIREBASE_CONFIG){
   admin.initializeApp()
@@ -25,6 +26,8 @@ const client_secret = functions.config().github.client_secret
 
 const fontStyle = {
   font: '60px "Noto Sans JP"',
+  fontname: "Noto Sans JP",
+  fontsize: "60",
   lineHight: 100,
   color: "#FFFFFF"
 }
@@ -288,7 +291,7 @@ async function createOgp(username) {
   const userDataStr = [
     "れべる：" + 33,
     "ポイント：" + 11,
-    "せんとうりょく：" + 4000
+    "せんとうりょく：" + 400
   ]
 
   for (let idx=0; idx < userDataStr.length; idx++) {
@@ -299,6 +302,113 @@ async function createOgp(username) {
     )
   }
   // チャート
+  const chartPost = {
+    x: 1300,
+    y: 300
+  }
+  const chartWidht = 550
+  const chartHight = 550
+  const chartbackColor = "rgba(255,255,255,0)"//"rgba(0,0,0,0)"
+  const userChatData = [
+    30,
+    10,
+    20,
+    50,
+    20,
+    15
+  ]
+  const chartLabels = [
+    "たいりょく",
+    "ちから",
+    "きようさ",
+    "しゅびりょく",
+    "すばやさ",
+    "かしこさ",
+  ]
+
+  const chartGrafLineColor = "rgb(242,242,242)" // グラフの線,文字
+  const chartconfig = {
+    type: "radar",
+    data: {
+      labels: chartLabels,
+      datasets: [
+        {
+          // データ
+          data: userChatData,
+          fill: true,
+          backgroundColor: "rgba(0, 168, 228,0.6)",
+          borderColor: "rgb(0, 117, 159)",
+          borderWidth: 2
+        }
+      ]
+    },
+    options: {
+      plugins: {
+        title: {
+          // タイトル
+          display: false
+        },
+        legend: {
+          // 凡例
+          display: false,
+          fontSize: 30
+        },
+      },
+
+      scale: {
+        ticks: {
+          // 線の間隔
+          stepSize: 10,
+        }
+      },
+      elements: {
+        point: {
+          radius: 0 // 点は非表示
+        }
+      },
+      scales: {
+        r: {
+          min: 0,
+          grid: {
+            // メモリ
+            display: true,
+            color: chartGrafLineColor,
+            lineWidth: 3,  // (データ幅)線の幅
+          },
+          angleLines: {
+            // 伸びてる方のめもり
+            color: chartGrafLineColor,
+            lineWidth: 3
+          },
+          pointLabels: {
+            // れべるとか
+            color: chartGrafLineColor,
+            font: {
+              size: 25
+            }
+          },
+          ticks: {
+            // メモリの数字
+            display: false,
+          }
+        }
+      }
+    }
+  }
+
+  const chartJSNodeCanvas = new ChartJSNodeCanvas({
+    width: chartWidht, 
+    height: chartHight,
+    chartCallback: (ChartJS) => {
+      // ChartJS.defaults.global.font.size = "rgb(255,255,255)"
+    }
+  })
+  const chart = await chartJSNodeCanvas.renderToBuffer(chartconfig, "image/png")
+  const chartfile = "/tmp/chart.png"
+  fs.writeFileSync(chartfile, chart)
+  const chartimage = await loadImage(chartfile)
+  // ctx.drawImage(chartimage, 0, 0, chartimage.width, chartimage.height)
+  ctx.drawImage(chartimage, chartPost.x,chartPost.y, chartimage.width, chartimage.height)
 
   // // upload
   const buf = canvas.toBuffer()
