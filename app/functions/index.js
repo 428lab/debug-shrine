@@ -225,7 +225,7 @@ async function isStrageExists(filepath) {
 }
 
 function getOgpUrl(username) {
-  url = `https://firebasestrage.googleapis.com/v0/b/d-shrine-dev.appspot.com/o/ogps%2F${encodeURIComponent(username)}.png?alt=media`
+  url = `https://firebasestorage.googleapis.com/v0/b/d-shrine-dev.appspot.com/o/ogps%2F${encodeURIComponent(username)}.png?alt=media`
   if(process.env.FUNCTIONS_EMULATOR){
     url = `http://${process.env.FIREBASE_STORAGE_EMULATOR_HOST}/download/storage/v1/b/d-shrine-dev.appspot.com/o/ogps%2F${username}.png?alt=media`
   }
