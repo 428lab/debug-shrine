@@ -6,6 +6,7 @@ const { getStorage } = require('firebase-admin/storage');
 const { getFirestore, Timestamp, FieldValue } = require("firebase-admin/firestore")
 const { createCanvas, loadImage } = require("canvas")
 const fs = require("fs");
+const { ChartJSNodeCanvas } = require("chartjs-node-canvas")
 
 if(process.env.FIREBASE_CONFIG){
   admin.initializeApp()
@@ -25,6 +26,8 @@ const client_secret = functions.config().github.client_secret
 
 const fontStyle = {
   font: '60px "Noto Sans JP"',
+  fontname: "Noto Sans JP",
+  fontsize: "60",
   lineHight: 100,
   color: "#FFFFFF"
 }
@@ -69,20 +72,18 @@ async function get_user(username) {
   }
 }
 
+function user_performance(items, username) {
+  let user_data = {
+    user: username,
+    hp: 0,
+    power: 0,
+    defence: 0,
+    dex: 0,
+    agility: 0,
+    intelligence: 0
+  }
 
-exports.status = functions.https.onRequest(async (request, response) => {
-  response.set("Access-Control-Allow-Origin", "*")
-  functions.logger.info("status", {structuredData: true})
-  functions.logger.info(request.query.user, {structuredData: true})
-  const items = await get_feed(request.query.user)
-  var power = 0
-  var hp = 0
-  var power = 0
-  var defence = 0
-  var dex = 0
-  var agility = 0
-  var intelligence = 0
-
+  
   previousItem = null
   continuous_count = 0
   let sorted_item = items.sort(function(a, b) {
@@ -94,82 +95,96 @@ exports.status = functions.https.onRequest(async (request, response) => {
       current_time = moment(item.created_at)
       diff = current_time.diff(previous_time)/1000
       if (30 < diff && diff <= 120) {
-        agility += 6
+        user_data.agility += 6
       } else if (diff <= 180) {
-        agility += 3
+        user_data.agility += 3
       } else if (diff <= 300) {
-        agility += 2
+        user_data.agility += 2
       } else if (diff <= 1200) {
-        agility += 1
+        user_data.agility += 1
       }
       if (diff <= 7200) {
         continuous_count++
       } else {
-        hp += continuous_count * 2
+        user_data.hp += continuous_count * 2
         continuous_count = 0
       }
     }
     switch (item.type) {
       case "ForkEvent":
-        power += 1
+        user_data.power += 1
         break
       case "PushEvent":
-        power += 2
+        user_data.power += 2
         break
       case "CreateEvent":
       case "DeleteEvent":
-        power += 1
+        user_data.power += 1
         break
       case "PullRequestEvent":
-        power += 3
+        user_data.power += 3
         break
       case "IssuesEvent":
         switch (item.payload) {
           case "opened":
-            intelligence += 3
+            user_data.intelligence += 3
             break
           case "closed":
-            defence += 5
+            user_data.defence += 5
             break
         }
         break
       case "IssueCommentEvent":
-        intelligence += 2
+        user_data.intelligence += 2
         break
       case "PullRequestReviewEvent":
-        defence += 3
+        user_data.defence += 3
         break
       case "PullRequestReviewCommentEvent":
-        defence += 3
+        user_data.defence += 3
         break
       case "GollumEvent":
-        defence += 3
+        user_data.defence += 3
         break
       case "ReleaseEvent":
-        defence += 10
+        user_data.defence += 10
         break
     }
     previousItem = item
   }
   if (continuous_count > 0) {
-    hp += continuous_count * 2
+    user_data.hp += continuous_count * 2
   }
 
-  var json = {}
-  json["user"] = request.query.user
+  return user_data
+}
 
-  json["points"] = hp + power + intelligence + defence + agility
-  json["hp"] = hp
-  json["power"] = power
-  json["intelligence"] = intelligence
-  json["defence"] = defence
-  json["agility"] = agility
-  json["total"] = hp + power + intelligence + defence + agility
-  points = json["points"]
-  level = get_level(points)
-  json["level"] = level
+function user_formated_performance(user_data) {
+  let return_Data = {
+    user: user_data.user,
+    points: user_data.hp + user_data.power + user_data.intelligence + user_data.defence + user_data.agility,
+    hp: user_data.hp,
+    power: user_data.power,
+    intelligence: user_data.intelligence,
+    defence: user_data.defence,
+    agility: user_data.agility,
+    total: user_data.hp + user_data.power + user_data.intelligence + user_data.defence + user_data.agility,
+    level: 0
+  }
+  return_Data.level = get_level(return_Data.points)
+  return return_Data
+}
 
-  response.json(json)
+exports.status = functions.https.onRequest(async (request, response) => {
+  response.set("Access-Control-Allow-Origin", "*")
+  functions.logger.info("status", {structuredData: true})
+  functions.logger.info(request.query.user, {structuredData: true})
+  const items = await get_feed(request.query.user)
+  let user_data = user_performance(items, request.query.user)
+
+  let return_Data = user_formated_performance(user_data)
+
+  response.json(return_Data)
 })
 
 exports.userOGP = functions.https.onRequest(async (request, response) => {
@@ -246,7 +261,9 @@ async function createOgp(username) {
 
   const userData = await get_user(username)
   const imageURL = userData.avatar_url
-  const userDisplayName = userData.name ? userData.name :userData.login
+  const userDisplayName = userData.name ? userData.name : userData.login
+  const userFeedRawData = await get_feed(username)
+  const userFeedData = user_formated_performance(user_performance(userFeedRawData, username))
 
   // generate
   ctx.font = fontStyle.font
@@ -256,7 +273,7 @@ async function createOgp(username) {
   // 名前
   const userPos = {
     x: 700,
-    y: 323,
+    y: 310,
     max: 1280
   }
   ctx.fillText(userDisplayName, userPos.x, userPos.y, (userPos.max-userPos.x))
@@ -286,9 +303,9 @@ async function createOgp(username) {
   
   // レベル
   const userDataStr = [
-    "れべる：" + 33,
-    "ポイント：" + 11,
-    "せんとうりょく：" + 4000
+    "れべる：" + userFeedData.level,
+    "ポイント：" + userFeedData.points,
+    "せんとうりょく：" + userFeedData.total
   ]
 
   for (let idx=0; idx < userDataStr.length; idx++) {
@@ -299,6 +316,111 @@ async function createOgp(username) {
     )
   }
   // チャート
+  const chartPost = {
+    x: 1325,
+    y: 300
+  }
+  const chartWidht = 550
+  const chartHight = 550
+  const chartbackColor = "rgba(255,255,255,0)"//"rgba(0,0,0,0)"
+  const userChatData = [
+    userFeedData.hp,
+    userFeedData.power,
+    userFeedData.intelligence,
+    userFeedData.defence,
+    userFeedData.agility,
+  ]
+  const chartLabels = [
+    "たいりょく", // hp
+    "ちから", // power
+    "かしこさ", // intelligence
+    "しゅびりょく", // defence
+    "すばやさ", // agility
+  ]
+
+  const chartGrafLineColor = "rgb(242,242,242)" // グラフの線,文字
+  const chartconfig = {
+    type: "radar",
+    data: {
+      labels: chartLabels,
+      datasets: [
+        {
+          // データ
+          data: userChatData,
+          fill: true,
+          backgroundColor: "rgba(0, 168, 228,0.6)",
+          borderColor: "rgb(0, 117, 159)",
+          borderWidth: 2
+        }
+      ]
+    },
+    options: {
+      plugins: {
+        title: {
+          // タイトル
+          display: false
+        },
+        legend: {
+          // 凡例
+          display: false,
+          fontSize: 30
+        },
+      },
+
+      scale: {
+        ticks: {
+          // 線の間隔
+          stepSize: 10,
+        }
+      },
+      elements: {
+        point: {
+          radius: 0 // 点は非表示
+        }
+      },
+      scales: {
+        r: {
+          min: 0,
+          grid: {
+            // メモリ
+            display: true,
+            color: chartGrafLineColor,
+            lineWidth: 3,  // (データ幅)線の幅
+          },
+          angleLines: {
+            // 伸びてる方のめもり
+            color: chartGrafLineColor,
+            lineWidth: 3
+          },
+          pointLabels: {
+            // れべるとか
+            color: chartGrafLineColor,
+            font: {
+              size: 25
+            }
+          },
+          ticks: {
+            // メモリの数字
+            display: false,
+          }
+        }
+      }
+    }
+  }
+
+  const chartJSNodeCanvas = new ChartJSNodeCanvas({
+    width: chartWidht, 
+    height: chartHight,
+    chartCallback: (ChartJS) => {
+      // ChartJS.defaults.global.font.size = "rgb(255,255,255)"
+    }
+  })
+  const chart = await chartJSNodeCanvas.renderToBuffer(chartconfig, "image/png")
+  const chartfile = "/tmp/chart.png"
+  fs.writeFileSync(chartfile, chart)
+  const chartimage = await loadImage(chartfile)
+  // ctx.drawImage(chartimage, 0, 0, chartimage.width, chartimage.height)
+  ctx.drawImage(chartimage, chartPost.x,chartPost.y, chartimage.width, chartimage.height)
 
   // // upload
   const buf = canvas.toBuffer()
