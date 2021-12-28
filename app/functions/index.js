@@ -72,8 +72,9 @@ async function get_user(username) {
   }
 }
 
-function user_performance(items) {
+function user_performance(items, username) {
   let user_data = {
+    user: username,
     hp: 0,
     power: 0,
     defence: 0,
@@ -158,15 +159,9 @@ function user_performance(items) {
   return user_data
 }
 
-exports.status = functions.https.onRequest(async (request, response) => {
-  response.set("Access-Control-Allow-Origin", "*")
-  functions.logger.info("status", {structuredData: true})
-  functions.logger.info(request.query.user, {structuredData: true})
-  const items = await get_feed(request.query.user)
-  let user_data = user_performance(items)
-
+function user_formated_performance(user_data) {
   let return_Data = {
-    user: request.query.user,
+    user: user_data.user,
     points: user_data.hp + user_data.power + user_data.intelligence + user_data.defence + user_data.agility,
     hp: user_data.hp,
     power: user_data.power,
@@ -177,6 +172,17 @@ exports.status = functions.https.onRequest(async (request, response) => {
     level: 0
   }
   return_Data.level = get_level(return_Data.points)
+  return return_Data
+}
+
+exports.status = functions.https.onRequest(async (request, response) => {
+  response.set("Access-Control-Allow-Origin", "*")
+  functions.logger.info("status", {structuredData: true})
+  functions.logger.info(request.query.user, {structuredData: true})
+  const items = await get_feed(request.query.user)
+  let user_data = user_performance(items, request.query.user)
+
+  let return_Data = user_formated_performance(user_data)
 
   response.json(return_Data)
 })
@@ -255,7 +261,9 @@ async function createOgp(username) {
 
   const userData = await get_user(username)
   const imageURL = userData.avatar_url
-  const userDisplayName = userData.name ? userData.name :userData.login
+  const userDisplayName = userData.name ? userData.name : userData.login
+  const userFeedRawData = await get_feed(username)
+  const userFeedData = user_formated_performance(user_performance(userFeedRawData, username))
 
   // generate
   ctx.font = fontStyle.font
@@ -295,9 +303,9 @@ async function createOgp(username) {
   
   // レベル
   const userDataStr = [
-    "れべる：" + 33,
-    "ポイント：" + 11,
-    "せんとうりょく：" + 400
+    "れべる：" + userFeedData.level,
+    "ポイント：" + userFeedData.points,
+    "せんとうりょく：" + userFeedData.total
   ]
 
   for (let idx=0; idx < userDataStr.length; idx++) {
@@ -316,20 +324,18 @@ async function createOgp(username) {
   const chartHight = 550
   const chartbackColor = "rgba(255,255,255,0)"//"rgba(0,0,0,0)"
   const userChatData = [
-    30,
-    10,
-    20,
-    50,
-    20,
-    15
+    userFeedData.hp,
+    userFeedData.power,
+    userFeedData.intelligence,
+    userFeedData.defence,
+    userFeedData.agility,
   ]
   const chartLabels = [
-    "たいりょく",
-    "ちから",
-    "きようさ",
-    "しゅびりょく",
-    "すばやさ",
-    "かしこさ",
+    "たいりょく", // hp
+    "ちから", // power
+    "かしこさ", // intelligence
+    "しゅびりょく", // defence
+    "すばやさ", // agility
   ]
 
   const chartGrafLineColor = "rgb(242,242,242)" // グラフの線,文字
