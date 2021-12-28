@@ -205,7 +205,7 @@ exports.userOGP = functions.https.onRequest(async (request, response) => {
   fileExists = await isStrageExists(filepath)
   functions.logger.info(`file ${filepath}: ${fileExists}`)
 
-  fileExists = false
+  // fileExists = false
   if(fileExists){
     url = getOgpUrl(username)
     // response.send(url) // debug
@@ -213,8 +213,8 @@ exports.userOGP = functions.https.onRequest(async (request, response) => {
   }else{
 
     newOgpPath = await createOgp(username)
-    response.send(url) // debug
-    // response.redirect(newOgpPath)
+    // response.send(url) // debug
+    response.redirect(newOgpPath)
   }
 })
 
