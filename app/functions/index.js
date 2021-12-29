@@ -8,12 +8,15 @@ const { createCanvas, loadImage } = require("canvas")
 const fs = require("fs");
 const { ChartJSNodeCanvas } = require("chartjs-node-canvas")
 
+const projectID = process.env.GCLOUD_PROJECT
+const buggetName = `${projectID}.appspot.com`
+
 if(process.env.FIREBASE_CONFIG){
   admin.initializeApp()
 }else(
   admin.initializeApp({
     credential: admin.credential.applicationDefault(),
-    storageBucket: "d-shrine-dev.appspot.com"
+    storageBucket: buggetName
   })
 )
 // admin.initializeApp()
@@ -82,6 +85,7 @@ async function get_user(username) {
   } catch (error) {
     const {status,statusText} = error.response;
     functions.logger.error(`Error! HTTP Status: ${status} ${statusText}`, {structuredData: true})
+    return null
   }
 }
 
@@ -213,10 +217,20 @@ exports.status = functions.https.onRequest(async (request, response) => {
   response.set("Access-Control-Allow-Origin", "*")
   functions.logger.info("status", {structuredData: true})
   functions.logger.info(request.query.user, {structuredData: true})
+
+  const github_data = await get_user(request.query.user)
+  if(github_data == null) {
+    // missing user
+    response.status(404).json({
+      status: "faild",
+      message: "user not found."
+    })
+    return
+  }
+
   const items = await get_feed(request.query.user)
   let user_data = user_performance(items, request.query.user)
 
-  const github_data = await get_user(request.query.user)
   const github_id = github_data.id
   let appendData = {}
 
@@ -246,27 +260,32 @@ exports.userOGP = functions.https.onRequest(async (request, response) => {
   functions.logger.info(request.query)
   if(!request.query.user){
     // 404で返す
-    response.send("not found")
+    response.status(404).send("user not found.")
     return
   }
 
   const username = request.query.user
-  const filepath = `ogps/${username}.png`
+  const filepath = `ogps/${encodeURIComponent(username)}.png`
 
   fileExists = await isStrageExists(filepath)
   functions.logger.info(`file ${filepath}: ${fileExists}`)
 
-  fileExists = false
+  let url
   if(fileExists){
+    // 既存
     url = getOgpUrl(username)
-    // response.send(url) // debug
-    response.redirect(url)
   }else{
+    // 作成
+    url = await createOgp(username, request, response)
+  }
 
-    newOgpPath = await createOgp(username, request, response)
-    if(newOgpPath){
-      response.send(newOgpPath) // debug
-      // response.redirect(newOgpPath)
+  if(process.env.FUNCTIONS_EMULATOR) {
+    // エミュレーター上は検証がめんどいからリダイレクトしない
+    // できればその場で画像出てくれたら良いのになぁ...
+    response.send(url)
+  }else {
+    if(url) {
+      response.redirect(url)
     }
   }
 })
@@ -278,9 +297,10 @@ async function isStrageExists(filepath) {
 }
 
 function getOgpUrl(username) {
-  url = `https://firebasestorage.googleapis.com/v0/b/d-shrine-dev.appspot.com/o/ogps%2F${encodeURIComponent(username)}.png?alt=media`
+  // ファイルチェックしてURL返したい
+  url = `https://firebasestorage.googleapis.com/v0/b/${buggetName}/o/ogps%2F${encodeURIComponent(username)}.png?alt=media`
   if(process.env.FUNCTIONS_EMULATOR){
-    url = `http://${process.env.FIREBASE_STORAGE_EMULATOR_HOST}/download/storage/v1/b/d-shrine-dev.appspot.com/o/ogps%2F${username}.png?alt=media`
+    url = `http://${process.env.FIREBASE_STORAGE_EMULATOR_HOST}/download/storage/v1/b/${buggetName}/o/ogps%2F${encodeURIComponent(username)}.png?alt=media`
   }
 
   return url
@@ -289,7 +309,7 @@ function getOgpUrl(username) {
 async function createOgp(username, request, response) {
   const basePath = "base.png"
   const localBasePath = "/tmp/base.png"
-  const targetPath = `ogps/${username}.png`
+  const targetPath = `ogps/${encodeURIComponent(username)}.png`
   const localTargetPath = "/tmp/target.png"
 
   baseexists = await isStrageExists(basePath)
@@ -302,7 +322,7 @@ async function createOgp(username, request, response) {
   }
   await bucket.file(basePath).download({
     destination: localBasePath,
-    validation: false // エミュレーター時必要
+    validation: !process.env.FUNCTIONS_EMULATOR // エミュレーター時必要
   })
 
   // init image
@@ -312,6 +332,10 @@ async function createOgp(username, request, response) {
   ctx.drawImage(baseImage, 0, 0, baseImage.width, baseImage.height)
 
   const userData = await get_user(username)
+  if(userData == null) {
+    response.status(404).send("user not found.")
+    return
+  }
   const imageURL = userData.avatar_url
   const userDisplayName = userData.name ? userData.name : userData.login
   const userFeedRawData = await get_feed(username)
