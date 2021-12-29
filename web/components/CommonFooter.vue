@@ -1,29 +1,53 @@
 <template>
-  <div class="bg-dark">
-    <div class="container-lg">
-      <div class="py-4 text-center">
-        <!-- ロゴ -->
-        <!-- <div class="py-2">
-          <img src="https://placehold.jp/300x100.png?text=logo" alt="でばっぐ神社" class="img-fluid">
-        </div> -->
-        <!-- フッターナビゲーション -->
-        <nav id="footer-nav" class="container-sm py-2">
-          <ul>
-            <li class="px-2"><nuxt-link to="/">トップ</nuxt-link></li>
-            <li class="px-2"><nuxt-link to="/terms">利用規約</nuxt-link></li>
-            <li class="px-2"><nuxt-link to="/privacy-policy">プライバシーポリシー</nuxt-link></li>
-          </ul>
-        </nav>
-        <!-- SNSリンク -->
-        <div class="py-2">
-          <img src="https://placehold.jp/300x50.png?text=logo" alt="でばっぐ神社" class="img-fluid">
+  <div>
+    <div class="bg-dark">
+      <div class="container">
+        <div class="py-4 text-center">
+          <div class="d-md-flex justify-content-between align-items-center">
+            <nav id="footer-nav" class="py-2">
+              <ul>
+                <li class="px-2"><nuxt-link to="/">トップ</nuxt-link></li>
+                <li class="px-2">
+                  <nuxt-link to="/terms">利用規約</nuxt-link>
+                </li>
+                <li class="px-2">
+                  <nuxt-link to="/privacy-policy">
+                    プライバシーポリシー
+                  </nuxt-link>
+                </li>
+              </ul>
+            </nav>
+            <!-- SNSリンク -->
+            <div class="py-2">
+              <a
+                class="btn bg-twitter text-white"
+                href="https://twitter.com/lab_428"
+                target="_blank"
+              >
+                <img src="/brandlogo/twitter.svg" alt="" width="20px" /><span
+                  class="ms-1 d-inline"
+                  >Twitter</span
+                >
+              </a>
+              <!-- <a class="d-inline-block" href="https://428lab.net/" target="_blank">
+                <img src="/brandlogo/lab_icon.svg" alt="" width="40px" />
+              </a>
+              <a class="ms-3 d-inline-block" href="https://blog.428lab.net/" target="_blank">
+                <img src="/brandlogo/hatena_icon.svg" alt="" width="40px" />
+              </a>
+              <a class="ms-3 d-inline-block" href="https://twitter.com/lab_428" target="_blank">
+                <img src="/brandlogo/twitter.svg" alt="" width="40px" />
+              </a>
+              <a class="ms-3 d-inline-block" href="https://www.facebook.com/%E5%9B%9B%E8%B0%B7%E3%83%A9%E3%83%9C-102455797824507/" target="_blank">
+                <img src="/brandlogo/facebook.svg" alt="" width="40px" />
+              </a> -->
+            </div>
+          </div>
         </div>
       </div>
     </div>
     <div class="footer-rights">
-      <div class="py-2 text-right container-lg">
-        &copy;428lab.
-      </div>
+      <div class="py-2 text-right container-lg">&copy;428lab.</div>
     </div>
   </div>
 </template>
@@ -42,7 +66,7 @@ nav#footer-nav > ul > li {
   text-decoration: none;
 }
 
-nav#footer-nav > ul > li+ li {
+nav#footer-nav > ul > li + li {
   border-left: 1px solid #adb5bd;
 }
 

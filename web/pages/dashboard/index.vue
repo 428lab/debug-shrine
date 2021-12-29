@@ -13,7 +13,7 @@
                 <img
                   :src="user.image_path"
                   alt="userName"
-                  class="profile-icon img-fluid w-100"
+                  class="rounded-icon img-fluid w-100"
                 />
               </div>
               <div class="ms-4 flex-fill">
