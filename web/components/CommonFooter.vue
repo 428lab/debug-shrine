@@ -4,7 +4,7 @@
   <div class="fixed-bottom">
     <div class="bg-dark">
       <div class="container">
-        <div class="py-4 text-center">
+        <div class="py-2 text-center">
           <div class="d-md-flex justify-content-between align-items-center">
             <nav id="footer-nav" class="py-2">
               <ul>
@@ -27,8 +27,18 @@
                 target="_blank"
               >
                 <img src="/brandlogo/twitter.svg" alt="" width="20px" /><span
-                  class="ms-1 d-inline"
+                  class="ms-2 d-inline"
                   >Twitter</span
+                >
+              </a>
+              <a
+                class="ms-3 btn bg-github text-white"
+                href="https://github.com/428lab/debug-shrine"
+                target="_blank"
+              >
+                <img src="/brandlogo/github.svg" alt="" width="20px" /><span
+                  class="ms-2 d-inline"
+                  >GitHub</span
                 >
               </a>
               <!-- <a class="d-inline-block" href="https://428lab.net/" target="_blank">
