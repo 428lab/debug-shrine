@@ -31,12 +31,16 @@ const fontStyle = {
   lineHight: 100,
   color: "#FFFFFF"
 }
+const target_points = [0,5,11,19,30,45,65,91,124,166,218,281,357,447,553,676,818,981,1167,1378,1616,1884,2184,2519,2892,3306,3764,4269,4825,5436,6106,6840,7643,8520,9477,10520,11656,12892,14236,15696,17281,19001,20867,22891,25086,27466,30046,32842,35872,39156]
+const sanpai = {
+  add_point: 20,
+  next_time: 60 // * 60 * 24  // s
+}
 
 // Create and Deploy Your First Cloud Functions
 // https://firebase.google.com/docs/functions/write-firebase-functions
 
 function get_level(points) {
-  target_points = [0,5,11,19,30,45,65,91,124,166,218,281,357,447,553,676,818,981,1167,1378,1616,1884,2184,2519,2892,3306,3764,4269,4825,5436,6106,6840,7643,8520,9477,10520,11656,12892,14236,15696,17281,19001,20867,22891,25086,27466,30046,32842,35872,39156]
   level = 0
   for (let i=0; i < target_points.length; i++) {
     if (points <= target_points[i]) {
@@ -45,6 +49,15 @@ function get_level(points) {
     }
   }
   return level
+}
+
+function get_next_leve_exp(points) {
+  let level = get_level(points)
+  let return_data = {
+    next_level: level + 1,
+    next_exp: target_points[level]
+  }
+  return return_data
 }
 
 
@@ -478,4 +491,87 @@ exports.register = functions.https.onRequest(async (requeset, response)=>{
   response.json({
     status: "success"
   })
+})
+
+exports.sanpai = functions.https.onRequest(async(request, response) => {
+  response.set('Access-Control-Allow-Headers', '*')
+  response.set("Access-Control-Allow-Origin", "*")
+  response.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS, POST')
+  if(request.method != "POST") {
+    response.json({
+      status: "faild"
+    })
+    return
+  }
+
+  if(!request.body.github_id) {
+    response.json({
+      status: "faild parameter"
+    })
+    return
+  }
+  const github_id = request.body.github_id
+  const userRef = db.collection("users").doc(`${github_id}`)
+  try {
+    await db.runTransaction( async (t)=>{
+      const userDoc = await t.get(userRef)
+      if(!userDoc) {
+        // 登録されてない
+        response.json({
+          "status": "faild",
+          "message": "not registered"
+        })
+        return
+      }
+      let userStatusFeed = null
+      let userStatusData = null
+
+      const userData = userDoc.data()
+      userStatusFeed = await get_feed(userData.screen_name)
+      userStatusData = user_formated_performance(user_performance(userStatusFeed, userData.screen_name))
+      const last_sanpai = userData.last_sanpai
+      if(last_sanpai) {
+        //参拝してる
+        
+        functions.logger.info(last_sanpai)
+        functions.logger.info(last_sanpai.seconds)
+        // 前回の時間指定時間足して、期限がすぎる時間 今の時間
+        if(last_sanpai.seconds + sanpai.next_time > Timestamp.now().seconds) {
+          // 参拝可能時間を過ぎてない
+          // functions.logger.info("expire")
+          response.json({
+            status: "expire",
+            add_exp: 0,
+            level: userStatusData.level,
+            exp: userStatusData.points,
+            next_exp: get_next_leve_exp(userStatusData.points).next_exp
+          })
+          return
+        }
+        
+        
+      }
+      // 更新
+      await t.update(userRef, {
+        last_sanpai: FieldValue.serverTimestamp(),
+        exp: FieldValue.increment(sanpai.add_point)
+      })
+      // 最新状態を取得
+      userStatusFeed = await get_feed(userData.screen_name)
+      userStatusData = user_formated_performance(user_performance(userStatusFeed, userData.screen_name))
+      response.json({
+        status: "status",
+        add_exp: sanpai.add_point,
+        level: userStatusData.level,
+        exp: userStatusData.points,
+        next_exp: get_next_leve_exp(userStatusData.points).next_exp
+      })
+    })
+  }catch(e) {
+    functions.logger.error("transaction failure", e)
+    response.json({
+      status: "missing server error."
+    })
+    return
+  }
 })
