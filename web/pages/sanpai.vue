@@ -1,23 +1,33 @@
 <template>
   <div class="text-center">
-    <div class="container py-5" v-if="status">
-      <h1>参拝ありがとう！</h1>
-      <h2>ポイントを獲得しました</h2>
-      <h2>＋{{ status.exp.get }} exp</h2>
-      <p class="fs-5">LEVEL {{ status.level }}</p>
-      <div class="progress">
-        <div
-          class="progress-bar p-2"
-          role="progressbar"
-          :style="`width:` + (status.exp.total / status.exp.next) * 100 + `%`"
-          :aria-valuenow="status.exp.total"
-          aria-valuemin="0"
-          :aria-valuemax="status.exp.next"
-        >
-          {{ status.exp.total }}exp
-        </div>
+    <div class="container" v-if="status">
+      <div class="p-5">
+        <img
+          src="/torii.svg"
+          alt="でばっぐ神社"
+          class="w-100"
+          style="max-width: 700px"
+        />
       </div>
-      <p class="text-end w-100">NEXT {{ status.exp.next }}exp</p>
+      <div class="fs-1">参拝ありがとう！</div>
+      <div class="fs-4 mt-4">ポイントを獲得しました</div>
+      <div class="fs-4">＋{{ status.exp.get }} exp</div>
+      <div class="fs-5 mt-3">LEVEL {{ status.level }}</div>
+      <div class="p-4">
+        <div class="progress">
+          <div
+            class="progress-bar p-2"
+            role="progressbar"
+            :style="`width:` + (status.exp.total / status.exp.next) * 100 + `%`"
+            :aria-valuenow="status.exp.total"
+            aria-valuemin="0"
+            :aria-valuemax="status.exp.next"
+          >
+            {{ status.exp.total }} exp
+          </div>
+        </div>
+        <p class="text-end w-100 mt-2">NEXT：{{ status.exp.next }} exp</p>
+      </div>
     </div>
     <!-- <button class="btn btn-lg btn-primary" @click="sanpai">
       マイページを見る
