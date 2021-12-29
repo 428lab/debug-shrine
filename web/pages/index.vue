@@ -16,7 +16,7 @@
         <div class="row align-items-center">
           <div class="col-2"></div>
           <div class="col-3 resizeimage">
-            <img src="/github.svg" class="img-fluid" />
+            <img src="/brandlogo/github.svg" class="img-fluid" />
           </div>
           <div class="col-2 resizeimage">
             <img src="/activity.svg" class="img-fluid" />
