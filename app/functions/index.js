@@ -239,16 +239,18 @@ exports.userOGP = functions.https.onRequest(async (request, response) => {
   fileExists = await isStrageExists(filepath)
   functions.logger.info(`file ${filepath}: ${fileExists}`)
 
-  // fileExists = false
+  fileExists = false
   if(fileExists){
     url = getOgpUrl(username)
     // response.send(url) // debug
     response.redirect(url)
   }else{
 
-    newOgpPath = await createOgp(username)
-    // response.send(url) // debug
-    response.redirect(newOgpPath)
+    newOgpPath = await createOgp(username, request, response)
+    if(newOgpPath){
+      response.send(newOgpPath) // debug
+      // response.redirect(newOgpPath)
+    }
   }
 })
 
@@ -267,7 +269,7 @@ function getOgpUrl(username) {
   return url
 }
 
-async function createOgp(username) {
+async function createOgp(username, request, response) {
   const basePath = "base.png"
   const localBasePath = "/tmp/base.png"
   const targetPath = `ogps/${username}.png`
@@ -286,7 +288,6 @@ async function createOgp(username) {
     validation: false // エミュレーター時必要
   })
 
-
   // init image
   const baseImage = await loadImage(localBasePath)
   const canvas  = createCanvas(baseImage.width, baseImage.height)
@@ -297,7 +298,19 @@ async function createOgp(username) {
   const imageURL = userData.avatar_url
   const userDisplayName = userData.name ? userData.name : userData.login
   const userFeedRawData = await get_feed(username)
-  const userFeedData = user_formated_performance(user_performance(userFeedRawData, username))
+  let appendData = {}
+  const userRef = db.collection("users").doc(`${userData.id}`)
+  const userDoc = await userRef.get()
+  if(userDoc.exists) {
+    functions.logger.info("user registerd")
+    const userData = userDoc.data()
+    functions.logger.info(`data: ${userData.exp}`)
+    if(userData.exp) {
+      appendData.exp = userData.exp
+    }
+  }
+
+  const userFeedData = user_formated_performance(user_performance(userFeedRawData, username), appendData)
 
   // generate
   ctx.font = fontStyle.font
