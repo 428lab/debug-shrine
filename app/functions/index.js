@@ -623,6 +623,26 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
       add_point: sanpai.add_point,
       timestamp: FieldValue.serverTimestamp()
     })
+
+    const dbBatch = db.batch()
+    const github_acitivityRef = userRef.collection("github_activities")
+    // アクティビティ更新
+    const feed_items = userStatusFeed//2021-12-28T06:26:21Z
+    date = last_sanpai ? last_sanpai.seconds: moment("2008-04-01T00:00:00Z").unix() // github
+    let splited_items = feed_items.filter(item => (moment(item.created_at).unix()) > date)
+    functions.logger.info(splited_items.length)
+    for(i=0;i<splited_items.length;i++) {
+      let item = {
+        id: splited_items[i].id,
+        type: splited_items[i].type,
+        created_at: splited_items[i].created_at,
+        raw: JSON.stringify(splited_items[i])
+      }
+      let ref = github_acitivityRef.doc(item.id)
+      dbBatch.set(ref, item)
+    }
+    await dbBatch.commit()
+
     // 最新状態を取得
     if(userData.exp) {
       userAppendData.exp = userData.exp + sanpai.add_point
