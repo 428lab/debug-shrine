@@ -9,6 +9,9 @@ export const getters = {
   isLogin(state) {
     return !!state.user;
   },
+  user(state) {
+    return state.user;
+  },
 }
 
 export const mutations = {
