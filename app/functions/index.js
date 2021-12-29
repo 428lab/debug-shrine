@@ -85,6 +85,7 @@ async function get_user(username) {
   } catch (error) {
     const {status,statusText} = error.response;
     functions.logger.error(`Error! HTTP Status: ${status} ${statusText}`, {structuredData: true})
+    return null
   }
 }
 
@@ -216,10 +217,20 @@ exports.status = functions.https.onRequest(async (request, response) => {
   response.set("Access-Control-Allow-Origin", "*")
   functions.logger.info("status", {structuredData: true})
   functions.logger.info(request.query.user, {structuredData: true})
+
+  const github_data = await get_user(request.query.user)
+  if(github_data == null) {
+    // missing user
+    response.status(404).json({
+      status: "faild",
+      message: "user not found."
+    })
+    return
+  }
+
   const items = await get_feed(request.query.user)
   let user_data = user_performance(items, request.query.user)
 
-  const github_data = await get_user(request.query.user)
   const github_id = github_data.id
   let appendData = {}
 
@@ -249,7 +260,7 @@ exports.userOGP = functions.https.onRequest(async (request, response) => {
   functions.logger.info(request.query)
   if(!request.query.user){
     // 404で返す
-    response.send("not found")
+    response.status(404).send("user not found.")
     return
   }
 
@@ -275,8 +286,6 @@ exports.userOGP = functions.https.onRequest(async (request, response) => {
   }else {
     if(url) {
       response.redirect(url)
-    }else{
-      response.status(404).send("not found")
     }
   }
 })
@@ -323,6 +332,10 @@ async function createOgp(username, request, response) {
   ctx.drawImage(baseImage, 0, 0, baseImage.width, baseImage.height)
 
   const userData = await get_user(username)
+  if(userData == null) {
+    response.status(404).send("user not found.")
+    return
+  }
   const imageURL = userData.avatar_url
   const userDisplayName = userData.name ? userData.name : userData.login
   const userFeedRawData = await get_feed(username)
