@@ -1,15 +1,12 @@
 <template>
   <div class="text-center">
     <div class="container py-4">
-      <div class="py-2">
-        <img src="https://placehold.jp/300x100.png?text=logo" alt="でばっぐ神社" class="img-fluid">
+      <div class="p-5">
+        <img src="/torii.svg" alt="でばっぐ神社" class="w-100" style="max-width: 700px">
+        <div class="text-end mt-4" style="max-width: 700px">
+          <nuxt-link to="/about" class="">でばっぐ神社とは ></nuxt-link>
+        </div>
       </div>
-      <!-- <div class="text-center mt-5">
-        <button @click="GitHubAuth" class="btn btn-lg btn-primary">
-          GitHubでログインして<br />
-          参拝する
-        </button>
-      </div> -->
     </div>
     <div class="bg-github py-4">
       <div class="container">
@@ -26,9 +23,9 @@
           </div>
           <div class="col-2"></div>
         </div>
-        <div class="mt-3">
+        <div class="mt-4">
           <button @click="GitHubAuth" class="btn btn-lg btn-primary">
-            GitHubと連携して<br />
+            GitHubと連携して<br class="d-md-none" />
             参拝する
           </button>
           <!-- GitHubと連携して参拝しよう -->
