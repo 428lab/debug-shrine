@@ -1,5 +1,7 @@
 <template>
-  <div>
+<div>
+  <div class="py-5 my-5"></div>
+  <div class="fixed-bottom">
     <div class="bg-dark">
       <div class="container">
         <div class="py-4 text-center">
@@ -50,6 +52,7 @@
       <div class="py-2 text-right container-lg">&copy;428lab.</div>
     </div>
   </div>
+</div>
 </template>
 
 <style>
