@@ -182,13 +182,30 @@ function user_formated_performance(user_data, append_data={}) {
     defence: user_data.defence,
     agility: user_data.agility,
     total: user_data.hp + user_data.power + user_data.intelligence + user_data.defence + user_data.agility,
-    level: 0
+    level: 0,
+    exp: 0,
+    next_exp: 0,
+    chart: {
+      hp: 0,
+      power: 0,
+      intelligence: 0,
+      defence: 0,
+      agility: 0
+    }
   }
   // 経験値を反映
   if(append_data.exp) {
-    return_Data.points += append_data.exp
+    return_Data.exp += append_data.exp
   }
+
+  return_Data.chart.hp = return_Data.hp
+  return_Data.chart.power = return_Data.power,
+  return_Data.chart.intelligence = return_Data.intelligence
+  return_Data.chart.defence = return_Data.defence
+  return_Data.chart.agility = return_Data.agility
+
   return_Data.level = get_level(return_Data.points)
+  return_Data.next_exp = get_next_leve_exp(return_Data.points).next_exp
   return return_Data
 }
 
