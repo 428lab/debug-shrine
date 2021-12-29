@@ -172,7 +172,7 @@ function user_performance(items, username) {
   return user_data
 }
 
-function user_formated_performance(user_data) {
+function user_formated_performance(user_data, append_data={}) {
   let return_Data = {
     user: user_data.user,
     points: user_data.hp + user_data.power + user_data.intelligence + user_data.defence + user_data.agility,
@@ -183,6 +183,10 @@ function user_formated_performance(user_data) {
     agility: user_data.agility,
     total: user_data.hp + user_data.power + user_data.intelligence + user_data.defence + user_data.agility,
     level: 0
+  }
+  // 経験値を反映
+  if(append_data.exp) {
+    return_Data.points += append_data.exp
   }
   return_Data.level = get_level(return_Data.points)
   return return_Data
@@ -195,7 +199,24 @@ exports.status = functions.https.onRequest(async (request, response) => {
   const items = await get_feed(request.query.user)
   let user_data = user_performance(items, request.query.user)
 
-  let return_Data = user_formated_performance(user_data)
+  const github_data = await get_user(request.query.user)
+  const github_id = github_data.id
+  let appendData = {}
+
+  const userRef = db.collection("users").doc(`${github_id}`)
+  const userDoc = await userRef.get()
+  if(userDoc.exists) {
+    functions.logger.info("user registerd")
+    const userData = userDoc.data()
+    functions.logger.info(`data: ${userData.exp}`)
+    if(userData.exp) {
+      appendData.exp = userData.exp
+    }
+  }else {
+    functions.logger.info("user not registerd")
+  }
+
+  let return_Data = user_formated_performance(user_data, appendData)
 
   response.json(return_Data)
 })
@@ -498,6 +519,7 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
   response.set("Access-Control-Allow-Origin", "*")
   response.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS, POST')
   if(request.method != "POST") {
+    functions.logger.info("faild conection")
     response.json({
       status: "faild"
     })
@@ -512,60 +534,73 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
   }
   const github_id = request.body.github_id
   const userRef = db.collection("users").doc(`${github_id}`)
+  
+  functions.logger.info("load")
   try {
-    await db.runTransaction( async (t)=>{
-      const userDoc = await t.get(userRef)
-      if(!userDoc) {
-        // 登録されてない
+
+    functions.logger.info("get 1")
+    const userDoc = await userRef.get()
+    functions.logger.info("get 2" )
+
+    if(!userDoc.exists) {
+      // 登録されてない
+      response.json({
+        "status": "faild",
+        "message": "not registered"
+      })
+      return
+    }
+    functions.logger.info("registerd")
+    let userStatusFeed = null
+    let userStatusData = null
+    let userAppendData = {}
+
+    const userData = userDoc.data()
+    functions.logger.info(userData)
+    if(userData.exp) {
+      userAppendData.exp = userData.exp
+    }
+    userStatusFeed = await get_feed(userData.screen_name)
+    userStatusData = user_formated_performance(user_performance(userStatusFeed, userData.screen_name), userAppendData)
+    const last_sanpai = userData.last_sanpai
+
+    if(last_sanpai) {
+      //参拝してる
+      
+      functions.logger.info(last_sanpai)
+      functions.logger.info(last_sanpai.seconds)
+      // 前回の時間指定時間足して、期限がすぎる時間 今の時間
+      if(last_sanpai.seconds + sanpai.next_time > Timestamp.now().seconds) {
+        // 参拝可能時間を過ぎてない
+        // functions.logger.info("expire")
         response.json({
-          "status": "faild",
-          "message": "not registered"
+          status: "expire",
+          add_exp: 0,
+          level: userStatusData.level,
+          exp: userStatusData.points,
+          next_exp: get_next_leve_exp(userStatusData.points).next_exp
         })
         return
       }
-      let userStatusFeed = null
-      let userStatusData = null
-
-      const userData = userDoc.data()
-      userStatusFeed = await get_feed(userData.screen_name)
-      userStatusData = user_formated_performance(user_performance(userStatusFeed, userData.screen_name))
-      const last_sanpai = userData.last_sanpai
-      if(last_sanpai) {
-        //参拝してる
-        
-        functions.logger.info(last_sanpai)
-        functions.logger.info(last_sanpai.seconds)
-        // 前回の時間指定時間足して、期限がすぎる時間 今の時間
-        if(last_sanpai.seconds + sanpai.next_time > Timestamp.now().seconds) {
-          // 参拝可能時間を過ぎてない
-          // functions.logger.info("expire")
-          response.json({
-            status: "expire",
-            add_exp: 0,
-            level: userStatusData.level,
-            exp: userStatusData.points,
-            next_exp: get_next_leve_exp(userStatusData.points).next_exp
-          })
-          return
-        }
-        
-        
-      }
-      // 更新
-      await t.update(userRef, {
-        last_sanpai: FieldValue.serverTimestamp(),
-        exp: FieldValue.increment(sanpai.add_point)
-      })
-      // 最新状態を取得
-      userStatusFeed = await get_feed(userData.screen_name)
-      userStatusData = user_formated_performance(user_performance(userStatusFeed, userData.screen_name))
-      response.json({
-        status: "status",
-        add_exp: sanpai.add_point,
-        level: userStatusData.level,
-        exp: userStatusData.points,
-        next_exp: get_next_leve_exp(userStatusData.points).next_exp
-      })
+    }
+    // 更新
+    await userRef.update({
+      last_sanpai: FieldValue.serverTimestamp(),
+      exp: FieldValue.increment(sanpai.add_point)
+    })
+    // 最新状態を取得
+    if(userData.exp) {
+      userAppendData.exp = userData.exp + sanpai.add_point
+    }else {
+      userAppendData.exp = sanpai.add_point
+    }
+    userStatusData = user_formated_performance(user_performance(userStatusFeed, userData.screen_name), userAppendData)
+    response.json({
+      status: "success",
+      add_exp: sanpai.add_point,
+      level: userStatusData.level,
+      exp: userStatusData.points,
+      next_exp: get_next_leve_exp(userStatusData.points).next_exp
     })
   }catch(e) {
     functions.logger.error("transaction failure", e)
