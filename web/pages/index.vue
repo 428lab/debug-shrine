@@ -2,7 +2,12 @@
   <div class="text-center">
     <div class="container py-4">
       <div class="p-5">
-        <img src="/torii.svg" alt="でばっぐ神社" class="w-100" style="max-width: 700px">
+        <img
+          src="/torii.svg"
+          alt="でばっぐ神社"
+          class="w-100"
+          style="max-width: 700px"
+        />
         <div class="text-end mt-4" style="max-width: 700px">
           <nuxt-link to="/about" class="">でばっぐ神社とは ></nuxt-link>
         </div>
@@ -50,12 +55,18 @@
 </template>
 
 <script>
-import { getAuth, GithubAuthProvider, signInWithPopup, signInWithRedirect } from "firebase/auth";
+import {
+  getAuth,
+  GithubAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
+} from "firebase/auth";
 import { mapGetters } from "vuex";
 
 export default {
   // middlewareでセッションチェックを行い、GitHubのログインチェックをしない
   middleware: ["auth"],
+  layout: "single",
   data() {
     return {};
   },
@@ -64,7 +75,7 @@ export default {
       const provider = new GithubAuthProvider();
       const auth = getAuth();
       signInWithPopup(auth, provider)
-      // signInWithRedirect(auth, provider)
+        // signInWithRedirect(auth, provider)
         .then((result) => {
           console.log(result);
           let userData = {
