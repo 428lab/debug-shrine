@@ -17,9 +17,7 @@
         <ul class="navbar-nav me-auto mb-2 mb-lg-0"></ul>
         <ul class="navbar-nav mb-2 mb-lg-0" v-if="isLogin">
           <li class="nav-item">
-            <nuxt-link class="nav-link active" aria-current="page" to="/dashboard"
-              >マイページ</nuxt-link
-            >
+            <nuxt-link class="nav-link active" aria-current="page" to="/dashboard">マイページ</nuxt-link>
           </li>
           <li class="nav-item">
             <button class="btn btn-secondary" @click="logout">

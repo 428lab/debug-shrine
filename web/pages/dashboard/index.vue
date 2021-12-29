@@ -1,65 +1,53 @@
 <template>
   <main class="container p-3">
-    <div class="bg-light p-3">
+    <div class="p-3 profile-outline">
       <div class="row">
-        <div class="col-3">
-          <img :src="user.imagePath" alt="userName" class="w-100 rounded" />
-        </div>
-        <div class="col-9">
-          <p class="fs-3">{{ user.userNickname }}</p>
-          <div class="badge bg-secondary">新人コントリビューター</div>
-          <div class="badge bg-secondary">称号２</div>
-        </div>
-      </div>
-    </div>
-    <div class="bg-light mt-3 p-3">
-      <p class="fs-5">RANK {{ user.level }}</p>
-      <div class="progress">
-        <div
-          class="progress-bar p-2"
-          role="progressbar"
-          style="width: 30%"
-          aria-valuenow="10"
-          aria-valuemin="0"
-          aria-valuemax="100"
-        >
-          {{ user.experiencePoint }}exp
-        </div>
-      </div>
-      <p class="text-end w-100">NEXT 2234EXP</p>
-    </div>
-    <div class="bg-light mt-3 p-3 rounded">
-      <h5>つよさ</h5>
-      <RadarChart :chartData="chartData" />
-    </div>
-    <div class="col bg-light p-3 rounded">
-      <!-- <h5>ポイント獲得履歴</h5>
-            <div class="list-group list-group-flush">
-              <div class="list-group list-group-flush">
-                <div class="list-group-item">
-                  <div class="d-flex w-100 justify-content-between">
-                    <h5 class="mb-1">Created commit</h5>
-                    <small class="text-muted">3 days ago</small>
-                  </div>
-                  <p class="mb-1 small">
-                    <i>アイコン</i> +10pt
-                    <i>アイコン</i> +10exp
-                  </p>
-                  <small class="text-muted">428lab/debug-shrine</small>
-                </div>
+        <div class="col-12 col-md-6 col-lg-8 mb-4">
+          <div class="p-3 bg-dark">
+            <div class="d-flex align-items-end">
+              <div class="fs-4 me-4">{{ user.display_name }}</div>
+              <div class="fs-5">{{ user.screen_name }}</div>
+            </div>
+            <div class="d-flex mt-3">
+              <div class="w-35">
+                <img
+                  :src="user.image_path"
+                  alt="userName"
+                  class="rounded-icon img-fluid w-100"
+                />
               </div>
-            </div> -->
+              <div class="ms-4 flex-fill">
+                <div class="fs-5">れべる：{{ profile.level }}</div>
+                <div class="progress mt-2">
+                  <div
+                    class="progress-bar p-2"
+                    role="progressbar"
+                    style="width: 30%"
+                    aria-valuenow="10"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                  >
+                    {{ profile.exp }} exp
+                  </div>
+                </div>
+                <p class="text-end w-100 mt-2">NEXT {{ profile.next }} exp</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-md-6 col-lg-4">
+          <div class="bg-primary rounded p-2 text-center">
+            でばっぐのうりょく
+          </div>
+          <RadarChart :chartData="chartData" />
+        </div>
+      </div>
     </div>
   </main>
 </template>
 
 <script>
-import {
-  getAuth,
-  getMultiFactorResolver,
-  onAuthStateChanged,
-  ProviderId,
-} from "firebase/auth";
+import { mapGetters } from "vuex";
 import RadarChart from "@/components/charts/powerChart.vue";
 
 export default {
@@ -68,21 +56,17 @@ export default {
   async asyncData({ $axios }) {
     let response = await $axios.get("status?user=ShinoharaTa");
     let userChart = [];
-    userChart.push(response.data.hp);
-    userChart.push(response.data.power);
-    userChart.push(response.data.intelligence);
-    userChart.push(response.data.defence);
-    userChart.push(response.data.agility);
-
+    console.log(response.data);
+    userChart.push(response.data.chart.hp);
+    userChart.push(response.data.chart.power);
+    userChart.push(response.data.chart.intelligence);
+    userChart.push(response.data.chart.defence);
+    userChart.push(response.data.chart.agility);
     return {
-      user: {
-        userName: "ShinoharaTa",
-        userNickname: "T.Shinohara",
-        imagePath: "https://placehold.jp/150x150.png",
-        exp: 0,
-        level: 0,
-        point: 0,
-        titles: ["newContributor", "newContributor"],
+      profile: {
+        exp: response.data.total,
+        point: response.data.total,
+        level: response.data.level,
       },
       chartData: {
         labels: [
@@ -97,43 +81,35 @@ export default {
             type: "radar",
             data: userChart,
             fill: true,
-            backgroundColor: "rgba(255, 99, 132, 0.2)",
+            backgroundColor: "rgba(255, 99, 132, 0.6)",
             borderWidth: 0,
-            pointStyle: "dash"
+            pointStyle: "dash",
           },
         ],
       },
     };
-  },
-  async beforeMount() {
-    // gituhubユーザ情報取得
-    // const auth = getAuth();
-    // let screenName = "";
-    // onAuthStateChanged(auth, (user) => {
-    //   if (user) {
-    //     screenName = user.reloadUserInfo.screenName;
-    //     // return user;
-    //     // サインインしている場合
-    //     // user.providerData.forEach((profile) => {
-
-    //     // プロバイダーデータの取得
-    //     // if (profile.providerId == "github.com") {
-    //     // console.log(profile);
-    //     // this.user.userNickname = profile.displayName;
-    //     // this.user.photoURL = profile.photoURL;
-    //     // }
-    //     // });
-    //     console.log(screenName);
-
-    //     // if(user)
-    //     // console.log(this.user.userNickname);
-    //   }
-    // });
   },
   methods: {
     logout: function () {
       this.$store.dispatch("logout");
     },
   },
+  mounted() {
+    console.log(this.user);
+  },
+  computed: {
+    ...mapGetters(["user"]),
+  },
 };
 </script>
+
+<style scoped>
+.profile-outline {
+  background-color: #000;
+  border-radius: 15px;
+}
+
+.debug-title {
+  border-radius: 10px;
+}
+</style>

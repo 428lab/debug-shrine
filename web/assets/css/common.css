@@ -12,3 +12,7 @@ a {
 .w-35 {
     width: 35%;
 }
+
+.rounded-icon {
+    border-radius: 50%;
+}
