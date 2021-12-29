@@ -8,12 +8,15 @@ const { createCanvas, loadImage } = require("canvas")
 const fs = require("fs");
 const { ChartJSNodeCanvas } = require("chartjs-node-canvas")
 
+const projectID = process.env.GCLOUD_PROJECT
+const buggetName = `${projectID}.appspot.com`
+
 if(process.env.FIREBASE_CONFIG){
   admin.initializeApp()
 }else(
   admin.initializeApp({
     credential: admin.credential.applicationDefault(),
-    storageBucket: "d-shrine-dev.appspot.com"
+    storageBucket: buggetName
   })
 )
 // admin.initializeApp()
@@ -251,22 +254,29 @@ exports.userOGP = functions.https.onRequest(async (request, response) => {
   }
 
   const username = request.query.user
-  const filepath = `ogps/${username}.png`
+  const filepath = `ogps/${encodeURIComponent(username)}.png`
 
   fileExists = await isStrageExists(filepath)
   functions.logger.info(`file ${filepath}: ${fileExists}`)
 
-  fileExists = false
+  let url
   if(fileExists){
+    // 既存
     url = getOgpUrl(username)
-    // response.send(url) // debug
-    response.redirect(url)
   }else{
+    // 作成
+    url = await createOgp(username, request, response)
+  }
 
-    newOgpPath = await createOgp(username, request, response)
-    if(newOgpPath){
-      response.send(newOgpPath) // debug
-      // response.redirect(newOgpPath)
+  if(process.env.FUNCTIONS_EMULATOR) {
+    // エミュレーター上は検証がめんどいからリダイレクトしない
+    // できればその場で画像出てくれたら良いのになぁ...
+    response.send(url)
+  }else {
+    if(url) {
+      response.redirect(url)
+    }else{
+      response.status(404).send("not found")
     }
   }
 })
@@ -278,9 +288,10 @@ async function isStrageExists(filepath) {
 }
 
 function getOgpUrl(username) {
-  url = `https://firebasestorage.googleapis.com/v0/b/d-shrine-dev.appspot.com/o/ogps%2F${encodeURIComponent(username)}.png?alt=media`
+  // ファイルチェックしてURL返したい
+  url = `https://firebasestorage.googleapis.com/v0/b/${buggetName}/o/ogps%2F${encodeURIComponent(username)}.png?alt=media`
   if(process.env.FUNCTIONS_EMULATOR){
-    url = `http://${process.env.FIREBASE_STORAGE_EMULATOR_HOST}/download/storage/v1/b/d-shrine-dev.appspot.com/o/ogps%2F${username}.png?alt=media`
+    url = `http://${process.env.FIREBASE_STORAGE_EMULATOR_HOST}/download/storage/v1/b/${buggetName}/o/ogps%2F${encodeURIComponent(username)}.png?alt=media`
   }
 
   return url
@@ -289,7 +300,7 @@ function getOgpUrl(username) {
 async function createOgp(username, request, response) {
   const basePath = "base.png"
   const localBasePath = "/tmp/base.png"
-  const targetPath = `ogps/${username}.png`
+  const targetPath = `ogps/${encodeURIComponent(username)}.png`
   const localTargetPath = "/tmp/target.png"
 
   baseexists = await isStrageExists(basePath)
@@ -302,7 +313,7 @@ async function createOgp(username, request, response) {
   }
   await bucket.file(basePath).download({
     destination: localBasePath,
-    validation: false // エミュレーター時必要
+    validation: !process.env.FUNCTIONS_EMULATOR // エミュレーター時必要
   })
 
   // init image
