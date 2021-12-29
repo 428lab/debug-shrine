@@ -1,6 +1,10 @@
 <template>
   <div>
-    <Nuxt />
-    <CommonFooter />
+    <main>
+      <Nuxt />
+    </main>
+    <footer>
+      <CommonFooter />
+    </footer>
   </div>
 </template>
