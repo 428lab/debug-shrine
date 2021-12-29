@@ -9,9 +9,19 @@
           style="max-width: 700px"
         />
       </div>
-      <div class="fs-1">参拝ありがとう！</div>
-      <div class="fs-4 mt-4">ポイントを獲得しました</div>
-      <div class="fs-4">＋{{ status.exp.get }} exp</div>
+      <div v-if="result === 'success'">
+        <div class="fs-1">参拝ありがとう！</div>
+        <div class="fs-4 mt-4">ポイントを獲得しました</div>
+        <div class="fs-4">＋{{ status.exp.get }} exp</div>
+      </div>
+      <div v-else-if="result === 'expire'">
+        <div class="fs-1">おっと、参拝のペースが早すぎるようです</div>
+        <div class="fs-4 mt-4">追加のポイントはありませんでした</div>
+      </div>
+      <div v-else-if="result === 'noaction'">
+        <div class="fs-1">新規のアクティビティがないようです</div>
+        <div class="fs-4 mt-4">追加のポイントはありませんでした</div>
+      </div>
       <div class="fs-5 mt-3">LEVEL {{ status.level }}</div>
       <div class="p-4">
         <div class="progress">
@@ -38,6 +48,7 @@
     <!-- <div id="testLabel">Testing</div>
     <div id="drawhere"></div> -->
     <!-- debug:{{ JSON.stringify(debug) }} -->
+    <Loading v-if="isLoading"></Loading>
   </div>
 </template>
 
@@ -48,6 +59,8 @@ export default {
   data() {
     return {
       isLoading: true,
+      isError: false,
+      result: "",
       status: {
         level: 0,
         exp: {
@@ -63,11 +76,17 @@ export default {
       github_id: this.user.github_id,
     };
     let response = await this.$axios.post("sanpai", payload);
-    this.status.level = response.data.level;
-    this.status.exp.next = response.data.next_exp;
-    this.status.exp.get = response.data.add_exp;
-    this.status.exp.total = response.data.exp;
-    this.isLoading = false;
+    if (response) {
+      this.status.level = response.data.level;
+      this.status.exp.next = response.data.next_exp;
+      this.status.exp.get = response.data.add_exp;
+      this.status.exp.total = response.data.exp;
+      this.resutl = response.data.status;
+      this.isLoading = false;
+    } else {
+      this.isError = true;
+      this.isLoading = false;
+    }
   },
   methods: {
     sanpai() {
