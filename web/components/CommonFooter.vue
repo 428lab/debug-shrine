@@ -3,9 +3,9 @@
     <div class="container-lg">
       <div class="py-4 text-center">
         <!-- ロゴ -->
-        <div class="py-2">
-          <img src="https://placehold.jp/300x100.png?text=logo" alt="でばっぐ神社">
-        </div>
+        <!-- <div class="py-2">
+          <img src="https://placehold.jp/300x100.png?text=logo" alt="でばっぐ神社" class="img-fluid">
+        </div> -->
         <!-- フッターナビゲーション -->
         <nav id="footer-nav" class="container-sm py-2">
           <ul>
@@ -16,7 +16,7 @@
         </nav>
         <!-- SNSリンク -->
         <div class="py-2">
-          <img src="https://placehold.jp/300x50.png?text=logo" alt="でばっぐ神社">
+          <img src="https://placehold.jp/300x50.png?text=logo" alt="でばっぐ神社" class="img-fluid">
         </div>
       </div>
     </div>
