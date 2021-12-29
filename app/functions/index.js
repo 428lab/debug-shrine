@@ -618,6 +618,11 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
       last_sanpai: FieldValue.serverTimestamp(),
       exp: FieldValue.increment(sanpai.add_point)
     })
+    const sanpai_logsRef = userRef.collection("sanpai_logs")
+    const sanpaiRes = await sanpai_logsRef.add({
+      add_point: sanpai.add_point,
+      timestamp: FieldValue.serverTimestamp()
+    })
     // 最新状態を取得
     if(userData.exp) {
       userAppendData.exp = userData.exp + sanpai.add_point
