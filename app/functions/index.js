@@ -183,6 +183,7 @@ function user_formated_performance(user_data, append_data={}) {
     agility: user_data.agility,
     total: user_data.hp + user_data.power + user_data.intelligence + user_data.defence + user_data.agility,
     level: 0,
+    exp: 0,
     next_exp: 0,
     chart: {
       hp: 0,
@@ -194,7 +195,7 @@ function user_formated_performance(user_data, append_data={}) {
   }
   // 経験値を反映
   if(append_data.exp) {
-    return_Data.points += append_data.exp
+    return_Data.exp += append_data.exp
   }
 
   return_Data.chart.hp = return_Data.hp
