@@ -1,7 +1,7 @@
 <template>
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container-fluid">
-      <nuxt-link class="navbar-brand" to="/"><img src="/torii.svg" height="32px"></nuxt-link>
+      <nuxt-link class="navbar-brand" to="/"><img src="/favicon512.png" height="32px" class="me-2">でばっぐ神社</nuxt-link>
       <button
         class="navbar-toggler"
         type="button"
@@ -38,7 +38,6 @@ export default {
     return {};
   },
   mounted() {
-    console.log(this.isLogin);
   },
   methods: {
     logout() {
