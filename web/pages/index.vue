@@ -29,7 +29,7 @@
           <div class="col-2"></div>
         </div>
         <div class="mt-4">
-          <button @click="GitHubAuth" class="btn btn-lg btn-primary">
+          <button @click="GitHubAuth" class="btn btn-lg btn-primary" :disabled="buttons.sanpai">
             <template v-if="!isLogin">
               GitHubと連携して<br class="d-md-none" />
             </template>
@@ -87,6 +87,13 @@ import { mapGetters } from "vuex";
 
 export default {
   layout: "single",
+  data() {
+    return {
+      buttons: {
+        sanpai: false,
+      },
+    };
+  },
   async beforeMount() {
     const auth = getAuth();
     onAuthStateChanged(auth, (user) => {
@@ -97,6 +104,7 @@ export default {
   },
   methods: {
     GitHubAuth() {
+      this.buttons.sanpai = true;
       const provider = new GithubAuthProvider();
       const auth = getAuth();
       if (this.isLogin) {
