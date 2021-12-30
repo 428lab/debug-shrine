@@ -98,6 +98,14 @@
 import RadarChart from "@/components/charts/powerChart.vue";
 
 export default {
+  head() {
+    return {
+      meta: [
+        { hid: 'og:description', property:'og:description', content: `これが${this.$route.params.userName}の でばっぐのうりょくだ！` },
+        { hid: 'og:image', property: 'og:image', content: `${this.$config.apiUrl}userOGP?user=${this.$route.params.userName}`}
+      ]
+    }
+  },
   components: { RadarChart },
   async asyncData({ $axios, route }) {
     let response = await $axios.get("status?user=" + route.params.userName);
