@@ -28,25 +28,54 @@
                 />
               </div>
               <div class="ms-4 flex-fill">
-                <div class="fs-5">れべる：{{ profile.level }}</div>
+                <div class="">れべる：{{ profile.level }}</div>
+                <div class="">ぽいんと：{{ profile.point }}</div>
+                <div class="S">せんとうりょく：{{ profile.total }}</div>
                 <div class="progress mt-2">
                   <div
                     class="progress-bar p-2"
                     role="progressbar"
-                    style="width: 30%"
-                    aria-valuenow="10"
+                    :style="`width:` + (profile.total / profile.next) * 100 + `%`"
+                    :aria-valuenow="profile.total"
                     aria-valuemin="0"
-                    aria-valuemax="100"
+                    :aria-valuemax="profile.next"
                   >
                     {{ profile.exp }} exp
                   </div>
                 </div>
                 <p class="text-end w-100 mt-2">NEXT {{ profile.next }} exp</p>
-                <div>たいりょく：{{ profile.hp }}</div>
+                <table class="mt-3">
+                  <tr>
+                    <td>たいりょく</td>
+                    <td>：</td>
+                    <td class="text-end">{{ profile.hp }}</td>
+                  </tr>
+                  <tr>
+                    <td>ちから</td>
+                    <td>：</td>
+                    <td class="text-end">{{ profile.power }}</td>
+                  </tr>
+                  <tr>
+                    <td>かしこさ</td>
+                    <td>：</td>
+                    <td class="text-end">{{ profile.intelligence }}</td>
+                  </tr>
+                  <tr>
+                    <td>しゅびりょく</td>
+                    <td>：</td>
+                    <td class="text-end">{{ profile.defence }}</td>
+                  </tr>
+                  <tr>
+                    <td>すばやさ</td>
+                    <td>：</td>
+                    <td class="text-end">{{ profile.agility }}</td>
+                  </tr>
+                </table>
+                <!-- <div>たいりょく：{{ profile.hp }}</div>
                 <div>ちから：{{ profile.power }}</div>
                 <div>かしこさ：{{ profile.intelligence }}</div>
                 <div>しゅびりょく：{{ profile.defence }}</div>
-                <div>すばやさ：{{ profile.agility }}</div>                
+                <div>すばやさ：{{ profile.agility }}</div>                 -->
               </div>
             </div>
           </div>
@@ -97,14 +126,16 @@ export default {
 
     return {
       profile: {
+        total: response.data.total,
         exp: response.data.total,
-        point: response.data.total,
+        point: response.data.points,
         level: response.data.level,
         hp: response.data.hp,
         power: response.data.power,
         intelligence: response.data.intelligence,
         defence: response.data.defence,
         agility: response.data.agility,
+        next: response.data.next_exp
       },
       chartData: {
         labels: [
@@ -144,6 +175,9 @@ export default {
     ...mapGetters(["user"]),
     shareUrl() {
       return this.$config.baseUrl + "/u/" + this.user.screen_name;
+    },
+    progressWidth() {
+      return this.profile.exp.total / this.profile.next
     }
   },
 };

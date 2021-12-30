@@ -107,7 +107,6 @@ export default {
             console.error(error);
           });
       }
-      
     },
   },
   computed: {

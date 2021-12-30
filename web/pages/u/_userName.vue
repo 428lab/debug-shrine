@@ -25,12 +25,38 @@
                 </a>
                 <div class="mt-3">れべる：{{ status.level }}</div>
                 <div>ポイント：{{ status.points }}</div>
-                <div>せんとうりょく：{{ status.total }}</div>
-                <div>たいりょく：{{ status.hp }}</div>
-                <div>ちから：{{ status.power }}</div>
-                <div>かしこさ：{{ status.intelligence }}</div>
-                <div>しゅびりょく：{{ status.defence }}</div>
-                <div>すばやさ：{{ status.agility }}</div>
+                <table class="mt-3">
+                  <tr>
+                    <td>せんとうりょく</td>
+                    <td>：</td>
+                    <td class="text-end">{{ status.total }}</td>
+                  </tr>
+                  <tr>
+                    <td>たいりょく</td>
+                    <td>：</td>
+                    <td class="text-end">{{ status.hp }}</td>
+                  </tr>
+                  <tr>
+                    <td>ちから</td>
+                    <td>：</td>
+                    <td class="text-end">{{ status.power }}</td>
+                  </tr>
+                  <tr>
+                    <td>かしこさ</td>
+                    <td>：</td>
+                    <td class="text-end">{{ status.intelligence }}</td>
+                  </tr>
+                  <tr>
+                    <td>しゅびりょく</td>
+                    <td>：</td>
+                    <td class="text-end">{{ status.defence }}</td>
+                  </tr>
+                  <tr>
+                    <td>すばやさ</td>
+                    <td>：</td>
+                    <td class="text-end">{{ status.agility }}</td>
+                  </tr>
+                </table>
               </div>
             </div>
           </div>
