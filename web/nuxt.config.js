@@ -7,6 +7,7 @@ export default {
 
   publicRuntimeConfig: {
     baseUrl: process.env.BASE_URL || 'http://localhost:3000',
+    apiUrl: process.env.API_URL
   },
 
   // Global page headers (https://go.nuxtjs.dev/config-head)
