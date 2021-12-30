@@ -23,7 +23,7 @@
               <div class="py-2">
                 <a
                   class="btn bg-twitter text-white"
-                  href="https://twitter.com/lab_428"
+                  href="https://twitter.com/debug_shrine"
                   target="_blank"
                 >
                   <img src="/brandlogo/twitter.svg" alt="" width="20px" /><span
