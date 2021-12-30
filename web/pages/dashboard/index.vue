@@ -67,8 +67,9 @@ import RadarChart from "@/components/charts/powerChart.vue";
 export default {
   middleware: "auth",
   components: { RadarChart },
-  async asyncData({ $axios }) {
-    let response = await $axios.get("status?user=ShinoharaTa");
+  async asyncData({ $axios, store }) {
+    let response = await $axios.get("status?user=" + store.state.user.screen_name);
+    // 登録してなかったらエラーが出るのでエラー対応よろ
     let userChart = [];
     console.log(response.data);
     userChart.push(response.data.chart.hp);
