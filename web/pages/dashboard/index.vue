@@ -1,12 +1,23 @@
 <template>
   <main class="container p-3">
-    <div class="p-3 profile-outline">
+    <div class="d-md-flex justify-content-between align-items-end">
+      <div class="fs-1">マイページ</div>
+      <div class="text-end">
+        <nuxt-link :to="`/u/` + user.screen_name"
+          >公開プロフィールを確認 ></nuxt-link
+        >
+      </div>
+    </div>
+    <div class="p-3 profile-outline mt-3">
       <div class="row">
         <div class="col-12 col-md-6 col-lg-8 mb-4">
           <div class="p-3 bg-dark">
-            <div class="d-flex align-items-end">
+            <div class="d-lg-flex align-items-center">
               <div class="fs-4 me-4">{{ user.display_name }}</div>
-              <div class="fs-5">{{ user.screen_name }}</div>
+              <div class="align-items-center">
+                <img src="/brandlogo/github.svg" width="16px" alt="" />
+                <span class="">{{ user.screen_name }}</span>
+              </div>
             </div>
             <div class="d-flex mt-3">
               <div class="w-35">
@@ -42,6 +53,9 @@
           <RadarChart :chartData="chartData" />
         </div>
       </div>
+    </div>
+    <div class="text-center text-md-end mt-3">
+      <Share title="プロフィールをSNSでシェアしよう"></Share>
     </div>
   </main>
 </template>
