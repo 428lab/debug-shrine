@@ -739,3 +739,46 @@ exports.scheduledOgpDelete = functions.pubsub
       prefix: `ogps/`
     })
   })
+
+exports.ogpRewrite = functions.https.onRequest(async (requeset, response) => {
+  // ogp用HTMLに書き換える
+  const req_path = requeset.url
+  functions.logger.info(`request url: ${req_path}`)
+  const user_match = req_path.match("/u/(.+)")
+  if(!user_match && user_match.length < 1) {
+    functions.logger.info(`mismatch query: ${req_path}`)
+    response.status(404).send("not found")
+    return
+  }
+  const username = user_match[1]
+  // const url = `https://${projectID}.web.app/`
+  const url = `http://0.0.0.0:5000/` // firebase emulators
+  const ogpURL = `https://us-central1-${projectID}.cloudfunctions.net/userOGP?user=${username}`
+  const description = `これが${username}の でばっぐのうりょくだ！`
+  
+  try {
+    functions.logger.info(`username: ${username}`)
+    const res = await axios.get(url)
+    let data = res.data
+
+    // <meta data-n-head="1" data-hid="og:image" property="og:image" content="/shrine.png">
+    data = data.replace(
+      `<meta data-n-head="1" data-hid="og:image" property="og:image" content="/shrine.png">`,
+      `<meta data-n-head="1" data-hid="og:image" property="og:image" content="${ogpURL}">`
+    )
+    // <meta data-n-head="1" data-hid="og:description" name="og:description" property="og:description" content="## Build Setup">
+    data = data.replace(
+      `<meta data-n-head="1" data-hid="og:description" name="og:description" property="og:description" content="## Build Setup">`,
+      `<meta data-n-head="1" data-hid="og:description" name="og:description" property="og:description" content="${description}">`
+    )
+
+    functions.logger.info("rewrite data")
+    response.send(data)
+  }catch (error) {
+    if(error.response) {
+      const {status,statusText} = error.response;
+      functions.logger.error(`Error! HTTP Status: ${status} ${statusText}`, {structuredData: true})
+    }
+    response.send(404).send("faild")
+  }
+})

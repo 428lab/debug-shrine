@@ -12,6 +12,10 @@
     ],
     "rewrites": [
       {
+        "source": "/u/*",
+        "function": "ogpRewrite"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
