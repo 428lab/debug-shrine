@@ -89,8 +89,13 @@ export default {
             userData.display_name = userData.screen_name;
           }
           this.$store.commit("login", userData);
-          this.$axios.post("register", userData);
-          this.$router.push({ path: "/sanpai" });
+          this.$axios.post("register", userData)
+            .then(result => {
+              this.$router.push({ path: "/sanpai" });
+            }).catch(e =>{
+              console.log("missing register")
+              console.log(e)
+            })
         })
         .catch((error) => {
           console.error(error);
