@@ -2,9 +2,14 @@
   <main class="container p-3">
     <div class="d-md-flex justify-content-between align-items-end">
       <div class="fs-1">マイページ</div>
-      <div class="text-end">
+      <div class="text-end mt-2">
         <nuxt-link :to="`/u/` + user.screen_name"
           >公開プロフィールを確認 ></nuxt-link
+        >
+      </div>
+      <div class="text-end mt-2">
+        <nuxt-link :to="`/u/` + user.screen_name"
+          >ログアウト ></nuxt-link
         >
       </div>
     </div>
@@ -99,7 +104,7 @@ import { mapGetters } from "vuex";
 import RadarChart from "@/components/charts/powerChart.vue";
 
 export default {
-  middleware: "auth",
+  middleware: ["auth"],
   components: { RadarChart },
   async asyncData({ $axios, store }) {
     let response = await $axios.get("status?user=" + store.state.user.screen_name);
