@@ -700,13 +700,18 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
       userAppendData.exp = sanpai.add_point
     }
     userStatusData = user_formated_performance(user_performance(userStatusFeed, userData.screen_name), userAppendData)
-    response.json({
+    let return_data = {
       status: "success",
       add_exp: sanpai.add_point,
       level: userStatusData.level,
       exp: userStatusData.points,
       next_exp: get_next_leve_exp(userStatusData.points).next_exp
-    })
+    }
+    if(splited_items.length == 0) {
+      // アクティビティがないっぽい
+      return_data.staus = "noaction"
+    }
+    response.json(return_data)
   }catch(e) {
     functions.logger.error("transaction failure", e)
     response.json({
