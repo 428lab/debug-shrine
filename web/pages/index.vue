@@ -30,7 +30,9 @@
         </div>
         <div class="mt-4">
           <button @click="GitHubAuth" class="btn btn-lg btn-primary">
+            <div v-if="!isLogin">
             GitHubと連携して<br class="d-md-none" />
+            </div>
             参拝する
           </button>
           <!-- GitHubと連携して参拝しよう -->
