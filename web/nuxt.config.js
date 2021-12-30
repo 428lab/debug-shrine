@@ -17,7 +17,8 @@ export default {
       { charset: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
       { hid: 'description', name: 'description', content: '' },
-      { hid: 'og:image', property: 'og:image', content: `/shrine.png`}
+      { hid: 'og:image', property: 'og:image', content: `/shrine.png`},
+      { hid: 'twitter:card', property: 'twitter:carad', content: 'summary_large_image'}
     ],
     link: [
       { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' }
