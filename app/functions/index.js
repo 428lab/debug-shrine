@@ -675,7 +675,7 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
     let splited_items = feed_items.filter(item => (moment(item.created_at).unix()) > date)  //前回の参拝からのアクティビティ(初回は取れるだけ)
     functions.logger.info(`activities: ${splited_items.length}`)
 
-    add_exp += int(splited_items.length/5)  // 取得できたアクティビティ5件につき1件
+    add_exp += Math.floor(splited_items.length/5)  // 取得できたアクティビティ5件につき1件
 
     // アクティビティ反映
     const dbBatch = db.batch()
