@@ -44,7 +44,7 @@
               >
                 <small>でばっぐのうりょく</small>
               </div>
-              <RadarChart :chartData="chartData" />
+              <RadarChart :chartData="chartData" :chartConfig="chartOptions" />
             </div>
             <div class="col-4 align-items-center d-md-none">
               <img
@@ -79,6 +79,17 @@ export default {
     userChart.push(response.data.chart.intelligence);
     userChart.push(response.data.chart.defence);
     userChart.push(response.data.chart.agility);
+    var median = function(arr, fn) {
+        var half = (arr.length/2)|0;
+        var temp = arr.sort(fn);
+
+        if (temp.length%2) {
+            return temp[half];
+        }
+
+        return (temp[half-1] + temp[half])/2;
+    };
+    var max = median(userChart)*2
     return {
       user: {
         nickName: response.data.user.display_name,
@@ -108,6 +119,11 @@ export default {
             pointStyle: "dash",
           },
         ],
+      },
+      chartOptions: {
+        display: false,
+        min: 0,
+        max: max,
       },
     };
   },

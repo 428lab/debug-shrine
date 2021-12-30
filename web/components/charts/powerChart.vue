@@ -27,6 +27,7 @@ export default {
   },
   props: ["chartData", "chartConfig"],
   mounted() {
+    this.options.scale.ticks = this.chartConfig
     this.renderChart(this.chartData, this.options);
   },
 };
