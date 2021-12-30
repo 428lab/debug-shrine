@@ -228,15 +228,13 @@ exports.status = functions.https.onRequest(async (request, response) => {
     return
   }
 
-  const items = await get_feed(request.query.user)
-  let user_data = user_performance(items, request.query.user)
-
   const github_id = github_data.id
   let appendData = {}
 
   const userRef = db.collection("users").doc(`${github_id}`)
   const userDoc = await userRef.get()
   if(userDoc.exists) {
+    // ユーザーは登録さている
     functions.logger.info("user registerd")
     const userData = userDoc.data()
     functions.logger.info(`data: ${userData.exp}`)
@@ -244,9 +242,17 @@ exports.status = functions.https.onRequest(async (request, response) => {
       appendData.exp = userData.exp
     }
   }else {
+    // 登録されていない
     functions.logger.info("user not registerd")
+    response.status(404).json({
+      staus: "faild",
+      message: "user not registerd."
+    })
+    return
   }
 
+  const items = await get_feed(request.query.user)
+  let user_data = user_performance(items, request.query.user)
   let return_Data = user_formated_performance(user_data, appendData)
 
   response.json(return_Data)
