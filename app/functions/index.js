@@ -720,3 +720,12 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
     return
   }
 })
+
+exports.scheduledOgpDelete = functions.pubsub
+  .schedule("0 */1 * * *")
+  .timeZone("Asia/Tokyo")
+  .onRun((context) => {
+    bucket.deleteFiles({
+      prefix: `ogps/`
+    })
+  })
