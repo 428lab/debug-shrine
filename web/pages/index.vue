@@ -76,32 +76,38 @@ export default {
     GitHubAuth() {
       const provider = new GithubAuthProvider();
       const auth = getAuth();
-      signInWithPopup(auth, provider)
-        // signInWithRedirect(auth, provider)
-        .then((result) => {
-          console.log(result);
-          let userData = {
-            github_id: result.user.providerData[0].uid,
-            display_name: result.user.displayName,
-            screen_name: result._tokenResponse.screenName,
-            image_path: result.user.photoURL,
-          };
+      if(this.isLogin) {
+        //認証済み
+        this.$router.push({ path: "/sanpai" });
+      }else {
+        //未認証
+        signInWithPopup(auth, provider)
+          .then((result) => {
+            console.log(result);
+            let userData = {
+              github_id: result.user.providerData[0].uid,
+              display_name: result.user.displayName,
+              screen_name: result._tokenResponse.screenName,
+              image_path: result.user.photoURL,
+            };
 
-          if(!userData.display_name){
-            userData.display_name = userData.screen_name;
-          }
-          this.$store.commit("login", userData);
-          this.$axios.post("register", userData)
-            .then(result => {
-              this.$router.push({ path: "/sanpai" });
-            }).catch(e =>{
-              console.log("missing register")
-              console.log(e)
-            })
-        })
-        .catch((error) => {
-          console.error(error);
-        });
+            if(!userData.display_name){
+              userData.display_name = userData.screen_name;
+            }
+            this.$store.commit("login", userData);
+            this.$axios.post("register", userData)
+              .then(result => {
+                this.$router.push({ path: "/sanpai" });
+              }).catch(e =>{
+                console.log("missing register")
+                console.log(e)
+              })
+          })
+          .catch((error) => {
+            console.error(error);
+          });
+      }
+      
     },
   },
   computed: {
