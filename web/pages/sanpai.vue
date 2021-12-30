@@ -56,6 +56,7 @@
 import { mapGetters } from "vuex";
 
 export default {
+  middleware: ["auth"],
   data() {
     return {
       isLoading: true,

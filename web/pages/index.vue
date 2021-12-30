@@ -81,15 +81,19 @@ import {
   GithubAuthProvider,
   signInWithPopup,
   signInWithRedirect,
+  onAuthStateChanged,
 } from "firebase/auth";
 import { mapGetters } from "vuex";
 
 export default {
-  // middlewareでセッションチェックを行い、GitHubのログインチェックをしない
-  middleware: ["auth"],
   layout: "single",
-  data() {
-    return {};
+  async beforeMount() {
+    const auth = getAuth();
+    onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        this.$store.dispatch("logout");
+      }
+    });
   },
   methods: {
     GitHubAuth() {

@@ -8,9 +8,7 @@
         >
       </div>
       <div class="text-end mt-2">
-        <nuxt-link :to="`/u/` + user.screen_name"
-          >ログアウト ></nuxt-link
-        >
+        <a href="javascript:void(0)" @click="logout">ログアウト ></a>
       </div>
     </div>
     <div class="p-3 profile-outline mt-3">
@@ -40,7 +38,9 @@
                   <div
                     class="progress-bar p-2"
                     role="progressbar"
-                    :style="`width:` + (profile.total / profile.next) * 100 + `%`"
+                    :style="
+                      `width:` + (profile.total / profile.next) * 100 + `%`
+                    "
                     :aria-valuenow="profile.total"
                     aria-valuemin="0"
                     :aria-valuemax="profile.next"
@@ -89,7 +89,7 @@
           <div class="bg-primary rounded p-2 text-center">
             でばっぐのうりょく
           </div>
-          <RadarChart :chartData="chartData" :chartConfig="chartOptions"/>
+          <RadarChart :chartData="chartData" :chartConfig="chartOptions" />
         </div>
       </div>
     </div>
@@ -107,7 +107,9 @@ export default {
   middleware: ["auth"],
   components: { RadarChart },
   async asyncData({ $axios, store }) {
-    let response = await $axios.get("status?user=" + store.state.user.screen_name);
+    let response = await $axios.get(
+      "status?user=" + store.state.user.screen_name
+    );
     // 登録してなかったらエラーが出るのでエラー対応よろ
     let userChart = [];
     console.log(response.data);
@@ -116,18 +118,18 @@ export default {
     userChart.push(response.data.chart.intelligence);
     userChart.push(response.data.chart.defence);
     userChart.push(response.data.chart.agility);
-    var median = function(arr, fn) {
-        var half = (arr.length/2)|0;
-        var temp = arr.sort(fn);
+    var median = function (arr, fn) {
+      var half = (arr.length / 2) | 0;
+      var temp = arr.sort(fn);
 
-        if (temp.length%2) {
-            return temp[half];
-        }
+      if (temp.length % 2) {
+        return temp[half];
+      }
 
-        return (temp[half-1] + temp[half])/2;
+      return (temp[half - 1] + temp[half]) / 2;
     };
-    var userChartTemp = userChart.concat()
-    var max = median(userChartTemp)*2
+    var userChartTemp = userChart.concat();
+    var max = median(userChartTemp) * 2;
 
     return {
       profile: {
@@ -140,7 +142,7 @@ export default {
         intelligence: response.data.intelligence,
         defence: response.data.defence,
         agility: response.data.agility,
-        next: response.data.next_exp
+        next: response.data.next_exp,
       },
       chartData: {
         labels: [
@@ -182,8 +184,8 @@ export default {
       return this.$config.baseUrl + "/u/" + this.user.screen_name;
     },
     progressWidth() {
-      return this.profile.exp.total / this.profile.next
-    }
+      return this.profile.exp.total / this.profile.next;
+    },
   },
 };
 </script>
