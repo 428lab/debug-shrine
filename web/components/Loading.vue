@@ -19,24 +19,6 @@
   </div>
 </template>
 
-<script>
-// import {
-//   disableBodyScroll,
-//   enableBodyScroll,
-//   clearAllBodyScrollLocks,
-// } from "body-scroll-lock";
-export default {
-  mounted() {
-    // const page = document.querySelector("#page");
-    // disableBodyScroll(page);
-  },
-
-  beforeDestory() {
-    // clearAllBodyScrollLocks();
-  },
-};
-</script>
-
 <style scoped>
 .outline {
   width: 100%;
@@ -48,10 +30,6 @@ export default {
   top: 0;
   left: 0;
   z-index: 9999;
-}
-
-.outer {
-  /* position: relative; */
 }
 
 .inner {

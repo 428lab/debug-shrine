@@ -1,7 +1,7 @@
 <template>
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container-fluid">
-      <nuxt-link class="navbar-brand" to="/">デバッグ神社</nuxt-link>
+      <nuxt-link class="navbar-brand" to="/"><img src="/torii.svg" height="32px"></nuxt-link>
       <button
         class="navbar-toggler"
         type="button"
