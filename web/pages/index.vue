@@ -1,6 +1,6 @@
 <template>
   <div class="text-center">
-    <div class="container py-4">
+    <div class="container pt-4">
       <div class="p-5">
         <img
           src="/torii.svg"
@@ -30,12 +30,31 @@
         </div>
         <div class="mt-4">
           <button @click="GitHubAuth" class="btn btn-lg btn-primary">
-            <div v-if="!isLogin">
-            GitHubと連携して<br class="d-md-none" />
-            </div>
+            <template v-if="!isLogin">
+              GitHubと連携して<br class="d-md-none" />
+            </template>
             参拝する
           </button>
-          <!-- GitHubと連携して参拝しよう -->
+        </div>
+        <div v-if="isLogin" class="mt-4 p-2 d-inline-block text-end">
+          <div class="rounded border p-2 d-inline-block">
+            <img
+              :src="user.image_path"
+              class="rounded-icon img-fluid"
+              width="24px"
+            />
+            {{ user.display_name }} でログイン中
+          </div>
+          <div class="mt-4 d-flex justify-content-between">
+            <div>
+              <a href="javascript:void(0)" class="" @click="logout"
+                >ログアウト</a
+              >
+            </div>
+            <div>
+              <nuxt-link to="/dashboard">マイページへ ></nuxt-link>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -76,10 +95,10 @@ export default {
     GitHubAuth() {
       const provider = new GithubAuthProvider();
       const auth = getAuth();
-      if(this.isLogin) {
+      if (this.isLogin) {
         //認証済み
         this.$router.push({ path: "/sanpai" });
-      }else {
+      } else {
         //未認証
         signInWithPopup(auth, provider)
           .then((result) => {
@@ -91,26 +110,31 @@ export default {
               image_path: result.user.photoURL,
             };
 
-            if(!userData.display_name){
+            if (!userData.display_name) {
               userData.display_name = userData.screen_name;
             }
             this.$store.commit("login", userData);
-            this.$axios.post("register", userData)
-              .then(result => {
+            this.$axios
+              .post("register", userData)
+              .then((result) => {
                 this.$router.push({ path: "/sanpai" });
-              }).catch(e =>{
-                console.log("missing register")
-                console.log(e)
               })
+              .catch((e) => {
+                console.log("missing register");
+                console.log(e);
+              });
           })
           .catch((error) => {
             console.error(error);
           });
       }
     },
+    logout() {
+      this.$store.dispatch("logout");
+    },
   },
   computed: {
-    ...mapGetters(["isLogin"]),
+    ...mapGetters(["isLogin", "user"]),
   },
 };
 </script>
