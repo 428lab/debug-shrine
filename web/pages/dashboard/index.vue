@@ -55,7 +55,7 @@
       </div>
     </div>
     <div class="text-center text-md-end mt-3">
-      <Share title="プロフィールをSNSでシェアしよう"></Share>
+      <Share title="プロフィールをSNSでシェアしよう" :url="shareUrl"></Share>
     </div>
   </main>
 </template>
@@ -113,6 +113,9 @@ export default {
   },
   computed: {
     ...mapGetters(["user"]),
+    shareUrl() {
+      return this.$config.baseUrl + "/u/" + this.user.screen_name;
+    }
   },
 };
 </script>

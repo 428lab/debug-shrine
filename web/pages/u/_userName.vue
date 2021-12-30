@@ -40,9 +40,9 @@
             </div>
             <div class="col-8 col-md-12 mt-md-4">
               <div
-                class="bg-primary text-center d-inline-block p-2 debug-title"
+                class="bg-primary text-center d-inline-block p-1 debug-title"
               >
-                <small>でばっぐ<br class="d-md-none" />のうりょく</small>
+                <small>でばっぐのうりょく</small>
               </div>
               <RadarChart :chartData="chartData" />
             </div>
@@ -57,6 +57,9 @@
         </div>
       </div>
     </div>
+    <div class="text-center text-md-end mt-3">
+      <Share title="プロフィールをSNSでシェアしよう" :url="shareUrl"></Share>
+    </div>
   </main>
 </template>
 
@@ -65,16 +68,17 @@ import RadarChart from "@/components/charts/powerChart.vue";
 
 export default {
   components: { RadarChart },
-  async asyncData({ $axios }) {
-    let response = await $axios.get("status?user=ShinoharaTa");
-    console.log(response.data);
+  async asyncData({ $axios, route }) {
+    let response = await $axios.get("status?user=" + route.params.userName);
+    if(!response){
+      console.log("ユーザー情報なし")
+    };
     let userChart = [];
-    userChart.push(response.data.hp);
-    userChart.push(response.data.power);
-    userChart.push(response.data.intelligence);
-    userChart.push(response.data.defence);
-    userChart.push(response.data.agility);
-    // userChart.push(0);
+    userChart.push(response.data.chart.hp);
+    userChart.push(response.data.chart.power);
+    userChart.push(response.data.chart.intelligence);
+    userChart.push(response.data.chart.defence);
+    userChart.push(response.data.chart.agility);
     return {
       user: {
         nickName: "T.Shinohara",
@@ -107,6 +111,11 @@ export default {
       },
     };
   },
+  computed: {
+    shareUrl() {
+      return this.$config.baseUrl + "/u/" + this.$route.params.userName;
+    }
+  }
 };
 </script>
 
@@ -117,6 +126,6 @@ export default {
 }
 
 .debug-title {
-  border-radius: 10px;
+  border-radius: 5px;
 }
 </style>
