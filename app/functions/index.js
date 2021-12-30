@@ -779,6 +779,6 @@ exports.ogpRewrite = functions.https.onRequest(async (requeset, response) => {
       const {status,statusText} = error.response;
       functions.logger.error(`Error! HTTP Status: ${status} ${statusText}`, {structuredData: true})
     }
-    response.send(404).send("faild")
+    response.status(404).send("faild")
   }
 })
