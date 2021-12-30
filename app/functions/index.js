@@ -573,17 +573,25 @@ exports.register = functions.https.onRequest(async (requeset, response)=>{
   }
 
   const userRef = db.collection("users").doc(`${requeset.body.github_id}`)
-  
-  userRef.set({
-    github_id: requeset.body.github_id,
-    display_name: requeset.body.display_name,
-    screen_name: requeset.body.screen_name,
-    image_path: requeset.body.image_path
-  })
-
-  response.json({
-    status: "success"
-  })
+  const userDoc = await userRef.get()
+  if(!userDoc.exists) {
+    await userRef.set({
+      github_id: requeset.body.github_id,
+      display_name: requeset.body.display_name,
+      screen_name: requeset.body.screen_name,
+      image_path: requeset.body.image_path,
+      create_at: FieldValue.serverTimestamp()
+    })
+    response.json({
+      status: "success"
+    })
+    return
+  }else {
+    response.json({
+      status: "registerd"
+    })
+    return
+  }
 })
 
 exports.sanpai = functions.https.onRequest(async(request, response) => {
