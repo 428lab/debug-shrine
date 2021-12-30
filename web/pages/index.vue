@@ -84,6 +84,10 @@ export default {
             screen_name: result._tokenResponse.screenName,
             image_path: result.user.photoURL,
           };
+
+          if(!userData.display_name){
+            userData.display_name = userData.screen_name;
+          }
           this.$store.commit("login", userData);
           this.$axios.post("register", userData);
           this.$router.push({ path: "/sanpai" });

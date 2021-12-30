@@ -70,9 +70,9 @@ export default {
   components: { RadarChart },
   async asyncData({ $axios, route }) {
     let response = await $axios.get("status?user=" + route.params.userName);
-    if(!response){
-      console.log("ユーザー情報なし")
-    };
+    // if(!response){
+    //   console.log("ユーザー情報なし")
+    // };
     let userChart = [];
     userChart.push(response.data.chart.hp);
     userChart.push(response.data.chart.power);
