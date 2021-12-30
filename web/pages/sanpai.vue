@@ -81,7 +81,7 @@ export default {
       this.status.exp.next = response.data.next_exp;
       this.status.exp.get = response.data.add_exp;
       this.status.exp.total = response.data.exp;
-      this.resutl = response.data.status;
+      this.result = response.data.status;
       this.isLoading = false;
     } else {
       this.isError = true;
