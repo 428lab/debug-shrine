@@ -36,7 +36,7 @@ const fontStyle = {
 }
 const target_points = [0,5,11,19,30,45,65,91,124,166,218,281,357,447,553,676,818,981,1167,1378,1616,1884,2184,2519,2892,3306,3764,4269,4825,5436,6106,6840,7643,8520,9477,10520,11656,12892,14236,15696,17281,19001,20867,22891,25086,27466,30046,32842,35872,39156]
 const sanpai = {
-  add_point: 20,
+  add_point: 1,
   next_time: 60 // * 60 * 24  // s
 }
 
@@ -580,7 +580,8 @@ exports.register = functions.https.onRequest(async (requeset, response)=>{
       display_name: requeset.body.display_name,
       screen_name: requeset.body.screen_name,
       image_path: requeset.body.image_path,
-      create_at: FieldValue.serverTimestamp()
+      create_at: FieldValue.serverTimestamp(),
+      exp: 10
     })
     response.json({
       status: "success"
@@ -634,6 +635,7 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
     let userStatusFeed = null
     let userStatusData = null
     let userAppendData = {}
+    let add_exp = sanpai.add_point  // 最終的に得られるポイント
 
     const userData = userDoc.data()
     functions.logger.info(userData)
@@ -663,24 +665,18 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
         return
       }
     }
-    // 更新
-    await userRef.update({
-      last_sanpai: FieldValue.serverTimestamp(),
-      exp: FieldValue.increment(sanpai.add_point)
-    })
-    const sanpai_logsRef = userRef.collection("sanpai_logs")
-    const sanpaiRes = await sanpai_logsRef.add({
-      add_point: sanpai.add_point,
-      timestamp: FieldValue.serverTimestamp()
-    })
 
+    // アクティビティ取得
+    const feed_items = userStatusFeed
+    date = last_sanpai ? last_sanpai.seconds: moment("2008-04-01T00:00:00Z").unix() // github
+    let splited_items = feed_items.filter(item => (moment(item.created_at).unix()) > date)  //前回の参拝からのアクティビティ(初回は取れるだけ)
+    functions.logger.info(`activities: ${splited_items.length}`)
+
+    add_exp += int(splited_items.length/5)  // 取得できたアクティビティ5件につき1件
+
+    // アクティビティ反映
     const dbBatch = db.batch()
     const github_acitivityRef = userRef.collection("github_activities")
-    // アクティビティ更新
-    const feed_items = userStatusFeed//2021-12-28T06:26:21Z
-    date = last_sanpai ? last_sanpai.seconds: moment("2008-04-01T00:00:00Z").unix() // github
-    let splited_items = feed_items.filter(item => (moment(item.created_at).unix()) > date)
-    functions.logger.info(splited_items.length)
     for(i=0;i<splited_items.length;i++) {
       let item = {
         id: splited_items[i].id,
@@ -691,13 +687,24 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
       let ref = github_acitivityRef.doc(item.id)
       dbBatch.set(ref, item)
     }
-    await dbBatch.commit()
+    await dbBatch.commit()  //反映
+
+    // 更新
+    await userRef.update({
+      last_sanpai: FieldValue.serverTimestamp(),
+      exp: FieldValue.increment(add_exp)
+    })
+    const sanpai_logsRef = userRef.collection("sanpai_logs")
+    const sanpaiRes = await sanpai_logsRef.add({
+      add_point: add_exp,
+      timestamp: FieldValue.serverTimestamp()
+    })
 
     // 最新状態を取得
     if(userData.exp) {
-      userAppendData.exp = userData.exp + sanpai.add_point
+      userAppendData.exp = userData.exp + add_exp
     }else {
-      userAppendData.exp = sanpai.add_point
+      userAppendData.exp = add_exp
     }
     userStatusData = user_formated_performance(user_performance(userStatusFeed, userData.screen_name), userAppendData)
     let return_data = {
