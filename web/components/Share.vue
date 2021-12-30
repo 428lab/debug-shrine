@@ -25,16 +25,16 @@ export default {
   props: {
     title: "",
     url: "",
+    username: "",
   },
   computed: {
-    ...mapGetters(["user"]),
     twitterUrl() {
       return (
         "https://twitter.com/share?url=" +
         encodeURIComponent(this.url) +
         "&text=" +
         encodeURIComponent(
-          "これが" + this.user.display_name + "の でばっぐのうりょくだ！"
+          "これが" + this.username + "の でばっぐのうりょくだ！"
         ) +
         "&hashtags=でばっぐ神社"
       );

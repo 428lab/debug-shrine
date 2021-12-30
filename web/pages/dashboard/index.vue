@@ -94,7 +94,7 @@
       </div>
     </div>
     <div class="text-center text-md-end mt-3">
-      <Share title="プロフィールをSNSでシェアしよう" :url="shareUrl"></Share>
+      <Share title="プロフィールをSNSでシェアしよう" :url="shareUrl" :username="user.display_name"></Share>
     </div>
   </main>
 </template>
