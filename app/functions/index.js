@@ -364,6 +364,9 @@ async function createOgp(username, request, response) {
     if(userData.exp) {
       appendData.exp = userData.exp
     }
+  }else {
+    response.status(404).send("user not found.")
+    return
   }
 
   const userFeedData = user_formated_performance(user_performance(userFeedRawData, username), appendData)
