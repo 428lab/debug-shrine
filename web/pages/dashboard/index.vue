@@ -42,6 +42,11 @@
                   </div>
                 </div>
                 <p class="text-end w-100 mt-2">NEXT {{ profile.next }} exp</p>
+                <div>たいりょく：{{ profile.hp }}</div>
+                <div>ちから：{{ profile.power }}</div>
+                <div>かしこさ：{{ profile.intelligence }}</div>
+                <div>しゅびりょく：{{ profile.defence }}</div>
+                <div>すばやさ：{{ profile.agility }}</div>                
               </div>
             </div>
           </div>
@@ -95,6 +100,11 @@ export default {
         exp: response.data.total,
         point: response.data.total,
         level: response.data.level,
+        hp: response.data.hp,
+        power: response.data.power,
+        intelligence: response.data.intelligence,
+        defence: response.data.defence,
+        agility: response.data.agility,
       },
       chartData: {
         labels: [

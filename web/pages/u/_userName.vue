@@ -26,7 +26,7 @@
                 <div class="mt-3">れべる：{{ status.level }}</div>
                 <div>ポイント：{{ status.points }}</div>
                 <div>せんとうりょく：{{ status.total }}</div>
-                <div>たいりょく{{ status.hp }}</div>
+                <div>たいりょく：{{ status.hp }}</div>
                 <div>ちから：{{ status.power }}</div>
                 <div>かしこさ：{{ status.intelligence }}</div>
                 <div>しゅびりょく：{{ status.defence }}</div>
