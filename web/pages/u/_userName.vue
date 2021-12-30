@@ -26,6 +26,11 @@
                 <div class="mt-3">れべる：{{ status.level }}</div>
                 <div>ポイント：{{ status.points }}</div>
                 <div>せんとうりょく：{{ status.total }}</div>
+                <div>たいりょく{{ status.hp }}</div>
+                <div>ちから：{{ status.power }}</div>
+                <div>かしこさ：{{ status.intelligence }}</div>
+                <div>しゅびりょく：{{ status.defence }}</div>
+                <div>すばやさ：{{ status.agility }}</div>
               </div>
             </div>
           </div>
@@ -89,7 +94,8 @@ export default {
 
         return (temp[half-1] + temp[half])/2;
     };
-    var max = median(userChart)*2
+    var userChartTemp = userChart.concat()
+    var max = median(userChartTemp)*2
     return {
       user: {
         nickName: response.data.user.display_name,
@@ -100,6 +106,11 @@ export default {
         level: response.data.level,
         points: response.data.points,
         total: response.data.total,
+        hp: response.data.hp,
+        power: response.data.power,
+        intelligence: response.data.intelligence,
+        defence: response.data.defence,
+        agility: response.data.agility,
       },
       chartData: {
         labels: [

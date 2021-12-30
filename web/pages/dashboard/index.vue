@@ -87,7 +87,8 @@ export default {
 
         return (temp[half-1] + temp[half])/2;
     };
-    var max = median(userChart)*2
+    var userChartTemp = userChart.concat()
+    var max = median(userChartTemp)*2
 
     return {
       profile: {
