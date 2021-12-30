@@ -81,9 +81,9 @@ export default {
     userChart.push(response.data.chart.agility);
     return {
       user: {
-        nickName: "T.Shinohara",
-        screenName: "ShinoharaTa",
-        profileImage: "https://placehold.jp/150x150.png",
+        nickName: response.data.user.display_name,
+        screenName: response.data.user.screen_name,
+        profileImage: response.data.user.github_image_path,
       },
       status: {
         level: response.data.level,

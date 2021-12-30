@@ -201,6 +201,9 @@ function user_formated_performance(user_data, append_data={}) {
   if(append_data.exp) {
     return_Data.exp += append_data.exp
   }
+  if(append_data.user) {
+    return_Data.user = append_data.user
+  }
 
   return_Data.chart.hp = return_Data.hp
   return_Data.chart.power = return_Data.power,
@@ -240,6 +243,12 @@ exports.status = functions.https.onRequest(async (request, response) => {
     functions.logger.info(`data: ${userData.exp}`)
     if(userData.exp) {
       appendData.exp = userData.exp
+    }
+    // ユーザー情報も付与
+    appendData.user = {
+      display_name: userData.display_name,
+      screen_name: userData.screen_name,
+      github_image_path: userData.image_path
     }
   }else {
     // 登録されていない
@@ -534,8 +543,11 @@ exports.register = functions.https.onRequest(async (requeset, response)=>{
   response.set('Access-Control-Allow-Headers', '*')
   response.set("Access-Control-Allow-Origin", "*")
   response.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS, POST')
-  if(requeset.method != "POST"){
-    response.json({
+
+  functions.logger.info(requeset.method)
+  functions.logger.info(requeset.body)
+  if(requeset.method != "POST" && requeset.method != "OPTIONS"){
+    response.status(400).json({
       status: "missing request"
     })
     return
