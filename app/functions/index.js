@@ -751,8 +751,8 @@ exports.ogpRewrite = functions.https.onRequest(async (requeset, response) => {
     return
   }
   const username = user_match[1]
-  // const url = `https://${projectID}.web.app/`
-  const url = `http://0.0.0.0:5000/` // firebase emulators
+  const url = `https://${projectID}.web.app/`
+  // const url = `http://0.0.0.0:5000/` // firebase emulators
   const ogpURL = `https://us-central1-${projectID}.cloudfunctions.net/userOGP?user=${username}`
   const description = `これが${username}の でばっぐのうりょくだ！`
   
