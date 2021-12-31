@@ -668,7 +668,7 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
           add_exp: 0,
           level: userStatusData.level,
           exp: userStatusData.points,
-          next_exp: get_next_leve_exp(userStatusData.points).next_exp
+          next_exp: userStatusData.next_exp
         })
         return
       }
@@ -690,7 +690,7 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
         add_exp: 0,
         level: userStatusData.level,
         exp: userStatusData.points,
-        next_exp: get_next_leve_exp(userStatusData.points).next_exp
+        next_exp: userStatusData.next_exp
       })
       return
     }
@@ -733,7 +733,7 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
       add_exp: sanpai.add_point,
       level: userStatusData.level,
       exp: userStatusData.points,
-      next_exp: get_next_leve_exp(userStatusData.points).next_exp
+      next_exp: userStatusData.next_exp
     }
     if(splited_items.length == 0) {
       // アクティビティがないっぽい
