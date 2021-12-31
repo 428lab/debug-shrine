@@ -776,8 +776,9 @@ exports.ogpRewrite = functions.https.onRequest(async (requeset, response) => {
   }else {
     url = `https://${projectID}.web.app/`
   }
+  const time = moment().unix()
   
-  const ogpURL = `https://us-central1-${projectID}.cloudfunctions.net/userOGP?user=${username}`
+  const ogpURL = `https://us-central1-${projectID}.cloudfunctions.net/userOGP?user=${username}&t=${time}`
   const description = `これが${username}の でばっぐのうりょくだ！`
   const title = `${username}の でばっぐのうりょく - でばっぐ神社`
   
