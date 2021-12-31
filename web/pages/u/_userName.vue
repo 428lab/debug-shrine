@@ -162,7 +162,7 @@ export default {
   },
   computed: {
     shareUrl() {
-      return this.$config.baseUrl + "/u/" + this.$route.params.userName;
+      return this.$config.baseUrl + "u/" + this.$route.params.userName;
     }
   }
 };
