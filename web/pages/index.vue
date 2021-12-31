@@ -33,15 +33,21 @@
           </div>
           <div class="col-2 col-md-3 col-lg-4"></div>
         </div>
-        <div class="mt-4">
+        <div class="mt-4" v-if="!isLogin">
           <button
             @click="GitHubAuth"
             class="btn btn-lg btn-primary"
-            :disabled="buttons.sanpai"
+            :disabled="false"
           >
-            <template v-if="!isLogin">
-              GitHubと連携して<br class="d-md-none" />
-            </template>
+            GitHubと連携して<br class="d-md-none" />参拝しよう
+          </button>
+        </div>
+        <div class="mt-4" v-else>
+          <button
+            @click="sanpai"
+            class="btn btn-lg btn-primary"
+            :disabled="false"
+          >
             参拝する
           </button>
         </div>
@@ -131,20 +137,15 @@ export default {
               userData.display_name = userData.screen_name;
             }
             this.$store.commit("login", userData);
-            this.$axios
-              .post("register", userData)
-              .then((result) => {
-                this.$router.push({ path: "/sanpai" });
-              })
-              .catch((e) => {
-                console.log("missing register");
-                console.log(e);
-              });
+            this.$axios.post("register", userData)
           })
           .catch((error) => {
             console.error(error);
           });
       }
+    },
+    sanpai() {
+      this.$router.push({ path: "/sanpai" });
     },
     logout() {
       this.$store.dispatch("logout");
