@@ -18,6 +18,7 @@ export default {
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
       { hid: 'og:title', name: 'og:title', content:'でばっぐ神社' },
       { hid: 'og:site_name', name: 'og:site_name', content:'でばっぐ神社' },
+      { hid: 'apple-mobile-web-app-title', name: 'apple-mobile-web-app-title', content:'でばっぐ神社' },
       { hid: 'og:url', name: 'og:url', content: process.env.BASE_URL|| 'http://localhost:3000' },
       { hid: 'description', name: 'description', content: 'バグった時の神頼み。' },
       { hid: 'og:description', name: 'og:description', content: 'バグった時の神頼み。' },
