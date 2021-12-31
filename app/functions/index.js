@@ -45,7 +45,7 @@ function get_bonus_mag(now) {
 
 const sanpai = {
   add_point: 1,
-  next_time: projectID == 'd-shrine' ? (60 * 60) : 60  // s
+  next_time: projectID == 'd-shrine' ? (5 * 60) : 60  // s
 }
 
 // Create and Deploy Your First Cloud Functions
