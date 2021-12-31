@@ -711,6 +711,16 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
     }
     await dbBatch.commit()  //反映
 
+    var msg = ""
+    const from = ('2021-12-31 15:00:00')
+    const to = ('2022-01-03 15:00:00')
+    const now = moment()
+    if (now.isSameOrAfter(from) && now.isBefore(to)) {
+      //2022年の三が日はポイント３倍
+      add_exp *= 3
+      msg = "2022/1/1〜2022/1/3はポイント3倍！"
+    }
+
     // 更新
     await userRef.update({
       last_sanpai: FieldValue.serverTimestamp(),
@@ -734,7 +744,8 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
       add_exp: add_exp,
       level: userStatusData.level,
       exp: userStatusData.points,
-      next_exp: userStatusData.next_exp
+      next_exp: userStatusData.next_exp,
+      msg: msg
     }
     if(splited_items.length == 0) {
       // アクティビティがないっぽい
