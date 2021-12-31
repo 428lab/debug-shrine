@@ -731,7 +731,7 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
     userStatusData = user_formated_performance(user_performance(userStatusFeed, userData.screen_name), userAppendData)
     let return_data = {
       status: "success",
-      add_exp: sanpai.add_point,
+      add_exp: add_exp,
       level: userStatusData.level,
       exp: userStatusData.points,
       next_exp: userStatusData.next_exp
