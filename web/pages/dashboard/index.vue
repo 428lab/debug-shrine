@@ -1,13 +1,13 @@
 <template>
   <main class="container p-3">
     <div class="d-md-flex justify-content-between align-items-end">
-      <div class="fs-1">マイページ</div>
-      <div class="text-end mt-2">
+      <div class="fs-1 flex-fill">マイページ</div>
+      <div class="text-end mt-2 ms-3">
         <nuxt-link :to="`/u/` + user.screen_name"
           >公開プロフィールを確認 ></nuxt-link
         >
       </div>
-      <div class="text-end mt-2">
+      <div class="text-end mt-2 ms-3">
         <a href="javascript:void(0)" @click="logout">ログアウト ></a>
       </div>
     </div>
@@ -84,6 +84,9 @@
               </div>
             </div>
           </div>
+          <div class="text-center text-md-end mt-3">
+            <Share title="プロフィールをSNSでシェアしよう" :url="shareUrl" :username="user.display_name"></Share>
+          </div>
         </div>
         <div class="col-12 col-md-6 col-lg-4">
           <div class="bg-primary rounded p-2 text-center">
@@ -92,9 +95,6 @@
           <RadarChart :chartData="chartData" :chartConfig="chartOptions" />
         </div>
       </div>
-    </div>
-    <div class="text-center text-md-end mt-3">
-      <Share title="プロフィールをSNSでシェアしよう" :url="shareUrl" :username="user.display_name"></Share>
     </div>
   </main>
 </template>
@@ -118,18 +118,6 @@ export default {
     userChart.push(response.data.chart.intelligence);
     userChart.push(response.data.chart.defence);
     userChart.push(response.data.chart.agility);
-    var median = function (arr, fn) {
-      var half = (arr.length / 2) | 0;
-      var temp = arr.sort(fn);
-
-      if (temp.length % 2) {
-        return temp[half];
-      }
-
-      return (temp[half - 1] + temp[half]) / 2;
-    };
-    var userChartTemp = userChart.concat();
-    var max = median(userChartTemp) * 2;
 
     return {
       profile: {
@@ -166,7 +154,7 @@ export default {
       chartOptions: {
         display: false,
         min: 0,
-        max: max,
+        max: 150,
       },
     };
   },

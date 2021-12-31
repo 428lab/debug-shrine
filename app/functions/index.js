@@ -35,9 +35,13 @@ const fontStyle = {
   color: "#FFFFFF"
 }
 const target_points = [0,5,11,19,30,45,65,91,124,166,218,281,357,447,553,676,818,981,1167,1378,1616,1884,2184,2519,2892,3306,3764,4269,4825,5436,6106,6840,7643,8520,9477,10520,11656,12892,14236,15696,17281,19001,20867,22891,25086,27466,30046,32842,35872,39156]
+const date_now = (moment()).unix()
+const date_low = moment("2022-01-01T00:00:00Z").unix()
+const date_max = moment("2022-01-04T00:00:00Z").unix()
+
 const sanpai = {
-  add_point: 1,
-  next_time: 60 // * 60 * 24  // s
+  add_point: (date_low < date_now && date_now < date_max) ? 3:1,
+  next_time: projectID == 'd-shrine' ? (60 * 60) : 60  // s
 }
 
 // Create and Deploy Your First Cloud Functions
@@ -179,7 +183,7 @@ function user_performance(items, username) {
 function user_formated_performance(user_data, append_data={}) {
   let return_Data = {
     user: user_data.user,
-    points: user_data.hp + user_data.power + user_data.intelligence + user_data.defence + user_data.agility,
+    points: 0,
     hp: user_data.hp,
     power: user_data.power,
     intelligence: user_data.intelligence,
@@ -200,6 +204,7 @@ function user_formated_performance(user_data, append_data={}) {
   // 経験値を反映
   if(append_data.exp) {
     return_Data.exp += append_data.exp
+    return_Data.points = append_data.exp
   }
   if(append_data.user) {
     return_Data.user = append_data.user
@@ -211,8 +216,8 @@ function user_formated_performance(user_data, append_data={}) {
   return_Data.chart.defence = return_Data.defence
   return_Data.chart.agility = return_Data.agility
 
-  return_Data.level = get_level(return_Data.points)
-  return_Data.next_exp = get_next_leve_exp(return_Data.points).next_exp
+  return_Data.level = get_level(return_Data.total)
+  return_Data.next_exp = get_next_leve_exp(return_Data.total).next_exp
   return return_Data
 }
 
@@ -477,6 +482,7 @@ async function createOgp(username, request, response) {
         ticks: {
           // 線の間隔
           stepSize: 10,
+          max: 150,
         }
       },
       elements: {
@@ -663,7 +669,7 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
           add_exp: 0,
           level: userStatusData.level,
           exp: userStatusData.points,
-          next_exp: get_next_leve_exp(userStatusData.points).next_exp
+          next_exp: userStatusData.next_exp
         })
         return
       }
@@ -676,6 +682,19 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
     functions.logger.info(`activities: ${splited_items.length}`)
 
     add_exp += Math.floor(splited_items.length/5)  // 取得できたアクティビティ5件につき1件
+
+    if(splited_items.length == 0) {
+      // なんかアクションしてこい
+      functions.logger.info("user not actions")
+      response.json({
+        status: "noaction",
+        add_exp: 0,
+        level: userStatusData.level,
+        exp: userStatusData.points,
+        next_exp: userStatusData.next_exp
+      })
+      return
+    }
 
     // アクティビティ反映
     const dbBatch = db.batch()
@@ -712,10 +731,10 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
     userStatusData = user_formated_performance(user_performance(userStatusFeed, userData.screen_name), userAppendData)
     let return_data = {
       status: "success",
-      add_exp: sanpai.add_point,
+      add_exp: add_exp,
       level: userStatusData.level,
       exp: userStatusData.points,
-      next_exp: get_next_leve_exp(userStatusData.points).next_exp
+      next_exp: userStatusData.next_exp
     }
     if(splited_items.length == 0) {
       // アクティビティがないっぽい

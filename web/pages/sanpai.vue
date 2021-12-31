@@ -12,7 +12,7 @@
       <div v-if="result === 'success'">
         <div class="fs-1">参拝ありがとう！</div>
         <div class="fs-4 mt-4">ポイントを獲得しました</div>
-        <div class="fs-4">＋{{ status.exp.get }} exp</div>
+        <div class="fs-4">＋{{ status.get }} pt</div>
       </div>
       <div v-else-if="result === 'expire'">
         <div class="fs-1">おっと、参拝のペースが早すぎるようです</div>
@@ -22,32 +22,14 @@
         <div class="fs-1">新規のアクティビティがないようです</div>
         <div class="fs-4 mt-4">追加のポイントはありませんでした</div>
       </div>
-      <div class="fs-5 mt-3">LEVEL {{ status.level }}</div>
-      <div class="p-4">
-        <div class="progress">
-          <div
-            class="progress-bar p-2"
-            role="progressbar"
-            :style="`width:` + (status.exp.total / status.exp.next) * 100 + `%`"
-            :aria-valuenow="status.exp.total"
-            aria-valuemin="0"
-            :aria-valuemax="status.exp.next"
-          >
-            {{ status.exp.total }} exp
-          </div>
-        </div>
-        <p class="text-end w-100 mt-2">NEXT：{{ status.exp.next }} exp</p>
+      <div class="fs-5 my-3">
+        LEVEL {{ status.level }} <br />
+        所持ポイント {{ status.point }} pt
       </div>
     </div>
-    <!-- <button class="btn btn-lg btn-primary" @click="sanpai">
-      マイページを見る
-    </button> -->
     <nuxt-link class="btn btn-lg btn-primary" to="/dashboard">
       マイページを見る
     </nuxt-link>
-    <!-- <div id="testLabel">Testing</div>
-    <div id="drawhere"></div> -->
-    <!-- debug:{{ JSON.stringify(debug) }} -->
     <Loading v-if="isLoading"></Loading>
   </div>
 </template>
@@ -64,11 +46,8 @@ export default {
       result: "",
       status: {
         level: 0,
-        exp: {
-          next: 0,
-          get: 0,
-          total: 0,
-        },
+        point: 0,
+        get: 0,
       },
     };
   },
@@ -79,9 +58,8 @@ export default {
     let response = await this.$axios.post("sanpai", payload);
     if (response) {
       this.status.level = response.data.level;
-      this.status.exp.next = response.data.next_exp;
-      this.status.exp.get = response.data.add_exp;
-      this.status.exp.total = response.data.exp;
+      this.status.get = response.data.add_exp;
+      this.status.point = response.data.exp;
       this.result = response.data.status;
       this.isLoading = false;
     } else {
