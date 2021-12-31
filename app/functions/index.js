@@ -831,6 +831,7 @@ exports.ogpRewrite = functions.https.onRequest(async (requeset, response) => {
     )
     
     functions.logger.info("rewrite data")
+    response.set('Cache-Control', 'public, max-age=300, s-maxage=300')
     response.send(data)
   }catch (error) {
     if(error.response) {
