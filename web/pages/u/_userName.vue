@@ -118,18 +118,6 @@ export default {
     userChart.push(response.data.chart.intelligence);
     userChart.push(response.data.chart.defence);
     userChart.push(response.data.chart.agility);
-    var median = function(arr, fn) {
-        var half = (arr.length/2)|0;
-        var temp = arr.sort(fn);
-
-        if (temp.length%2) {
-            return temp[half];
-        }
-
-        return (temp[half-1] + temp[half])/2;
-    };
-    var userChartTemp = userChart.concat()
-    var max = median(userChartTemp)*2
     return {
       user: {
         nickName: response.data.user.display_name,
@@ -168,7 +156,7 @@ export default {
       chartOptions: {
         display: false,
         min: 0,
-        max: max,
+        max: 150,
       },
     };
   },

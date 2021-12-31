@@ -482,6 +482,7 @@ async function createOgp(username, request, response) {
         ticks: {
           // 線の間隔
           stepSize: 10,
+          max: 150,
         }
       },
       elements: {
