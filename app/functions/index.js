@@ -200,7 +200,7 @@ function user_formated_performance(user_data, append_data={}) {
   // 経験値を反映
   if(append_data.exp) {
     return_Data.exp += append_data.exp
-    return_data.points = append_data.exp
+    return_Data.points = append_data.exp
   }
   if(append_data.user) {
     return_Data.user = append_data.user
