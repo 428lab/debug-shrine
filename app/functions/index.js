@@ -179,7 +179,7 @@ function user_performance(items, username) {
 function user_formated_performance(user_data, append_data={}) {
   let return_Data = {
     user: user_data.user,
-    points: user_data.hp + user_data.power + user_data.intelligence + user_data.defence + user_data.agility,
+    points: 0,
     hp: user_data.hp,
     power: user_data.power,
     intelligence: user_data.intelligence,
@@ -200,6 +200,7 @@ function user_formated_performance(user_data, append_data={}) {
   // 経験値を反映
   if(append_data.exp) {
     return_Data.exp += append_data.exp
+    return_data.points = append_data.exp
   }
   if(append_data.user) {
     return_Data.user = append_data.user
@@ -211,8 +212,8 @@ function user_formated_performance(user_data, append_data={}) {
   return_Data.chart.defence = return_Data.defence
   return_Data.chart.agility = return_Data.agility
 
-  return_Data.level = get_level(return_Data.points)
-  return_Data.next_exp = get_next_leve_exp(return_Data.points).next_exp
+  return_Data.level = get_level(return_Data.total)
+  return_Data.next_exp = get_next_leve_exp(return_Data.total).next_exp
   return return_Data
 }
 
