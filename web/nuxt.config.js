@@ -24,7 +24,7 @@ export default {
       { hid: 'og:description', name: 'og:description', content: 'バグった時の神頼み。' },
       { hid: 'og:image', property: 'og:image', content: `/shrine.png`},
 
-      { hid: 'twitter:card', property: 'twitter:carad', content: 'summary_large_image'},
+      { hid: 'twitter:card', property: 'twitter:card', content: 'summary_large_image'},
       { hid: 'twitter:image', property: 'twitter:image', content: `/shrine.png`},
       { hid: 'twitter:site', property:'twitter:site', content: 'debug_shrine' },
       { hid: 'twitter:title', property:'twitter:title', content: 'でばっぐ神社' },
