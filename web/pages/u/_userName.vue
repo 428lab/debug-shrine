@@ -89,7 +89,11 @@
       </div>
     </div>
     <div class="text-center text-md-end mt-3">
-      <Share title="プロフィールをSNSでシェアしよう" :url="shareUrl" :username="user.nickName"></Share>
+      <Share
+        title="プロフィールをSNSでシェアしよう"
+        :url="shareUrl"
+        :username="user.nickName"
+      ></Share>
     </div>
   </main>
 </template>
@@ -99,20 +103,33 @@ import RadarChart from "@/components/charts/powerChart.vue";
 
 export default {
   head() {
-    const title = `${this.$route.params.userName}の でばっぐのうりょく | でばっぐ神社`
-    const description = `これが${this.$route.params.userName}の でばっぐのうりょくだ！`
+    const title = `${this.$route.params.userName}の でばっぐのうりょく | でばっぐ神社`;
+    const description = `これが${this.$route.params.userName}の でばっぐのうりょくだ！`;
     return {
       title: `${this.$route.params.userName}の でばっぐのうりょく | でばっぐ神社`,
       meta: [
-        { hid: 'description', name: 'description', content: description },
-        { hid: 'og:description', property:'og:description', content: description },
-        { hid: 'og:image', property: 'og:image', content: `${this.$config.apiUrl}userOGP?user=${this.$route.params.userName}`},
-        { hid: 'og:title', name: 'og:title', content:'でばっぐ神社' },
-      ]
-    }
+        { hid: "description", name: "description", content: description },
+        {
+          hid: "og:description",
+          property: "og:description",
+          content: description,
+        },
+        {
+          hid: "og:image",
+          property: "og:image",
+          content: `${this.$config.apiUrl}userOGP?user=${this.$route.params.userName}`,
+        },
+        { hid: "og:title", name: "og:title", content: "でばっぐ神社" },
+      ],
+    };
   },
   components: { RadarChart },
-  async asyncData({ $axios, route }) {
+  async asyncData({ $axios, route, error }) {
+    if (!route.params.userName) {
+      // console.log(route.params.userName);
+      error({ statusCode: 404 });
+      return;
+    }
     let response = await $axios.get("status?user=" + route.params.userName);
     // if(!response){
     //   console.log("ユーザー情報なし")
@@ -168,8 +185,8 @@ export default {
   computed: {
     shareUrl() {
       return this.$config.baseUrl + "u/" + this.$route.params.userName;
-    }
-  }
+    },
+  },
 };
 </script>
 
