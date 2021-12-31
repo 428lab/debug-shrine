@@ -1,13 +1,13 @@
 <template>
   <main class="container p-3">
     <div class="d-md-flex justify-content-between align-items-end">
-      <div class="fs-1">マイページ</div>
-      <div class="text-end mt-2">
+      <div class="fs-1 flex-fill">マイページ</div>
+      <div class="text-end mt-2 ms-3">
         <nuxt-link :to="`/u/` + user.screen_name"
           >公開プロフィールを確認 ></nuxt-link
         >
       </div>
-      <div class="text-end mt-2">
+      <div class="text-end mt-2 ms-3">
         <a href="javascript:void(0)" @click="logout">ログアウト ></a>
       </div>
     </div>
