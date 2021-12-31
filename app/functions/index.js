@@ -36,11 +36,15 @@ const fontStyle = {
 }
 const target_points = [0,5,11,19,30,45,65,91,124,166,218,281,357,447,553,676,818,981,1167,1378,1616,1884,2184,2519,2892,3306,3764,4269,4825,5436,6106,6840,7643,8520,9477,10520,11656,12892,14236,15696,17281,19001,20867,22891,25086,27466,30046,32842,35872,39156]
 const date_now = (moment()).unix()
-const date_low = moment("2022-01-01T00:00:00Z").unix()
-const date_max = moment("2022-01-04T00:00:00Z").unix()
+const date_low = moment("2022-01-01T00:00:00Z").subtract(9, 'hours').unix()
+const date_max = moment("2022-01-04T00:00:00Z").subtract(9, 'hours').unix()
+
+function get_bonus_mag(now) {
+  return (date_low <= now && now < date_max) ? 3:1
+}
 
 const sanpai = {
-  add_point: (date_low < date_now && date_now < date_max) ? 3:1,
+  add_point: 1,
   next_time: projectID == 'd-shrine' ? (60 * 60) : 60  // s
 }
 
@@ -712,12 +716,10 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
     await dbBatch.commit()  //反映
 
     var msg = ""
-    const from = ('2021-12-31 15:00:00')
-    const to = ('2022-01-03 15:00:00')
-    const now = moment()
-    if (now.isSameOrAfter(from) && now.isBefore(to)) {
+    var bonus_mag = get_bonus_mag(date_now)
+    if (bonus_mag>1) {
       //2022年の三が日はポイント３倍
-      add_exp *= 3
+      add_exp *= bonus_mag
       msg = "2022/1/1〜2022/1/3はポイント3倍！"
     }
 
