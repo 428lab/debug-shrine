@@ -35,7 +35,7 @@ const fontStyle = {
   color: "#FFFFFF"
 }
 const target_points = [0,5,11,19,30,45,65,91,124,166,218,281,357,447,553,676,818,981,1167,1378,1616,1884,2184,2519,2892,3306,3764,4269,4825,5436,6106,6840,7643,8520,9477,10520,11656,12892,14236,15696,17281,19001,20867,22891,25086,27466,30046,32842,35872,39156]
-const date_now = (moment.now()).unix()
+const date_now = (moment()).unix()
 const date_low = moment("2022-01-01T00:00:00Z").unix()
 const date_max = moment("2022-01-04T00:00:00Z").unix()
 
@@ -681,6 +681,19 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
     functions.logger.info(`activities: ${splited_items.length}`)
 
     add_exp += Math.floor(splited_items.length/5)  // 取得できたアクティビティ5件につき1件
+
+    if(splited_items.length == 0) {
+      // なんかアクションしてこい
+      functions.logger.info("user not actions")
+      response.json({
+        status: "noaction",
+        add_exp: 0,
+        level: userStatusData.level,
+        exp: userStatusData.points,
+        next_exp: get_next_leve_exp(userStatusData.points).next_exp
+      })
+      return
+    }
 
     // アクティビティ反映
     const dbBatch = db.batch()
