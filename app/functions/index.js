@@ -40,7 +40,7 @@ const date_low = moment("2022-01-01T00:00:00Z").unix()
 const date_max = moment("2022-01-04T00:00:00Z").unix()
 
 const sanpai = {
-  add_point: (date_low < date_now && date_now < date_add) ? 3:1,
+  add_point: (date_low < date_now && date_now < date_max) ? 3:1,
   next_time: projectID == 'd-shrine' ? (60 * 60) : 60  // s
 }
 
