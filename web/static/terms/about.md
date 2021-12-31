@@ -15,3 +15,4 @@
 
 # [紡ぐ者たちへ(discord)](https://discord.gg/pb4UegTBYj)
 
+※でばっぐ神社は永遠にデバッグ中です。
