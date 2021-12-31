@@ -776,8 +776,9 @@ exports.ogpRewrite = functions.https.onRequest(async (requeset, response) => {
   }else {
     url = `https://${projectID}.web.app/`
   }
+  const time = moment().unix()
   
-  const ogpURL = `https://us-central1-${projectID}.cloudfunctions.net/userOGP?user=${username}`
+  const ogpURL = `https://us-central1-${projectID}.cloudfunctions.net/userOGP?user=${username}&t=${time}`
   const description = `これが${username}の でばっぐのうりょくだ！`
   const title = `${username}の でばっぐのうりょく - でばっぐ神社`
   
@@ -811,8 +812,27 @@ exports.ogpRewrite = functions.https.onRequest(async (requeset, response) => {
       `<meta data-n-head="1" data-hid="og:title" name="og:title" content="でばっぐ神社">`,
       `<meta data-n-head="1" data-hid="og:title" name="og:title" content="${title}">`
     )
+    // <meta data-n-head="1" data-hid="twitter:title" property="twitter:title" content="でばっぐ神社">
+    data = data.replace(
+      `<meta data-n-head="1" data-hid="twitter:title" property="twitter:title" content="でばっぐ神社">`,
+      `<meta data-n-head="1" data-hid="twitter:title" property="twitter:title" content="${title}">`
+    )
+    // <meta data-n-head="1" name="twitter:url" content="http://localhost:3000">
+    // ?
 
+    // <meta data-n-head="1" data-hid="twitter:description" property="twitter:description" content="バグった時の神頼み。">
+    data = data.replace(
+      `<meta data-n-head="1" data-hid="twitter:description" property="twitter:description" content="バグった時の神頼み。">`,
+      `<meta data-n-head="1" data-hid="twitter:description" property="twitter:description" content="${description}">`
+    )
+    // <meta data-n-head="1" data-hid="twitter:image" property="twitter:image" content="/shrine.png">
+    data = data.replace(
+      `<meta data-n-head="1" data-hid="twitter:image" property="twitter:image" content="/shrine.png">`,
+      `<meta data-n-head="1" data-hid="twitter:image" property="twitter:image" content="${ogpURL}">`
+    )
+    
     functions.logger.info("rewrite data")
+    response.set('Cache-Control', 'public, max-age=300, s-maxage=300')
     response.send(data)
   }catch (error) {
     if(error.response) {
