@@ -84,6 +84,9 @@
               </div>
             </div>
           </div>
+          <div class="text-center text-md-end mt-3">
+            <Share title="プロフィールをSNSでシェアしよう" :url="shareUrl" :username="user.display_name"></Share>
+          </div>
         </div>
         <div class="col-12 col-md-6 col-lg-4">
           <div class="bg-primary rounded p-2 text-center">
@@ -92,9 +95,6 @@
           <RadarChart :chartData="chartData" :chartConfig="chartOptions" />
         </div>
       </div>
-    </div>
-    <div class="text-center text-md-end mt-3">
-      <Share title="プロフィールをSNSでシェアしよう" :url="shareUrl" :username="user.display_name"></Share>
     </div>
   </main>
 </template>
