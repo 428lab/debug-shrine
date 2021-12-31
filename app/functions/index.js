@@ -811,18 +811,18 @@ exports.ogpRewrite = functions.https.onRequest(async (requeset, response) => {
       `<meta data-n-head="1" data-hid="og:title" name="og:title" content="でばっぐ神社">`,
       `<meta data-n-head="1" data-hid="og:title" name="og:title" content="${title}">`
     )
-    //    <meta data-n-head="1" name="twitter:title" content="でばっぐ神社">
+    // <meta data-n-head="1" data-hid="twitter:title" property="twitter:title" content="でばっぐ神社">
     data = data.replace(
-      `<meta data-n-head="1" name="twitter:title" content="でばっぐ神社">`,
-      `<meta data-n-head="1" name="twitter:title" content="${title}">`
+      `<meta data-n-head="1" data-hid="twitter:title" property="twitter:title" content="でばっぐ神社">`,
+      `<meta data-n-head="1" data-hid="twitter:title" property="twitter:title" content="${title}">`
     )
     // <meta data-n-head="1" name="twitter:url" content="http://localhost:3000">
     // ?
 
-    // <meta data-n-head="1" name="twitter:description" content="バグった時の神頼み。">
+    // <meta data-n-head="1" data-hid="twitter:description" property="twitter:description" content="バグった時の神頼み。">
     data = data.replace(
-      `<meta data-n-head="1" name="twitter:description" content="バグった時の神頼み。">`,
-      `<meta data-n-head="1" name="twitter:description" content="${description}">`
+      `<meta data-n-head="1" data-hid="twitter:description" property="twitter:description" content="バグった時の神頼み。">`,
+      `<meta data-n-head="1" data-hid="twitter:description" property="twitter:description" content="${description}">`
     )
     // <meta data-n-head="1" data-hid="twitter:image" property="twitter:image" content="/shrine.png">
     data = data.replace(
