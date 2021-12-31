@@ -12,11 +12,14 @@ export default {
 
   // Global page headers (https://go.nuxtjs.dev/config-head)
   head: {
-    title: 'DebugShrine',
+    title: 'でばっぐ神社',
     meta: [
       { charset: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { hid: 'description', name: 'description', content: '' },
+      { hid: 'og:title', name: 'og:title', content:'でばっぐ神社' },
+      { hid: 'og:url', name: 'og:url', content: process.env.BASE_URL|| 'http://localhost:3000' },
+      { hid: 'description', name: 'description', content: 'バグった時の神頼み。' },
+      { hid: 'og:description', name: 'og:description', content: 'バグった時の神頼み。' },
       { hid: 'og:image', property: 'og:image', content: `/shrine.png`},
       { hid: 'twitter:card', property: 'twitter:carad', content: 'summary_large_image'}
     ],

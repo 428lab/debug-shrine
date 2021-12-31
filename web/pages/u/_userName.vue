@@ -99,10 +99,15 @@ import RadarChart from "@/components/charts/powerChart.vue";
 
 export default {
   head() {
+    const title = `${this.$route.params.userName}の でばっぐのうりょく | でばっぐ神社`
+    const description = `これが${this.$route.params.userName}の でばっぐのうりょくだ！`
     return {
+      title: `${this.$route.params.userName}の でばっぐのうりょく | でばっぐ神社`,
       meta: [
-        { hid: 'og:description', property:'og:description', content: `これが${this.$route.params.userName}の でばっぐのうりょくだ！` },
-        { hid: 'og:image', property: 'og:image', content: `${this.$config.apiUrl}userOGP?user=${this.$route.params.userName}`}
+        { hid: 'description', name: 'description', content: description },
+        { hid: 'og:description', property:'og:description', content: description },
+        { hid: 'og:image', property: 'og:image', content: `${this.$config.apiUrl}userOGP?user=${this.$route.params.userName}`},
+        { hid: 'og:title', name: 'og:title', content:'でばっぐ神社' },
       ]
     }
   },
@@ -162,7 +167,7 @@ export default {
   },
   computed: {
     shareUrl() {
-      return this.$config.baseUrl + "/u/" + this.$route.params.userName;
+      return this.$config.baseUrl + "u/" + this.$route.params.userName;
     }
   }
 };

@@ -770,10 +770,16 @@ exports.ogpRewrite = functions.https.onRequest(async (requeset, response) => {
     return
   }
   const username = user_match[1]
-  const url = `https://${projectID}.web.app/`
-  // const url = `http://0.0.0.0:5000/` // firebase emulators
+  let url
+  if(process.env.FUNCTIONS_EMULATOR) {
+    url = `http://0.0.0.0:5000/` // firebase emulators
+  }else {
+    url = `https://${projectID}.web.app/`
+  }
+  
   const ogpURL = `https://us-central1-${projectID}.cloudfunctions.net/userOGP?user=${username}`
   const description = `これが${username}の でばっぐのうりょくだ！`
+  const title = `${username}の でばっぐのうりょく - でばっぐ神社`
   
   try {
     functions.logger.info(`username: ${username}`)
@@ -785,10 +791,25 @@ exports.ogpRewrite = functions.https.onRequest(async (requeset, response) => {
       `<meta data-n-head="1" data-hid="og:image" property="og:image" content="/shrine.png">`,
       `<meta data-n-head="1" data-hid="og:image" property="og:image" content="${ogpURL}">`
     )
-    // <meta data-n-head="1" data-hid="og:description" name="og:description" property="og:description" content="## Build Setup">
+    // <meta data-n-head="1" data-hid="og:description" name="og:description" content="バグった時の神頼み。">
     data = data.replace(
-      `<meta data-n-head="1" data-hid="og:description" name="og:description" property="og:description" content="## Build Setup">`,
+      `<meta data-n-head="1" data-hid="og:description" name="og:description" property="og:description" content="バグった時の神頼み。">`,
       `<meta data-n-head="1" data-hid="og:description" name="og:description" property="og:description" content="${description}">`
+    )
+    // <meta data-n-head="1" data-hid="description" name="description" content="バグった時の神頼み。">
+    data = data.replace(
+      `<meta data-n-head="1" data-hid="description" name="description" content="バグった時の神頼み。">`,
+      `<meta data-n-head="1" data-hid="description" name="description" content="${description}">`
+    )
+    // <meta data-n-head="1" data-hid="og:description" name="og:description" content="バグった時の神頼み。">
+    data = data.replace(
+      `<meta data-n-head="1" data-hid="og:description" name="og:description" content="バグった時の神頼み。">`,
+      `<meta data-n-head="1" data-hid="og:description" name="og:description" content="${description}">`
+    )
+    // <meta data-n-head="1" data-hid="og:title" name="og:title" content="でばっぐ神社">
+    data = data.replace(
+      `<meta data-n-head="1" data-hid="og:title" name="og:title" content="でばっぐ神社">`,
+      `<meta data-n-head="1" data-hid="og:title" name="og:title" content="${title}">`
     )
 
     functions.logger.info("rewrite data")

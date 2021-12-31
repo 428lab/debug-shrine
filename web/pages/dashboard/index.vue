@@ -169,7 +169,7 @@ export default {
   computed: {
     ...mapGetters(["user"]),
     shareUrl() {
-      return this.$config.baseUrl + "/u/" + this.user.screen_name;
+      return this.$config.baseUrl + "u/" + this.user.screen_name;
     },
     progressWidth() {
       return this.profile.exp.total / this.profile.next;
