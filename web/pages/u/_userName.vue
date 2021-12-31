@@ -5,23 +5,23 @@
         <div class="col-12 col-md-5 col-xl-8 mb-4 mb-md-0">
           <div class="p-3 bg-dark h-100 rounded">
             <div class="d-lg-flex align-items-center">
-              <div class="fs-4 me-4">{{ user.nickName }}</div>
+              <div class="fs-4 me-4">{{ profile.nickName }}</div>
             </div>
             <div class="d-flex mt-3 d-md-block">
               <div class="w-35 mb-3 me-3">
                 <img
-                  :src="user.profileImage"
+                  :src="profile.profileImage"
                   alt=""
                   class="rounded-icon img-fluid w-100"
                 />
               </div>
               <div class="ms-4flex-fill">
                 <a
-                  :href="`https://github.com/` + user.screenName"
+                  :href="`https://github.com/` + profile.screenName"
                   class="d-flex align-items-center"
                 >
                   <img src="/brandlogo/github.svg" height="20px" alt="" />
-                  <span class="ms-2">{{ user.screenName }} ></span>
+                  <span class="ms-2">{{ profile.screenName }} ></span>
                 </a>
                 <div class="mt-3">れべる：{{ status.level }}</div>
                 <div>ポイント：{{ status.points }}</div>
@@ -88,35 +88,57 @@
         </div>
       </div>
     </div>
-    <div class="text-center text-md-end mt-3">
-      <Share title="プロフィールをSNSでシェアしよう" :url="shareUrl" :username="user.nickName"></Share>
+    <div v-if="!isLogin" class="text-center">
+      <nuxt-link to="/" class="btn btn-lg btn-primary mt-3 d-block d-md-inline-block"
+        >コントリビュートして<br class="d-md-none">自分の能力を分析！
+      </nuxt-link>
+    </div>
+    <div
+      class="text-center text-md-end mt-3"
+      v-if="$route.params.userName === (user ? user.screen_name : false)"
+    >
+      <Share
+        title="プロフィールをSNSでシェアしよう"
+        :url="shareUrl"
+        :username="profile.nickName"
+      ></Share>
     </div>
   </main>
 </template>
 
 <script>
+import { mapGetters } from "vuex";
 import RadarChart from "@/components/charts/powerChart.vue";
 
 export default {
   head() {
-    const title = `${this.$route.params.userName}の でばっぐのうりょく | でばっぐ神社`
-    const description = `これが${this.$route.params.userName}の でばっぐのうりょくだ！`
+    const title = `${this.$route.params.userName}の でばっぐのうりょく | でばっぐ神社`;
+    const description = `これが${this.$route.params.userName}の でばっぐのうりょくだ！`;
     return {
       title: `${this.$route.params.userName}の でばっぐのうりょく | でばっぐ神社`,
       meta: [
-        { hid: 'description', name: 'description', content: description },
-        { hid: 'og:description', property:'og:description', content: description },
-        { hid: 'og:image', property: 'og:image', content: `${this.$config.apiUrl}userOGP?user=${this.$route.params.userName}`},
-        { hid: 'og:title', name: 'og:title', content:'でばっぐ神社' },
-      ]
-    }
+        { hid: "description", name: "description", content: description },
+        {
+          hid: "og:description",
+          property: "og:description",
+          content: description,
+        },
+        {
+          hid: "og:image",
+          property: "og:image",
+          content: `${this.$config.apiUrl}userOGP?user=${this.$route.params.userName}`,
+        },
+        { hid: "og:title", name: "og:title", content: "でばっぐ神社" },
+      ],
+    };
   },
   components: { RadarChart },
-  async asyncData({ $axios, route }) {
+  async asyncData({ $axios, route, error }) {
+    if (!route.params.userName) {
+      error({ statusCode: 404 });
+      return;
+    }
     let response = await $axios.get("status?user=" + route.params.userName);
-    // if(!response){
-    //   console.log("ユーザー情報なし")
-    // };
     let userChart = [];
     userChart.push(response.data.chart.hp);
     userChart.push(response.data.chart.power);
@@ -124,7 +146,7 @@ export default {
     userChart.push(response.data.chart.defence);
     userChart.push(response.data.chart.agility);
     return {
-      user: {
+      profile: {
         nickName: response.data.user.display_name,
         screenName: response.data.user.screen_name,
         profileImage: response.data.user.github_image_path,
@@ -166,10 +188,11 @@ export default {
     };
   },
   computed: {
+    ...mapGetters(["user", "isLogin"]),
     shareUrl() {
       return this.$config.baseUrl + "u/" + this.$route.params.userName;
-    }
-  }
+    },
+  },
 };
 </script>
 
