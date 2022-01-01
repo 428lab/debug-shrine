@@ -10,7 +10,7 @@
         />
       </div>
       <div v-if="result === 'success'">
-        <div class="fs-1">参拝ありがとう！</div>
+        <div class="fs-1">参拝しました！</div>
         <div class="fs-4 mt-4">{{status.msg}}</div>
         <div class="fs-4 mt-4">ポイントを獲得しました</div>
         <div class="fs-4">＋{{ status.get }} pt</div>
