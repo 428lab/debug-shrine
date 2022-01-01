@@ -799,9 +799,9 @@ exports.ogpRewrite = functions.https.onRequest(async (requeset, response) => {
     const res = await axios.get(url)
     let data = res.data
 
-    // <meta data-n-head="1" data-hid="og:image" property="og:image" content="/shrine.png">
+    // <meta data-n-head="1" data-hid="og:image" property="og:image" content="/ogimage.png">
     data = data.replace(
-      `<meta data-n-head="1" data-hid="og:image" property="og:image" content="/shrine.png">`,
+      `<meta data-n-head="1" data-hid="og:image" property="og:image" content="/ogimage.png">`,
       `<meta data-n-head="1" data-hid="og:image" property="og:image" content="${ogpURL}">`
     )
     // <meta data-n-head="1" data-hid="og:description" name="og:description" content="バグった時の神頼み。">
@@ -837,9 +837,9 @@ exports.ogpRewrite = functions.https.onRequest(async (requeset, response) => {
       `<meta data-n-head="1" data-hid="twitter:description" property="twitter:description" content="バグった時の神頼み。">`,
       `<meta data-n-head="1" data-hid="twitter:description" property="twitter:description" content="${description}">`
     )
-    // <meta data-n-head="1" data-hid="twitter:image" property="twitter:image" content="/shrine.png">
+    // <meta data-n-head="1" data-hid="twitter:image" property="twitter:image" content="/ogimage.png">
     data = data.replace(
-      `<meta data-n-head="1" data-hid="twitter:image" property="twitter:image" content="/shrine.png">`,
+      `<meta data-n-head="1" data-hid="twitter:image" property="twitter:image" content="/ogimage.png">`,
       `<meta data-n-head="1" data-hid="twitter:image" property="twitter:image" content="${ogpURL}">`
     )
     
