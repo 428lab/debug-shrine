@@ -86,7 +86,7 @@ async function get_feed(user, per_page=100) {
 
 async function get_user(username) {
   try {
-    url = `https://api.github.com/users/${username}&client_id=${client_id}&client_secret=${client_secret}`
+    url = `https://api.github.com/users/${username}?client_id=${client_id}&client_secret=${client_secret}`
     const res = await axios.get(url);
     const items = res.data;
     return items
