@@ -8,7 +8,6 @@ export default {
   publicRuntimeConfig: {
     baseUrl: process.env.BASE_URL || 'http://localhost:3000',
     apiUrl: process.env.API_URL,
-    gtm_id: process.env.GTM_ID,
   },
 
   // Global page headers (https://go.nuxtjs.dev/config-head)
@@ -73,8 +72,8 @@ export default {
     '@nuxtjs/firebase',
     '@nuxtjs/markdownit',
     ['@nuxtjs/google-gtag', {
-      id: process.env.GTM_ID,
-      debug: true,
+      id: process.env.GTM_ID ? process.env.GTM_ID : 'G-xxxxxxxx',
+      debug: false,
     }]
   ],
 

@@ -24,7 +24,5 @@
     "vue-chartjs": "^3.5.1",
     "vuex-persistedstate": "^4.1.0"
   },
-  "devDependencies": {
-    "@nuxtjs/google-analytics": "^2.4.0"
-  }
+  "devDependencies": {}
 }
