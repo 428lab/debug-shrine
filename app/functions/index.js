@@ -492,7 +492,6 @@ async function createOgp(username, request, response) {
         ticks: {
           // 線の間隔
           stepSize: 10,
-          max: 150,
         }
       },
       elements: {
@@ -503,6 +502,7 @@ async function createOgp(username, request, response) {
       scales: {
         r: {
           min: 0,
+          max: 150,
           grid: {
             // メモリ
             display: true,
