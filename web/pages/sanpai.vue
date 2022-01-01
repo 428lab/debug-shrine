@@ -11,6 +11,7 @@
       </div>
       <div v-if="result === 'success'">
         <div class="fs-1">参拝ありがとう！</div>
+        <div class="fs-4 mt-4">{{status.msg}}</div>
         <div class="fs-4 mt-4">ポイントを獲得しました</div>
         <div class="fs-4">＋{{ status.get }} pt</div>
       </div>
@@ -57,9 +58,11 @@ export default {
     };
     let response = await this.$axios.post("sanpai", payload);
     if (response) {
+      console.log("response",response)
       this.status.level = response.data.level;
       this.status.get = response.data.add_exp;
       this.status.point = response.data.exp;
+      this.status.msg = response.data.msg;
       this.result = response.data.status;
       this.isLoading = false;
     } else {
