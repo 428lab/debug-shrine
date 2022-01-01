@@ -89,8 +89,10 @@
       </div>
     </div>
     <div v-if="!isLogin" class="text-center">
-      <nuxt-link to="/" class="btn btn-lg btn-primary mt-3 d-block d-md-inline-block"
-        >コントリビュートして<br class="d-md-none">自分の能力を分析！
+      <nuxt-link
+        to="/"
+        class="btn btn-lg btn-primary mt-3 d-block d-md-inline-block"
+        >コントリビュートして<br class="d-md-none" />自分の能力を分析！
       </nuxt-link>
     </div>
     <div
