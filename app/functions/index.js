@@ -47,11 +47,7 @@ function get_bonus_mag(now) {
 const production_id = 'd-shrine'
 const dev_id = 'd-shrine-dev'
 
-if (process.env.FUNCTIONS_EMULATOR) {
-  const base_url = `http://0.0.0.0:5000/` // firebase emulators
-} else {
-  const base_url = functions.config().func.base_url
-}
+const base_url = process.env.FUNCTIONS_EMULATOR ? `http://0.0.0.0:5000/` : functions.config().func.base_url
 
 const sanpai = {
   add_point: 1,
