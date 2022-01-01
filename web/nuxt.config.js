@@ -7,7 +7,8 @@ export default {
 
   publicRuntimeConfig: {
     baseUrl: process.env.BASE_URL || 'http://localhost:3000',
-    apiUrl: process.env.API_URL
+    apiUrl: process.env.API_URL,
+    gtm_id: process.env.GTM_ID,
   },
 
   // Global page headers (https://go.nuxtjs.dev/config-head)
@@ -70,7 +71,11 @@ export default {
     '@nuxtjs/axios',
     '@nuxtjs/pwa',
     '@nuxtjs/firebase',
-    '@nuxtjs/markdownit'
+    '@nuxtjs/markdownit',
+    ['@nuxtjs/google-gtag', {
+      id: process.env.GTM_ID,
+      debug: true,
+    }]
   ],
 
   firebase:
@@ -108,5 +113,5 @@ export default {
   markdownit: {
     injected: true,   // $mdを使ってどこからでも使えるようになる
     breaks: true      // 改行を<br>に変換してくれる
-  }
+  },
 }

@@ -12,6 +12,7 @@
     "@nuxtjs/axios": "^5.12.2",
     "@nuxtjs/dotenv": "^1.4.1",
     "@nuxtjs/firebase": "^8.1.1",
+    "@nuxtjs/google-gtag": "^1.0.4",
     "@nuxtjs/markdownit": "^2.0.0",
     "@nuxtjs/pwa": "^3.0.2",
     "chart.js": "2.8",
@@ -23,5 +24,7 @@
     "vue-chartjs": "^3.5.1",
     "vuex-persistedstate": "^4.1.0"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@nuxtjs/google-analytics": "^2.4.0"
+  }
 }
