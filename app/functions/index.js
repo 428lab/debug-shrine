@@ -746,7 +746,8 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
       add_exp: add_exp,
       level: userStatusData.level,
       exp: userStatusData.points,
-      next_exp: userStatusData.next_exp
+      next_exp: userStatusData.next_exp,
+      msg: msg
     }
     if(splited_items.length == 0) {
       // アクティビティがないっぽい
