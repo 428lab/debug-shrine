@@ -12,6 +12,9 @@ export default {
 
   // Global page headers (https://go.nuxtjs.dev/config-head)
   head: {
+    htmlAttrs: {
+      lang: 'ja'
+    },
     title: 'でばっぐ神社',
     meta: [
       { charset: 'utf-8' },
@@ -89,6 +92,13 @@ export default {
   // Axios module configuration (https://go.nuxtjs.dev/config-axios)
   axios: {
     baseURL: process.env.API_URL
+  },
+
+  // pwa module configuration
+  pwa: {
+    manifest: {
+      lang: 'ja'
+    }
   },
 
   // Build Configuration (https://go.nuxtjs.dev/config-build)
