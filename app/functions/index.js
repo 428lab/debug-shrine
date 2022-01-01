@@ -43,6 +43,16 @@ function get_bonus_mag(now) {
   return (date_low <= now && now < date_max) ? 3:1
 }
 
+
+const production_id = 'd-shrine'
+const dev_id = 'd-shrine-dev'
+
+if (process.env.FUNCTIONS_EMULATOR) {
+  const base_url = `http://0.0.0.0:5000/` // firebase emulators
+} else if (projectID == production_id) {
+  const base_url = process.env.BASE_URL
+}
+
 const sanpai = {
   add_point: 1,
   next_time: projectID == 'd-shrine' ? (5 * 60) : 60  // s
@@ -783,12 +793,13 @@ exports.ogpRewrite = functions.https.onRequest(async (requeset, response) => {
     return
   }
   const username = user_match[1]
-  let url
-  if(process.env.FUNCTIONS_EMULATOR) {
-    url = `http://0.0.0.0:5000/` // firebase emulators
-  }else {
-    url = `https://${projectID}.web.app/`
-  }
+
+  // let url
+  // if(process.env.FUNCTIONS_EMULATOR) {
+  //   url = `http://0.0.0.0:5000/` // firebase emulators
+  // }else {
+  //   url = `https://${projectID}.web.app/`
+  // }
   const time = moment().unix()
   
   const ogpURL = `https://us-central1-${projectID}.cloudfunctions.net/userOGP?user=${username}&t=${time}`
@@ -797,12 +808,12 @@ exports.ogpRewrite = functions.https.onRequest(async (requeset, response) => {
   
   try {
     functions.logger.info(`username: ${username}`)
-    const res = await axios.get(url)
+    const res = await axios.get(base_url)
     let data = res.data
 
-    // <meta data-n-head="1" data-hid="og:image" property="og:image" content="/ogimage.png">
+    // <meta data-n-head="1" data-hid="og:image" property="og:image" content="${base_url}ogimage.png">
     data = data.replace(
-      `<meta data-n-head="1" data-hid="og:image" property="og:image" content="/ogimage.png">`,
+      `<meta data-n-head="1" data-hid="og:image" property="og:image" content="${base_url}ogimage.png">`,
       `<meta data-n-head="1" data-hid="og:image" property="og:image" content="${ogpURL}">`
     )
     // <meta data-n-head="1" data-hid="og:description" name="og:description" content="バグった時の神頼み。">
@@ -838,9 +849,9 @@ exports.ogpRewrite = functions.https.onRequest(async (requeset, response) => {
       `<meta data-n-head="1" data-hid="twitter:description" property="twitter:description" content="バグった時の神頼み。">`,
       `<meta data-n-head="1" data-hid="twitter:description" property="twitter:description" content="${description}">`
     )
-    // <meta data-n-head="1" data-hid="twitter:image" property="twitter:image" content="/ogimage.png">
+    // <meta data-n-head="1" data-hid="twitter:image" property="twitter:image" content="${base_url}ogimage.png">
     data = data.replace(
-      `<meta data-n-head="1" data-hid="twitter:image" property="twitter:image" content="/ogimage.png">`,
+      `<meta data-n-head="1" data-hid="twitter:image" property="twitter:image" content="${base_url}ogimage.png">`,
       `<meta data-n-head="1" data-hid="twitter:image" property="twitter:image" content="${ogpURL}">`
     )
     
