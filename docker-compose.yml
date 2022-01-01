@@ -24,7 +24,6 @@ services:
     tty: true
     stdin_open: true
     command: /bin/bash
-    platform: linux/x86_64
   nuxt:
     build: ./docker/nuxt
     container_name: nuxt
