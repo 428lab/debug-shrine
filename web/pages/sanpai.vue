@@ -10,17 +10,17 @@
         />
       </div>
       <div v-if="result === 'success'">
-        <div class="fs-1">参拝しました！</div>
+        <div class="fs-1">「殊勝なことじゃ。きっと良きことがあるぞよ。」</div>
         <div class="fs-4 mt-4">{{status.msg}}</div>
         <div class="fs-4 mt-4">ポイントを獲得しました</div>
         <div class="fs-4">＋{{ status.get }} pt</div>
       </div>
       <div v-else-if="result === 'expire'">
-        <div class="fs-1">おっと、参拝のペースが早すぎるようです</div>
+        <div class="fs-1">「おっと、参拝のペースが早すぎるようじゃ。そう逸るでない。」</div>
         <div class="fs-4 mt-4">追加のポイントはありませんでした</div>
       </div>
       <div v-else-if="result === 'noaction'">
-        <div class="fs-1">新規のアクティビティがないようです</div>
+        <div class="fs-1">「まずはぎっとはぶでコントリビュートするのじゃ。」</div>
         <div class="fs-4 mt-4">追加のポイントはありませんでした</div>
       </div>
       <div class="fs-5 my-3">
