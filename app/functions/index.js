@@ -570,6 +570,45 @@ exports.register = functions.https.onRequest(async (requeset, response)=>{
       status: "missing request"
     })
     return
+  }else if(requeset.method == "OPTIONS") {
+    // CORS対応しろ
+    response.json({
+      status: "missing request"
+    })
+    return
+  }
+
+  if(!requeset.headers.authorization) {
+    // 認証情報付与してない
+    response.status(401).json({
+      status: "authorization missing."
+    })
+    return
+  }
+  const token_match = requeset.headers.authorization.match(/^Bearer (.*)$/)
+  if(!token_match) {
+    // やっぱり認証情報付与してない
+    response.status(401).json({
+      status: "authorization missing."
+    })
+    return
+  }
+  const token = token_match[1]  // firebase auth token
+
+  // トークンを検証
+  functions.logger.info(`token: ${token}`)
+  const decodetToken = await admin.auth().verifyIdToken(token)
+    .catch(e => {
+      // 認証できない
+      functions.logger.error(e)
+      response.status(403).json({
+        status: "authorization missing."
+      })
+      return
+    })
+  if(!decodetToken){
+    functions.logger.info("decodetToken non")
+    return
   }
 
   // firestore に投げられたデータを保存
@@ -600,17 +639,30 @@ exports.register = functions.https.onRequest(async (requeset, response)=>{
       screen_name: requeset.body.screen_name,
       image_path: requeset.body.image_path,
       create_at: FieldValue.serverTimestamp(),
-      exp: 10
+      exp: 10,
+      auth_user_uid: decodetToken.uid
     })
     response.json({
       status: "success"
     })
     return
   }else {
-    response.json({
-      status: "registerd"
-    })
-    return
+    const userData = userDoc.data()
+    if(!userData.auth_user_uid) {
+      await userRef.update({
+        auth_user_uid: decodetToken.uid
+      })
+      response.json({
+        status: "updated",
+        message: "auth_user_uid"
+      })
+      return
+    }else {
+      response.json({
+        status: "registerd"
+      })
+      return
+    }
   }
 })
 
