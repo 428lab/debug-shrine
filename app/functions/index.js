@@ -82,6 +82,7 @@ function get_next_leve_exp(points) {
 
 
 async function get_feed(user, per_page=100) {
+  functions.logger.info("get_feed")
   try {
     url = `https://api.github.com/users/${user}/events/public?per_page=${per_page}&client_id=${client_id}&client_secret=${client_secret}`
     const res = await axios.get(url);
@@ -95,7 +96,6 @@ async function get_feed(user, per_page=100) {
   } catch (error) {
     if(error.response){
       const {status,statusText} = error.response;
-      functions.logger.info("get_feed")
       functions.logger.error(`Error! HTTP Status: ${status} ${statusText}`, {structuredData: true})
       functions.logger.info([
         `GitHub X-RateLimit-Limit : ${res.headers["x-ratelimit-limit"]}`,
@@ -109,6 +109,7 @@ async function get_feed(user, per_page=100) {
 }
 
 async function get_user(username) {
+  functions.logger.info("get_user")
   try {
     url = `https://api.github.com/users/${username}?client_id=${client_id}&client_secret=${client_secret}`
     const res = await axios.get(url);
@@ -124,7 +125,6 @@ async function get_user(username) {
   } catch (error) {
     if(error.response){
       const {status,statusText} = error.response;
-      functions.logger.info("get_feed")
       functions.logger.error(`Error! HTTP Status: ${status} ${statusText}`, {structuredData: true})
       functions.logger.info([
         `GitHub X-RateLimit-Limit : ${res.headers["x-ratelimit-limit"]}`,
