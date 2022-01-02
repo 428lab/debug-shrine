@@ -85,11 +85,26 @@ async function get_feed(user, per_page=100) {
   try {
     url = `https://api.github.com/users/${user}/events/public?per_page=${per_page}&client_id=${client_id}&client_secret=${client_secret}`
     const res = await axios.get(url);
+    functions.logger.info([
+      `GitHub X-RateLimit-Limit : ${res.headers["x-ratelimit-limit"]}`,
+      `GitHub X-RateLimit-Rest  : ${res.headers["x-ratelimit-reset"]}`,
+      `GitHub X-RateLimit-Used  : ${res.headers["x-ratelimit-used"]}`
+    ].join("¥n"))
     const items = res.data;
     return items
   } catch (error) {
-    const {status,statusText} = error.response;
-    functions.logger.error(`Error! HTTP Status: ${status} ${statusText}`, {structuredData: true})
+    if(error.response){
+      const {status,statusText} = error.response;
+      functions.logger.info("get_feed")
+      functions.logger.error(`Error! HTTP Status: ${status} ${statusText}`, {structuredData: true})
+      functions.logger.info([
+        `GitHub X-RateLimit-Limit : ${res.headers["x-ratelimit-limit"]}`,
+        `GitHub X-RateLimit-Rest  : ${res.headers["x-ratelimit-reset"]}`,
+        `GitHub X-RateLimit-Used  : ${res.headers["x-ratelimit-used"]}`
+      ].join("¥n"))
+    }else {
+      functions.logger.error(error)
+    }
   }
 }
 
@@ -97,11 +112,28 @@ async function get_user(username) {
   try {
     url = `https://api.github.com/users/${username}?client_id=${client_id}&client_secret=${client_secret}`
     const res = await axios.get(url);
+    // functions.logger.info(res.headers)
+    functions.logger.info([
+      `GitHub X-RateLimit-Limit : ${res.headers["x-ratelimit-limit"]}`,
+      `GitHub X-RateLimit-Rest  : ${res.headers["x-ratelimit-reset"]}`,
+      `GitHub X-RateLimit-Used  : ${res.headers["x-ratelimit-used"]}`
+    ].join("¥n"))
+    
     const items = res.data;
     return items
   } catch (error) {
-    const {status,statusText} = error.response;
-    functions.logger.error(`Error! HTTP Status: ${status} ${statusText}`, {structuredData: true})
+    if(error.response){
+      const {status,statusText} = error.response;
+      functions.logger.info("get_feed")
+      functions.logger.error(`Error! HTTP Status: ${status} ${statusText}`, {structuredData: true})
+      functions.logger.info([
+        `GitHub X-RateLimit-Limit : ${res.headers["x-ratelimit-limit"]}`,
+        `GitHub X-RateLimit-Rest  : ${res.headers["x-ratelimit-reset"]}`,
+        `GitHub X-RateLimit-Used  : ${res.headers["x-ratelimit-used"]}`
+      ].join("¥n"))
+    }else {
+      functions.logger.error(error)
+    }
     return null
   }
 }
