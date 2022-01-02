@@ -596,7 +596,6 @@ exports.register = functions.https.onRequest(async (requeset, response)=>{
   const token = token_match[1]  // firebase auth token
 
   // トークンを検証
-  functions.logger.info(`token: ${token}`)
   const decodetToken = await admin.auth().verifyIdToken(token)
     .catch(e => {
       // 認証できない
@@ -678,6 +677,37 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
     return
   }
 
+  if(!request.headers.authorization) {
+    // 認証情報付与してない
+    response.status(401).json({
+      status: "authorization missing."
+    })
+    return
+  }
+  const token_match = request.headers.authorization.match(/^Bearer (.*)$/)
+  if(!token_match) {
+    // やっぱり認証情報付与してない
+    response.status(401).json({
+      status: "authorization missing."
+    })
+    return
+  }
+  const token = token_match[1]  // firebase auth token
+
+  // トークンを検証
+  const decodetToken = await admin.auth().verifyIdToken(token)
+    .catch(e => {
+      // 認証できない
+      functions.logger.error(e)
+      response.status(403).json({
+        status: "authorization missing."
+      })
+      return
+    })
+  if(!decodetToken){
+    functions.logger.info("decodetToken non")
+    return
+  }
   if(!request.body.github_id) {
     response.json({
       status: "faild parameter"
