@@ -7,6 +7,9 @@ const { getFirestore, Timestamp, FieldValue } = require("firebase-admin/firestor
 const { createCanvas, loadImage } = require("canvas")
 const fs = require("fs");
 const { ChartJSNodeCanvas } = require("chartjs-node-canvas")
+const cors = require("cors")({
+  origin: true
+})
 
 const projectID = process.env.GCLOUD_PROJECT
 const buggetName = `${projectID}.appspot.com`
@@ -79,26 +82,58 @@ function get_next_leve_exp(points) {
 
 
 async function get_feed(user, per_page=100) {
+  functions.logger.info("get_feed")
   try {
     url = `https://api.github.com/users/${user}/events/public?per_page=${per_page}&client_id=${client_id}&client_secret=${client_secret}`
     const res = await axios.get(url);
+    functions.logger.info([
+      `GitHub X-RateLimit-Limit : ${res.headers["x-ratelimit-limit"]}`,
+      `GitHub X-RateLimit-Rest  : ${res.headers["x-ratelimit-reset"]}`,
+      `GitHub X-RateLimit-Used  : ${res.headers["x-ratelimit-used"]}`
+    ].join("¥n"))
     const items = res.data;
     return items
   } catch (error) {
-    const {status,statusText} = error.response;
-    functions.logger.error(`Error! HTTP Status: ${status} ${statusText}`, {structuredData: true})
+    if(error.response){
+      const {status,statusText} = error.response;
+      functions.logger.error(`Error! HTTP Status: ${status} ${statusText}`, {structuredData: true})
+      functions.logger.info([
+        `GitHub X-RateLimit-Limit : ${res.headers["x-ratelimit-limit"]}`,
+        `GitHub X-RateLimit-Rest  : ${res.headers["x-ratelimit-reset"]}`,
+        `GitHub X-RateLimit-Used  : ${res.headers["x-ratelimit-used"]}`
+      ].join("¥n"))
+    }else {
+      functions.logger.error(error)
+    }
   }
 }
 
 async function get_user(username) {
+  functions.logger.info("get_user")
   try {
     url = `https://api.github.com/users/${username}?client_id=${client_id}&client_secret=${client_secret}`
     const res = await axios.get(url);
+    // functions.logger.info(res.headers)
+    functions.logger.info([
+      `GitHub X-RateLimit-Limit : ${res.headers["x-ratelimit-limit"]}`,
+      `GitHub X-RateLimit-Rest  : ${res.headers["x-ratelimit-reset"]}`,
+      `GitHub X-RateLimit-Used  : ${res.headers["x-ratelimit-used"]}`
+    ].join("¥n"))
+    
     const items = res.data;
     return items
   } catch (error) {
-    const {status,statusText} = error.response;
-    functions.logger.error(`Error! HTTP Status: ${status} ${statusText}`, {structuredData: true})
+    if(error.response){
+      const {status,statusText} = error.response;
+      functions.logger.error(`Error! HTTP Status: ${status} ${statusText}`, {structuredData: true})
+      functions.logger.info([
+        `GitHub X-RateLimit-Limit : ${res.headers["x-ratelimit-limit"]}`,
+        `GitHub X-RateLimit-Rest  : ${res.headers["x-ratelimit-reset"]}`,
+        `GitHub X-RateLimit-Used  : ${res.headers["x-ratelimit-used"]}`
+      ].join("¥n"))
+    }else {
+      functions.logger.error(error)
+    }
     return null
   }
 }
@@ -232,92 +267,91 @@ function user_formated_performance(user_data, append_data={}) {
 }
 
 exports.status = functions.https.onRequest(async (request, response) => {
-  response.set("Access-Control-Allow-Origin", "*")
-  functions.logger.info("status", {structuredData: true})
-  functions.logger.info(request.query.user, {structuredData: true})
+  cors(request, response, async()=> {
+    functions.logger.info("status", {structuredData: true})
+    functions.logger.info(request.query.user, {structuredData: true})
 
-  const github_data = await get_user(request.query.user)
-  if(github_data == null) {
-    // missing user
-    response.status(404).json({
-      status: "faild",
-      message: "user not found."
-    })
-    return
-  }
-
-  const github_id = github_data.id
-  let appendData = {}
-
-  const userRef = db.collection("users").doc(`${github_id}`)
-  const userDoc = await userRef.get()
-  if(userDoc.exists) {
-    // ユーザーは登録さている
-    functions.logger.info("user registerd")
-    const userData = userDoc.data()
-    functions.logger.info(`data: ${userData.exp}`)
-    if(userData.exp) {
-      appendData.exp = userData.exp
+    const github_data = await get_user(request.query.user)
+    if(github_data == null) {
+      // missing user
+      response.status(404).json({
+        status: "faild",
+        message: "user not found."
+      })
+      return
     }
-    // ユーザー情報も付与
-    appendData.user = {
-      display_name: userData.display_name,
-      screen_name: userData.screen_name,
-      github_image_path: userData.image_path
+
+    const github_id = github_data.id
+    let appendData = {}
+
+    const userRef = db.collection("users").doc(`${github_id}`)
+    const userDoc = await userRef.get()
+    if(userDoc.exists) {
+      // ユーザーは登録さている
+      functions.logger.info("user registerd")
+      const userData = userDoc.data()
+      functions.logger.info(`data: ${userData.exp}`)
+      if(userData.exp) {
+        appendData.exp = userData.exp
+      }
+      // ユーザー情報も付与
+      appendData.user = {
+        display_name: userData.display_name,
+        screen_name: userData.screen_name,
+        github_image_path: userData.image_path
+      }
+    }else {
+      // 登録されていない
+      functions.logger.info("user not registerd")
+      response.status(404).json({
+        staus: "faild",
+        message: "user not registerd."
+      })
+      return
     }
-  }else {
-    // 登録されていない
-    functions.logger.info("user not registerd")
-    response.status(404).json({
-      staus: "faild",
-      message: "user not registerd."
-    })
-    return
-  }
 
-  const items = await get_feed(request.query.user)
-  let user_data = user_performance(items, request.query.user)
-  let return_Data = user_formated_performance(user_data, appendData)
+    const items = await get_feed(request.query.user)
+    let user_data = user_performance(items, request.query.user)
+    let return_Data = user_formated_performance(user_data, appendData)
 
-  response.json(return_Data)
+    response.json(return_Data)
+  })
 })
 
 exports.userOGP = functions.https.onRequest(async (request, response) => {
-  response.set('Access-Control-Allow-Headers', '*')
-  response.set("Access-Control-Allow-Origin", "*")
-  response.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS, POST')
-
-  functions.logger.info(request.query)
-  if(!request.query.user){
-    // 404で返す
-    response.status(404).send("user not found.")
-    return
-  }
-
-  const username = request.query.user
-  const filepath = `ogps/${encodeURIComponent(username)}.png`
-
-  fileExists = await isStrageExists(filepath)
-  functions.logger.info(`file ${filepath}: ${fileExists}`)
-
-  let url
-  if(fileExists){
-    // 既存
-    url = getOgpUrl(username)
-  }else{
-    // 作成
-    url = await createOgp(username, request, response)
-  }
-
-  if(process.env.FUNCTIONS_EMULATOR) {
-    // エミュレーター上は検証がめんどいからリダイレクトしない
-    // できればその場で画像出てくれたら良いのになぁ...
-    response.send(url)
-  }else {
-    if(url) {
-      response.redirect(url)
+  cors(request, response, async()=>{
+    functions.logger.info(request.query)
+    if(!request.query.user){
+      // 404で返す
+      response.status(404).send("user not found.")
+      return
     }
-  }
+
+    const username = request.query.user
+    const filepath = `ogps/${encodeURIComponent(username)}.png`
+
+    fileExists = await isStrageExists(filepath)
+    functions.logger.info(`file ${filepath}: ${fileExists}`)
+
+    let url
+    if(fileExists){
+      // 既存
+      url = getOgpUrl(username)
+    }else{
+      // 作成
+      url = await createOgp(username, request, response)
+    }
+
+    if(process.env.FUNCTIONS_EMULATOR) {
+      // エミュレーター上は検証がめんどいからリダイレクトしない
+      // できればその場で画像出てくれたら良いのになぁ...
+      response.send(url)
+    }else {
+      if(url) {
+        response.redirect(url)
+      }
+    }
+  })
 })
 
 // strageに指定ファイル名のものが存在するか
@@ -559,123 +593,217 @@ async function createOgp(username, request, response) {
 }
 
 exports.register = functions.https.onRequest(async (requeset, response)=>{
-  response.set('Access-Control-Allow-Headers', '*')
-  response.set("Access-Control-Allow-Origin", "*")
-  response.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS, POST')
-
-  functions.logger.info(requeset.method)
-  functions.logger.info(requeset.body)
-  if(requeset.method != "POST" && requeset.method != "OPTIONS"){
-    response.status(400).json({
-      status: "missing request"
-    })
-    return
-  }
-
-  // firestore に投げられたデータを保存
-  // {
-  //   github_id, display_name, screen_name, image_path 
-  // }
-  // firestoreに書き込み
-  // key: github_id
-  if(
-    !requeset.body.github_id ||
-    !requeset.body.display_name ||
-    !requeset.body.screen_name ||
-    !requeset.body.image_path
-    ){
-      // functions.logger.info(requeset.body)
-      response.json({
-        status: "faild parameter"
-      })
-    return
-  }
-
-  const userRef = db.collection("users").doc(`${requeset.body.github_id}`)
-  const userDoc = await userRef.get()
-  if(!userDoc.exists) {
-    await userRef.set({
-      github_id: requeset.body.github_id,
-      display_name: requeset.body.display_name,
-      screen_name: requeset.body.screen_name,
-      image_path: requeset.body.image_path,
-      create_at: FieldValue.serverTimestamp(),
-      exp: 10
-    })
-    response.json({
-      status: "success"
-    })
-    return
-  }else {
-    response.json({
-      status: "registerd"
-    })
-    return
-  }
-})
-
-exports.sanpai = functions.https.onRequest(async(request, response) => {
-  response.set('Access-Control-Allow-Headers', '*')
-  response.set("Access-Control-Allow-Origin", "*")
-  response.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS, POST')
-  if(request.method != "POST") {
-    functions.logger.info("faild conection")
-    response.json({
-      status: "faild"
-    })
-    return
-  }
-
-  if(!request.body.github_id) {
-    response.json({
-      status: "faild parameter"
-    })
-    return
-  }
-  const github_id = request.body.github_id
-  const userRef = db.collection("users").doc(`${github_id}`)
-  
-  functions.logger.info("load")
-  try {
-
-    functions.logger.info("get 1")
-    const userDoc = await userRef.get()
-    functions.logger.info("get 2" )
-
-    if(!userDoc.exists) {
-      // 登録されてない
-      response.json({
-        "status": "faild",
-        "message": "not registered"
+  cors(requeset, response, async()=>{
+    functions.logger.info(requeset.method)
+    functions.logger.info(requeset.body)
+    if(requeset.method != "POST"){
+      response.status(400).json({
+        status: "missing request"
       })
       return
     }
-    functions.logger.info("registerd")
-    let userStatusFeed = null
-    let userStatusData = null
-    let userAppendData = {}
-    let add_exp = sanpai.add_point  // 最終的に得られるポイント
-
-    const userData = userDoc.data()
-    functions.logger.info(userData)
-    if(userData.exp) {
-      userAppendData.exp = userData.exp
+  
+    if(!requeset.headers.authorization) {
+      // 認証情報付与してない
+      response.status(401).json({
+        status: "authorization missing."
+      })
+      return
     }
-    userStatusFeed = await get_feed(userData.screen_name)
-    userStatusData = user_formated_performance(user_performance(userStatusFeed, userData.screen_name), userAppendData)
-    const last_sanpai = userData.last_sanpai
-
-    if(last_sanpai) {
-      //参拝してる
-      
-      functions.logger.info(last_sanpai)
-      functions.logger.info(last_sanpai.seconds)
-      // 前回の時間指定時間足して、期限がすぎる時間 今の時間
-      if(last_sanpai.seconds + sanpai.next_time > Timestamp.now().seconds) {
-        // 参拝可能時間を過ぎてない
-        // functions.logger.info("expire")
+    const token_match = requeset.headers.authorization.match(/^Bearer (.*)$/)
+    if(!token_match) {
+      // やっぱり認証情報付与してない
+      response.status(401).json({
+        status: "authorization missing."
+      })
+      return
+    }
+    const token = token_match[1]  // firebase auth token
+  
+    // トークンを検証
+    const decodetToken = await admin.auth().verifyIdToken(token)
+      .catch(e => {
+        // 認証できない
+        functions.logger.error(e)
+        response.status(403).json({
+          status: "authorization missing."
+        })
+        return
+      })
+    if(!decodetToken){
+      functions.logger.info("decodetToken non")
+      return
+    }
+  
+    // firestore に投げられたデータを保存
+    // {
+    //   github_id, display_name, screen_name, image_path 
+    // }
+    // firestoreに書き込み
+    // key: github_id
+    if(
+      !requeset.body.github_id ||
+      !requeset.body.display_name ||
+      !requeset.body.screen_name ||
+      !requeset.body.image_path
+      ){
+        // functions.logger.info(requeset.body)
         response.json({
-          status: "expire",
+          status: "faild parameter"
+        })
+      return
+    }
+  
+    const userRef = db.collection("users").doc(`${requeset.body.github_id}`)
+    const userDoc = await userRef.get()
+    if(!userDoc.exists) {
+      await userRef.set({
+        github_id: requeset.body.github_id,
+        display_name: requeset.body.display_name,
+        screen_name: requeset.body.screen_name,
+        image_path: requeset.body.image_path,
+        create_at: FieldValue.serverTimestamp(),
+        exp: 10,
+        auth_user_uid: decodetToken.uid
+      })
+      response.json({
+        status: "success"
+      })
+      return
+    }else {
+      const userData = userDoc.data()
+      if(!userData.auth_user_uid) {
+        await userRef.update({
+          auth_user_uid: decodetToken.uid
+        })
+        response.json({
+          status: "updated",
+          message: "auth_user_uid"
+        })
+        return
+      }else {
+        response.json({
+          status: "registerd"
+        })
+        return
+      }
+    }
+  })
+})
+
+exports.sanpai = functions.https.onRequest(async(request, response) => {
+  cors(request, response, async()=>{
+    if(request.method != "POST") {
+      functions.logger.info("faild conection")
+      response.json({
+        status: "faild"
+      })
+      return
+    }
+  
+    if(!request.headers.authorization) {
+      // 認証情報付与してない
+      response.status(401).json({
+        status: "authorization missing."
+      })
+      return
+    }
+    const token_match = request.headers.authorization.match(/^Bearer (.*)$/)
+    if(!token_match) {
+      // やっぱり認証情報付与してない
+      response.status(401).json({
+        status: "authorization missing."
+      })
+      return
+    }
+    const token = token_match[1]  // firebase auth token
+  
+    // トークンを検証
+    const decodetToken = await admin.auth().verifyIdToken(token)
+      .catch(e => {
+        // 認証できない
+        functions.logger.error(e)
+        response.status(403).json({
+          status: "authorization missing."
+        })
+        return
+      })
+    if(!decodetToken){
+      functions.logger.info("decodetToken non")
+      return
+    }
+    if(!request.body.github_id) {
+      response.json({
+        status: "faild parameter"
+      })
+      return
+    }
+    const github_id = request.body.github_id
+    const userRef = db.collection("users").doc(`${github_id}`)
+    
+    functions.logger.info("load")
+    try {
+  
+      functions.logger.info("get 1")
+      const userDoc = await userRef.get()
+      functions.logger.info("get 2" )
+  
+      if(!userDoc.exists) {
+        // 登録されてない
+        response.json({
+          "status": "faild",
+          "message": "not registered"
+        })
+        return
+      }
+      functions.logger.info("registerd")
+      let userStatusFeed = null
+      let userStatusData = null
+      let userAppendData = {}
+      let add_exp = sanpai.add_point  // 最終的に得られるポイント
+  
+      const userData = userDoc.data()
+      functions.logger.info(userData)
+      if(userData.exp) {
+        userAppendData.exp = userData.exp
+      }
+      userStatusFeed = await get_feed(userData.screen_name)
+      userStatusData = user_formated_performance(user_performance(userStatusFeed, userData.screen_name), userAppendData)
+      const last_sanpai = userData.last_sanpai
+  
+      if(last_sanpai) {
+        //参拝してる
+        
+        functions.logger.info(last_sanpai)
+        functions.logger.info(last_sanpai.seconds)
+        // 前回の時間指定時間足して、期限がすぎる時間 今の時間
+        if(last_sanpai.seconds + sanpai.next_time > Timestamp.now().seconds) {
+          // 参拝可能時間を過ぎてない
+          // functions.logger.info("expire")
+          response.json({
+            status: "expire",
+            add_exp: 0,
+            level: userStatusData.level,
+            exp: userStatusData.points,
+            next_exp: userStatusData.next_exp
+          })
+          return
+        }
+      }
+  
+      // アクティビティ取得
+      const feed_items = userStatusFeed
+      date = last_sanpai ? last_sanpai.seconds: moment("2008-04-01T00:00:00Z").unix() // github
+      let splited_items = feed_items.filter(item => (moment(item.created_at).unix()) > date)  //前回の参拝からのアクティビティ(初回は取れるだけ)
+      functions.logger.info(`activities: ${splited_items.length}`)
+  
+      add_exp += Math.floor(splited_items.length/5)  // 取得できたアクティビティ5件につき1件
+  
+      if(splited_items.length == 0) {
+        // なんかアクションしてこい
+        functions.logger.info("user not actions")
+        response.json({
+          status: "noaction",
           add_exp: 0,
           level: userStatusData.level,
           exp: userStatusData.points,
@@ -683,90 +811,69 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
         })
         return
       }
-    }
-
-    // アクティビティ取得
-    const feed_items = userStatusFeed
-    date = last_sanpai ? last_sanpai.seconds: moment("2008-04-01T00:00:00Z").unix() // github
-    let splited_items = feed_items.filter(item => (moment(item.created_at).unix()) > date)  //前回の参拝からのアクティビティ(初回は取れるだけ)
-    functions.logger.info(`activities: ${splited_items.length}`)
-
-    add_exp += Math.floor(splited_items.length/5)  // 取得できたアクティビティ5件につき1件
-
-    if(splited_items.length == 0) {
-      // なんかアクションしてこい
-      functions.logger.info("user not actions")
-      response.json({
-        status: "noaction",
-        add_exp: 0,
+  
+      // アクティビティ反映
+      const dbBatch = db.batch()
+      const github_acitivityRef = userRef.collection("github_activities")
+      for(i=0;i<splited_items.length;i++) {
+        let item = {
+          id: splited_items[i].id,
+          type: splited_items[i].type,
+          created_at: splited_items[i].created_at,
+          raw: JSON.stringify(splited_items[i])
+        }
+        let ref = github_acitivityRef.doc(item.id)
+        dbBatch.set(ref, item)
+      }
+      await dbBatch.commit()  //反映
+  
+      var msg = ""
+      var bonus_mag = get_bonus_mag(date_now)
+      if (bonus_mag>1) {
+        //2022年の三が日はポイント３倍
+        add_exp *= bonus_mag
+        msg = "2022/1/1〜2022/1/3はポイント3倍！"
+      }
+  
+      // 更新
+      await userRef.update({
+        last_sanpai: FieldValue.serverTimestamp(),
+        exp: FieldValue.increment(add_exp)
+      })
+      const sanpai_logsRef = userRef.collection("sanpai_logs")
+      const sanpaiRes = await sanpai_logsRef.add({
+        add_point: add_exp,
+        timestamp: FieldValue.serverTimestamp()
+      })
+  
+      // 最新状態を取得
+      if(userData.exp) {
+        userAppendData.exp = userData.exp + add_exp
+      }else {
+        userAppendData.exp = add_exp
+      }
+      userStatusData = user_formated_performance(user_performance(userStatusFeed, userData.screen_name), userAppendData)
+      let return_data = {
+        status: "success",
+        add_exp: add_exp,
         level: userStatusData.level,
         exp: userStatusData.points,
-        next_exp: userStatusData.next_exp
+        next_exp: userStatusData.next_exp,
+        msg: msg
+      }
+      if(splited_items.length == 0) {
+        // アクティビティがないっぽい
+        return_data.staus = "noaction"
+      }
+      response.json(return_data)
+    }catch(e) {
+      functions.logger.error("transaction failure", e)
+      response.json({
+        status: "missing server error."
       })
       return
     }
-
-    // アクティビティ反映
-    const dbBatch = db.batch()
-    const github_acitivityRef = userRef.collection("github_activities")
-    for(i=0;i<splited_items.length;i++) {
-      let item = {
-        id: splited_items[i].id,
-        type: splited_items[i].type,
-        created_at: splited_items[i].created_at,
-        raw: JSON.stringify(splited_items[i])
-      }
-      let ref = github_acitivityRef.doc(item.id)
-      dbBatch.set(ref, item)
-    }
-    await dbBatch.commit()  //反映
-
-    var msg = ""
-    var bonus_mag = get_bonus_mag(date_now)
-    if (bonus_mag>1) {
-      //2022年の三が日はポイント３倍
-      add_exp *= bonus_mag
-      msg = "2022/1/1〜2022/1/3はポイント3倍！"
-    }
-
-    // 更新
-    await userRef.update({
-      last_sanpai: FieldValue.serverTimestamp(),
-      exp: FieldValue.increment(add_exp)
-    })
-    const sanpai_logsRef = userRef.collection("sanpai_logs")
-    const sanpaiRes = await sanpai_logsRef.add({
-      add_point: add_exp,
-      timestamp: FieldValue.serverTimestamp()
-    })
-
-    // 最新状態を取得
-    if(userData.exp) {
-      userAppendData.exp = userData.exp + add_exp
-    }else {
-      userAppendData.exp = add_exp
-    }
-    userStatusData = user_formated_performance(user_performance(userStatusFeed, userData.screen_name), userAppendData)
-    let return_data = {
-      status: "success",
-      add_exp: add_exp,
-      level: userStatusData.level,
-      exp: userStatusData.points,
-      next_exp: userStatusData.next_exp,
-      msg: msg
-    }
-    if(splited_items.length == 0) {
-      // アクティビティがないっぽい
-      return_data.staus = "noaction"
-    }
-    response.json(return_data)
-  }catch(e) {
-    functions.logger.error("transaction failure", e)
-    response.json({
-      status: "missing server error."
-    })
-    return
-  }
+  })
 })
 
 exports.scheduledOgpDelete = functions.pubsub
