@@ -101,7 +101,17 @@ export default {
   // pwa module configuration
   pwa: {
     manifest: {
-      lang: 'ja'
+      name: "でばっぐ神社",
+      title: "でばっぐ神社",
+      'og:title': 'でばっぐ神社',
+      description: 'バグった時の神頼み。',
+      'og:description': 'バグった時の神頼み。',
+      lang: 'ja',
+      theme_color: "#444444",
+      background_color: "#000000",
+      display: "standalone",
+      scope: "/",
+      start_url: "/"
     }
   },
 

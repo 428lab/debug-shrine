@@ -19,6 +19,7 @@
                 <a
                   :href="`https://github.com/` + profile.screenName"
                   class="d-flex align-items-center"
+                  target="_blank"
                 >
                   <img src="/brandlogo/github.svg" height="20px" alt="" />
                   <span class="ms-2">{{ profile.screenName }} ></span>

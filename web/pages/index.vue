@@ -125,7 +125,6 @@ export default {
         //未認証
         signInWithPopup(auth, provider)
           .then((result) => {
-            console.log(result);
             let userData = {
               github_id: result.user.providerData[0].uid,
               display_name: result.user.displayName,
@@ -136,21 +135,22 @@ export default {
             if (!userData.display_name) {
               userData.display_name = userData.screen_name;
             }
-            this.$store.commit("login", userData);
+            this.$store.commit("setUser", userData);
             getAuth().currentUser.getIdToken()
               .then(token => {
+                this.$store.commit("setToken", token);
                 this.$axios.post("register",
                 userData,
                 {
                   headers: {
-                    Authorization: `Bearer ${token}`
+                    Authorization: `Bearer ${this.token}`
                   }
                 })
               })
               .catch(e=>{
                 console.log(e)
               })
-            
+
           })
           .catch((error) => {
             console.error(error);

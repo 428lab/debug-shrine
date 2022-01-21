@@ -2,24 +2,26 @@
 import { getAuth, signOut, deleteUser } from 'firebase/auth';
 
 export const state = () => ({
-  user: null
+  user: null,
+  token: null,
 })
 
 export const getters = {
-  isLogin(state) {
-    return !!state.user;
-  },
-  user(state) {
-    return state.user;
-  },
+  isLogin: state => !!state.user,
+  user: state => state.user,
+  token: state => state.token,
 }
 
 export const mutations = {
-  login(state, user) {
+  setUser(state, user) {
     state.user = user;
+  },
+  setToken(state, token) {
+    state.token = token;
   },
   clear(state) {
     state.user = null;
+    state.token = null;
   },
 }
 
