@@ -11,16 +11,20 @@
       </div>
       <div v-if="result === 'success'">
         <div class="fs-1">「殊勝なことじゃ。きっと良きことがあるぞよ。」</div>
-        <div class="fs-4 mt-4">{{status.msg}}</div>
+        <div class="fs-4 mt-4">{{ status.msg }}</div>
         <div class="fs-4 mt-4">ポイントを獲得しました</div>
         <div class="fs-4">＋{{ status.get }} pt</div>
       </div>
       <div v-else-if="result === 'expire'">
-        <div class="fs-1">「おっと、参拝のペースが早すぎるようじゃ。そう逸るでない。」</div>
+        <div class="fs-1">
+          「おっと、参拝のペースが早すぎるようじゃ。そう逸るでない。」
+        </div>
         <div class="fs-4 mt-4">追加のポイントはありませんでした</div>
       </div>
       <div v-else-if="result === 'noaction'">
-        <div class="fs-1">「まずはぎっとはぶでコントリビュートするのじゃ。」</div>
+        <div class="fs-1">
+          「まずはぎっとはぶでコントリビュートするのじゃ。」
+        </div>
         <div class="fs-4 mt-4">追加のポイントはありませんでした</div>
       </div>
       <div class="fs-5 my-3">
@@ -57,23 +61,15 @@ export default {
     let payload = {
       github_id: this.user.github_id,
     };
-    const token = await getAuth().currentUser.getIdToken()
-      .catch(e=>{
-        //認証してない
-        // console.log(e)
-        this.isError = true;
-        this.isLoading = false;
-      })
     let response = await this.$axios.post("sanpai",
       payload,
       {
         headers: {
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${this.token}`
         }
       })
       .catch(e=>{
-        // 参拝できなかった
-        this.isError = true;
+        store.dispatch('logout');
         this.isLoading = false;
       })
     if (response) {
@@ -93,9 +89,16 @@ export default {
     sanpai() {
       this.$router.push("/result/" + "0123456789");
     },
+    auth() {
+      return new Promise(resolve => {
+          firebase.auth().onAuthStateChanged(user => {
+            resolve()
+          })
+        })
+    },
   },
   computed: {
-    ...mapGetters(["user"]),
+    ...mapGetters(["user", "token"]),
   },
 };
 </script>
