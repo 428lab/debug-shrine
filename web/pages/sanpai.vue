@@ -86,7 +86,7 @@ export default {
         }
       })
       .catch(e=>{
-        store.dispatch('logout');
+        this.$store.dispatch('logout');
         this.isLoading = false;
       })
     if (response) {
