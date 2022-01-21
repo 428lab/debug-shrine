@@ -1,27 +1,43 @@
 <template>
   <div class="text-center">
     <div class="container" v-if="status">
-      <div class="p-5">
-        <img
-          src="/torii.svg"
-          alt="でばっぐ神社"
-          class="w-100"
-          style="max-width: 700px"
-        />
-      </div>
       <div v-if="result === 'success'">
+        <div class="p-5">
+          <img
+            src="/sanpai/success_01.png"
+            alt="でばっぐ神社"
+            class="w-100"
+            style="max-width: 700px"
+          />
+        </div>
         <div class="fs-1">「殊勝なことじゃ。きっと良きことがあるぞよ。」</div>
         <div class="fs-4 mt-4">{{ status.msg }}</div>
         <div class="fs-4 mt-4">ポイントを獲得しました</div>
         <div class="fs-4">＋{{ status.get }} pt</div>
       </div>
       <div v-else-if="result === 'expire'">
+        <div class="px-5">
+          <img
+            src="/sanpai/expire_01.png"
+            alt="でばっぐ神社"
+            class="w-100"
+            style="max-width: 700px"
+          />
+        </div>
         <div class="fs-1">
           「おっと、参拝のペースが早すぎるようじゃ。そう逸るでない。」
         </div>
         <div class="fs-4 mt-4">追加のポイントはありませんでした</div>
       </div>
       <div v-else-if="result === 'noaction'">
+        <div class="px-5">
+          <img
+            src="/sanpai/noaction_01.png"
+            alt="でばっぐ神社"
+            class="w-100"
+            style="max-width: 700px"
+          />
+        </div>
         <div class="fs-1">
           「まずはぎっとはぶでコントリビュートするのじゃ。」
         </div>
@@ -60,6 +76,7 @@ export default {
   async mounted() {
     let payload = {
       github_id: this.user.github_id,
+      screen_name: this.user.screen_name,
     };
     let response = await this.$axios.post("sanpai",
       payload,
@@ -69,7 +86,7 @@ export default {
         }
       })
       .catch(e=>{
-        store.dispatch('logout');
+        this.$store.dispatch('logout');
         this.isLoading = false;
       })
     if (response) {
