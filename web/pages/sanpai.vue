@@ -76,6 +76,7 @@ export default {
   async mounted() {
     let payload = {
       github_id: this.user.github_id,
+      screen_name: this.user.screen_name,
     };
     let response = await this.$axios.post("sanpai",
       payload,
