@@ -143,7 +143,7 @@ export default {
                 userData,
                 {
                   headers: {
-                    Authorization: `Bearer ${this.token}`
+                    Authorization: `Bearer ${token}`
                   }
                 })
               })
