@@ -36,6 +36,7 @@
 </template>
 
 <script>
+import { getAuth } from "firebase/auth";
 import { mapGetters } from "vuex";
 
 export default {
@@ -56,7 +57,25 @@ export default {
     let payload = {
       github_id: this.user.github_id,
     };
-    let response = await this.$axios.post("sanpai", payload);
+    const token = await getAuth().currentUser.getIdToken()
+      .catch(e=>{
+        //認証してない
+        // console.log(e)
+        this.isError = true;
+        this.isLoading = false;
+      })
+    let response = await this.$axios.post("sanpai",
+      payload,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      })
+      .catch(e=>{
+        // 参拝できなかった
+        this.isError = true;
+        this.isLoading = false;
+      })
     if (response) {
       console.log("response",response)
       this.status.level = response.data.level;

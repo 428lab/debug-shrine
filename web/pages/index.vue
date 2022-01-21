@@ -137,7 +137,20 @@ export default {
               userData.display_name = userData.screen_name;
             }
             this.$store.commit("login", userData);
-            this.$axios.post("register", userData)
+            getAuth().currentUser.getIdToken()
+              .then(token => {
+                this.$axios.post("register",
+                userData,
+                {
+                  headers: {
+                    Authorization: `Bearer ${token}`
+                  }
+                })
+              })
+              .catch(e=>{
+                console.log(e)
+              })
+            
           })
           .catch((error) => {
             console.error(error);
