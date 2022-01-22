@@ -110,6 +110,10 @@ export default {
         this.$store.dispatch("logout");
       }
     });
+    let ranking = await this.$axios.get("/ranking");
+    let my_ranking = await this.$axios.get("/my_ranking?screen_name=1");
+    console.log(ranking.data);
+    console.log(my_ranking.data);
   },
   methods: {
     GitHubAuth() {
