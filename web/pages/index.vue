@@ -158,9 +158,6 @@ export default {
     sanpai() {
       this.$router.push({ path: "/sanpai" });
     },
-    logout() {
-      this.$store.dispatch("logout");
-    },
   },
   computed: {
     ...mapGetters(["isLogin", "user"]),
