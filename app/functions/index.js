@@ -409,9 +409,17 @@ exports.status = functions.https.onRequest(async (request, response) => {
     }
 
     const userRef = await get_user_ref(db, userData.github_id, request.query.user)
-    const raw_activities_list = await get_activity_list(userRef)
-    let user_data = user_performance(raw_activities_list, request.query.user)
-    let return_Data = user_formated_performance(user_data, appendData)
+    let return_Data
+    if (userData.status) {
+      return_Data = userData.status
+    } else {
+      const raw_activities_list = await get_activity_list(userRef)
+      const user_data = user_performance(raw_activities_list, request.query.user)
+      return_Data = user_formated_performance(user_data, appendData)
+      await userRef.update({
+        status: return_Data
+      })
+    }
 
     response.json(return_Data)
   })
@@ -557,8 +565,16 @@ async function createOgp(username, request, response) {
   }
 
   const userRef = await get_user_ref(db, userData.id, username)
-  const raw_activities_list = await get_activity_list(userRef)
-  const userFeedData = user_formated_performance(user_performance(raw_activities_list, username), appendData)
+  let userFeedData
+  if (userData.status) {
+    return_Data = userData.status
+  } else {
+    const raw_activities_list = await get_activity_list(userRef)
+    userFeedData = user_formated_performance(user_performance(raw_activities_list, username), appendData)
+    await userRef.update({
+      status: userFeedData
+    })
+  }
 
   // generate
   ctx.font = fontStyle.font
