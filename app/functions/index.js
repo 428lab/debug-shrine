@@ -361,6 +361,20 @@ async function get_my_rank(db, screen_name) {
   return response
 }
 
+async function ranking_update(db) {
+  const snapshot = await db.collection("point_ranking").where('screen_name','==',`${screen_name}`).get()
+  let response = {}
+  snapshot.forEach((rank_item) => {
+    const item = rank_item.data();
+    response.rank = item.rank;
+    response.screen_name = item.screen_name;
+    response.user_name = item.user_name;
+    response.total_exp = item.total_exp;
+  })
+  return response
+}
+
+
 exports.status = functions.https.onRequest(async (request, response) => {
   cors(request, response, async()=> {
     functions.logger.info("status", {structuredData: true})
@@ -966,13 +980,22 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
         add_point: add_exp,
         timestamp: FieldValue.serverTimestamp()
       })
-  
       // 最新状態を取得
       if(userData.exp) {
         userAppendData.exp = userData.exp + add_exp
       }else {
         userAppendData.exp = add_exp
       }
+
+      // ランキングに反映
+      const rankingRef = db.collection("point_ranking").doc(`${github_id}`)
+      await rankingRef.set({
+        display_name: userData.display_name,
+        screen_name: userData.screen_name,
+        total_exp: userAppendData.exp,
+        rank: 9999999,
+      }, {merge: true})
+      // await ranking_update();
 
       const raw_activities_list = await get_activity_list(userRef)
 
