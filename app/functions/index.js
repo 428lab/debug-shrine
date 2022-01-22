@@ -158,6 +158,20 @@ async function get_user_doc(db, github_id, screen_name=null) {
 }
 
 
+async function get_user_doc_from_username(db, screen_name) {
+  const snapshot = await db.collection("users").where('screen_name','==',`${screen_name}`).get()
+  let userDoc
+  if (!snapshot.empty) {
+    snapshot.forEach((postDoc) => {
+      userDoc = postDoc
+    })
+    return userDoc
+  } else {
+    return null
+  }
+}
+
+
 async function get_user_ref(db, github_id, screen_name=null) {
   if(process.env.FUNCTIONS_EMULATOR) {
   //エミュレータの時はgithub_idがダミーだが、ここに入ってくるのは本物のgithubidなのでfirestoreからscreen_nameを使ってgithub_idを取得
@@ -323,14 +337,14 @@ exports.status = functions.https.onRequest(async (request, response) => {
     functions.logger.info("status", {structuredData: true})
     functions.logger.info(request.query.user, {structuredData: true})
 
-    const github_id = request.query.github_id
     let appendData = {}
 
-    const userDoc = await get_user_doc(db, github_id, request.query.user)
+    const userDoc = await get_user_doc_from_username(db, request.query.user)
+    let userData
     if(userDoc && userDoc.exists) {
       // ユーザーは登録さている
       functions.logger.info("user registerd")
-      const userData = userDoc.data()
+      userData = userDoc.data()
       functions.logger.info(`data: ${userData.exp}`)
       if(userData.exp) {
         appendData.exp = userData.exp
@@ -351,7 +365,7 @@ exports.status = functions.https.onRequest(async (request, response) => {
       return
     }
 
-    const userRef = db.collection("users").doc(`${github_id}`)
+    const userRef = await get_user_ref(db, userData.id, request.query.user)
     const raw_activities_list = await get_activity_list(userRef)
     let user_data = user_performance(raw_activities_list, request.query.user)
     let return_Data = user_formated_performance(user_data, appendData)

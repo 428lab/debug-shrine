@@ -108,7 +108,7 @@ export default {
   components: { RadarChart },
   async asyncData({ $axios, store }) {
     let response = await $axios.get(
-      `status?user=${store.state.user.screen_name}&github_id=${store.state.user.github_id}`
+      `status?user=${store.state.user.screen_name}`
     );
     // 登録してなかったらエラーが出るのでエラー対応よろ
     let userChart = [];
