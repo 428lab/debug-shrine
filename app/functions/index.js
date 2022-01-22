@@ -157,6 +157,39 @@ async function get_user_doc(db, github_id, screen_name=null) {
   }
 }
 
+
+async function get_user_ref(db, github_id, screen_name=null) {
+  if(process.env.FUNCTIONS_EMULATOR) {
+  //エミュレータの時はgithub_idがダミーだが、ここに入ってくるのは本物のgithubidなのでfirestoreからscreen_nameを使ってgithub_idを取得
+    const snapshot = await db.collection("users").where('screen_name','==',`${screen_name}`).get()
+    let userDoc
+    if (!snapshot.empty) {
+      snapshot.forEach((postDoc) => {
+        userDoc = postDoc
+      })
+      const userRef = db.collection("users").doc(`${userDoc.data().github_id}`)
+      return userRef
+    } else {
+      return null
+    }
+  } else {
+    const userRef = db.collection("users").doc(`${github_id}`)
+    return userRef
+  }
+}
+
+
+async function get_activity_list(userRef) {
+  const github_acitivityRef = userRef.collection("github_activities")
+  const raw_activities = await github_acitivityRef.get()
+  let raw_activities_list = []
+  raw_activities.forEach((postDoc) => {
+    raw_activities_list.push(JSON.parse(postDoc.data().raw))
+  })
+  return raw_activities_list
+}
+
+
 function user_performance(items, username) {
   let user_data = {
     user: username,
@@ -290,20 +323,10 @@ exports.status = functions.https.onRequest(async (request, response) => {
     functions.logger.info("status", {structuredData: true})
     functions.logger.info(request.query.user, {structuredData: true})
 
-    const github_data = await get_user(request.query.user)
-    if(github_data == null) {
-      // missing user
-      response.status(404).json({
-        status: "faild",
-        message: "user not found."
-      })
-      return
-    }
-
-    const github_id = github_data.id
+    const github_id = request.query.github_id
     let appendData = {}
 
-    const userDoc = await get_user_doc(db, github_id, github_data.login)
+    const userDoc = await get_user_doc(db, github_id, request.query.user)
     if(userDoc && userDoc.exists) {
       // ユーザーは登録さている
       functions.logger.info("user registerd")
@@ -328,8 +351,9 @@ exports.status = functions.https.onRequest(async (request, response) => {
       return
     }
 
-    const items = await get_feed(request.query.user)
-    let user_data = user_performance(items, request.query.user)
+    const userRef = db.collection("users").doc(`${github_id}`)
+    const raw_activities_list = await get_activity_list(userRef)
+    let user_data = user_performance(raw_activities_list, request.query.user)
     let return_Data = user_formated_performance(user_data, appendData)
 
     response.json(return_Data)
@@ -420,7 +444,6 @@ async function createOgp(username, request, response) {
   }
   const imageURL = userData.avatar_url
   const userDisplayName = userData.name ? userData.name : userData.login
-  const userFeedRawData = await get_feed(username)
   let appendData = {}
   const userDoc = await get_user_doc(db, userData.id, username)
   if(userDoc && userDoc.exists) {
@@ -435,7 +458,9 @@ async function createOgp(username, request, response) {
     return
   }
 
-  const userFeedData = user_formated_performance(user_performance(userFeedRawData, username), appendData)
+  const userRef = await get_user_ref(db, userData.id, username)
+  const raw_activities_list = await get_activity_list(userRef)
+  const userFeedData = user_formated_performance(user_performance(raw_activities_list, username), appendData)
 
   // generate
   ctx.font = fontStyle.font
@@ -784,8 +809,6 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
       if(userData.exp) {
         userAppendData.exp = userData.exp
       }
-      userStatusFeed = await get_feed(userData.screen_name)
-      userStatusData = user_formated_performance(user_performance(userStatusFeed, userData.screen_name), userAppendData)
       const last_sanpai = userData.last_sanpai
   
       if(last_sanpai) {
@@ -799,16 +822,14 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
           // functions.logger.info("expire")
           response.json({
             status: "expire",
-            add_exp: 0,
-            level: userStatusData.level,
-            exp: userStatusData.points,
-            next_exp: userStatusData.next_exp
+            add_exp: 0
           })
           return
         }
       }
   
       // アクティビティ取得
+      userStatusFeed = await get_feed(userData.screen_name)
       const feed_items = userStatusFeed
       date = last_sanpai ? last_sanpai.seconds: moment("2008-04-01T00:00:00Z").unix() // github
       let splited_items = feed_items.filter(item => (moment(item.created_at).unix()) > date)  //前回の参拝からのアクティビティ(初回は取れるだけ)
@@ -821,10 +842,7 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
         functions.logger.info("user not actions")
         response.json({
           status: "noaction",
-          add_exp: 0,
-          level: userStatusData.level,
-          exp: userStatusData.points,
-          next_exp: userStatusData.next_exp
+          add_exp: 0
         })
         return
       }
@@ -869,7 +887,10 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
       }else {
         userAppendData.exp = add_exp
       }
-      userStatusData = user_formated_performance(user_performance(userStatusFeed, userData.screen_name), userAppendData)
+
+      const raw_activities_list = await get_activity_list(userRef)
+
+      userStatusData = user_formated_performance(user_performance(raw_activities_list, userData.screen_name), userAppendData)
       let return_data = {
         status: "success",
         add_exp: add_exp,
