@@ -962,7 +962,7 @@ exports.ogpRewrite = functions.https.onRequest(async (requeset, response) => {
   const title = `${username}の でばっぐのうりょく - でばっぐ神社`
   
   try {
-    functions.logger.info(`username: ${username}`)
+    functions.logger.info(`username: ${username} base_url:${base_url}`)
     const res = await axios.get(base_url)
     let data = res.data
 
