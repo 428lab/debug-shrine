@@ -61,9 +61,6 @@
             />
             {{ user.display_name }} でログイン中
           </div>
-          <a href="javascript:void(0)" class="btn btn-secondary" @click="logout"
-            >ログアウト</a
-          >
           <nuxt-link to="/dashboard" class="btn text-white"
             >マイページへ ></nuxt-link
           >

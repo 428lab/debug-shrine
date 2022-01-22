@@ -7,9 +7,6 @@
           >公開プロフィールを確認 ></nuxt-link
         >
       </div>
-      <div class="text-end mt-2 ms-3">
-        <a href="javascript:void(0)" @click="logout">ログアウト ></a>
-      </div>
     </div>
     <div class="p-3 profile-outline mt-3">
       <div class="row">
