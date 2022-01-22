@@ -332,6 +332,35 @@ function user_formated_performance(user_data, append_data={}) {
   return return_Data
 }
 
+
+async function get_ranking_top100(db) {
+  const snapshot = await db.collection("point_ranking").orderBy("total_exp","desc").limit(100).get()
+  let response = []
+  snapshot.forEach((rank_item) => {
+    const item = rank_item.data();
+    response.push({
+      rank: item.rank,
+      screen_name: item.screen_name,
+      user_name: item.user_name,
+      total_exp: item.total_exp,
+    });
+  })
+  return response
+}
+
+async function get_my_rank(db, screen_name) {
+  const snapshot = await db.collection("point_ranking").where('screen_name','==',`${screen_name}`).get()
+  let response = {}
+  snapshot.forEach((rank_item) => {
+    const item = rank_item.data();
+    response.rank = item.rank;
+    response.screen_name = item.screen_name;
+    response.user_name = item.user_name;
+    response.total_exp = item.total_exp;
+  })
+  return response
+}
+
 exports.status = functions.https.onRequest(async (request, response) => {
   cors(request, response, async()=> {
     functions.logger.info("status", {structuredData: true})
@@ -373,6 +402,49 @@ exports.status = functions.https.onRequest(async (request, response) => {
     response.json(return_Data)
   })
 })
+
+exports.ranking = functions.https.onRequest(async (request, response) => {
+  cors(request, response, async()=> {
+    functions.logger.info("ranking", {structuredData: true})
+
+    const ranking = await get_ranking_top100(db)
+    // let userData
+    // if(userDoc && userDoc.exists) {
+    //   // ユーザーは登録さている
+    //   functions.logger.info("user registerd")
+    //   userData = userDoc.data()
+    //   functions.logger.info(`data: ${userData.exp}`)
+    //   if(userData.exp) {
+    //     appendData.exp = userData.exp
+    //   }
+    //   // ユーザー情報も付与
+    //   appendData.user = {
+    //     display_name: userData.display_name,
+    //     screen_name: userData.screen_name,
+    //     github_image_path: userData.image_path
+    //   }
+    // }else {
+    // }
+
+    let response_data = ranking
+
+    response.json(response_data)
+  })
+})
+
+
+exports.my_ranking = functions.https.onRequest(async (request, response) => {
+  cors(request, response, async()=> {
+    functions.logger.info("ranking", {structuredData: true})
+    functions.logger.info(request.query.user, {structuredData: true})
+
+    const my_ranking = await get_my_rank(db, request.query.screen_name)
+    let response_data = my_ranking
+
+    response.json(response_data)
+  })
+})
+
 
 exports.userOGP = functions.https.onRequest(async (request, response) => {
   cors(request, response, async()=>{
