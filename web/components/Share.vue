@@ -21,7 +21,7 @@ export default {
   props: {
     title: "",
     url: "",
-    username: "",
+    message: "",
   },
   computed: {
     twitterUrl() {
@@ -29,14 +29,15 @@ export default {
         "https://twitter.com/share?url=" +
         encodeURIComponent(this.url) +
         "&text=" +
-        encodeURIComponent(
-          "これが" + this.username + "の でばっぐのうりょくだ！"
-        ) +
+        encodeURIComponent(this.message) +
         "&hashtags=でばっぐ神社"
       );
     },
     facebookUrl() {
-      return "https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(this.url);
+      return (
+        "https://www.facebook.com/sharer/sharer.php?u=" +
+        encodeURIComponent(this.url)
+      );
     },
     // lineUrl() {
     //   return this.url;

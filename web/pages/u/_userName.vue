@@ -103,7 +103,7 @@
       <Share
         title="プロフィールをSNSでシェアしよう"
         :url="shareUrl"
-        :username="profile.nickName"
+        :message="shareMessage"
       ></Share>
     </div>
   </main>
@@ -194,6 +194,9 @@ export default {
     ...mapGetters(["user", "isLogin"]),
     shareUrl() {
       return this.$config.baseUrl + "u/" + this.$route.params.userName;
+    },
+    shareMessage() {
+      return "これが" + this.profile.nickName + "の でばっぐのうりょくだ！";
     },
   },
 };

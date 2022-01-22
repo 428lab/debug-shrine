@@ -85,7 +85,11 @@
             </div>
           </div>
           <div class="text-center text-md-end mt-3">
-            <Share title="プロフィールをSNSでシェアしよう" :url="shareUrl" :username="user.display_name"></Share>
+            <Share
+              title="プロフィールをSNSでシェアしよう"
+              :url="shareUrl"
+              :message="shareMessage"
+            ></Share>
           </div>
         </div>
         <div class="col-12 col-md-6 col-lg-4">
@@ -170,6 +174,9 @@ export default {
     ...mapGetters(["user"]),
     shareUrl() {
       return this.$config.baseUrl + "u/" + this.user.screen_name;
+    },
+    shareMessage() {
+      return "これが" + this.user.display_name + "の でばっぐのうりょくだ！";
     },
     progressWidth() {
       return this.profile.exp.total / this.profile.next;
