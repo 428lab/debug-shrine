@@ -985,19 +985,26 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
         userAppendData.exp = add_exp
       }
 
-      // ランキングに反映
-      const rankingRef = db.collection("point_ranking").doc(`${github_id}`)
-      await rankingRef.set({
-        display_name: userData.display_name,
-        screen_name: userData.screen_name,
-        total_exp: userAppendData.exp,
-        rank: 9999999,
-      }, {merge: true})
       // await ranking_update();
 
       const raw_activities_list = await get_activity_list(userRef)
 
       userStatusData = user_formated_performance(user_performance(raw_activities_list, userData.screen_name), userAppendData)
+      // 更新
+      // ランキングに反映
+      const rankingRef = db.collection("point_ranking").doc(`${github_id}`)
+      await rankingRef.set({
+        display_name: userData.display_name,
+        screen_name: userData.screen_name,
+        battle_point: userStatusData.total,
+        rank: 9999999,
+      }, {merge: true})
+
+      await userRef.update({
+        last_sanpai: FieldValue.serverTimestamp(),
+        exp: FieldValue.increment(add_exp),
+        status: userStatusData
+      })
       let return_data = {
         status: "success",
         add_exp: add_exp,
