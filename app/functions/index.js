@@ -138,6 +138,25 @@ async function get_user(username) {
   }
 }
 
+async function get_user_doc(db, github_id, screen_name=null) {
+  if(process.env.FUNCTIONS_EMULATOR) {
+  //エミュレータの時はgithub_idがダミーなのでscreen_nameの方を見る
+    const snapshot = await db.collection("users").where('screen_name','==',`${screen_name}`).get()
+    let userDoc
+    if (!snapshot.empty) {
+      snapshot.forEach((postDoc) => {
+        userDoc = postDoc
+      })
+      return userDoc
+    } else {
+      return null
+    }
+  } else {
+    const userRef = db.collection("users").doc(`${github_id}`)
+    return await userRef.get()
+  }
+}
+
 function user_performance(items, username) {
   let user_data = {
     user: username,
@@ -284,9 +303,8 @@ exports.status = functions.https.onRequest(async (request, response) => {
     const github_id = github_data.id
     let appendData = {}
 
-    const userRef = db.collection("users").doc(`${github_id}`)
-    const userDoc = await userRef.get()
-    if(userDoc.exists) {
+    const userDoc = await get_user_doc(db, github_id, github_data.login)
+    if(userDoc && userDoc.exists) {
       // ユーザーは登録さている
       functions.logger.info("user registerd")
       const userData = userDoc.data()
@@ -404,9 +422,8 @@ async function createOgp(username, request, response) {
   const userDisplayName = userData.name ? userData.name : userData.login
   const userFeedRawData = await get_feed(username)
   let appendData = {}
-  const userRef = db.collection("users").doc(`${userData.id}`)
-  const userDoc = await userRef.get()
-  if(userDoc.exists) {
+  const userDoc = await get_user_doc(db, userData.id, username)
+  if(userDoc && userDoc.exists) {
     functions.logger.info("user registerd")
     const userData = userDoc.data()
     functions.logger.info(`data: ${userData.exp}`)
@@ -655,8 +672,8 @@ exports.register = functions.https.onRequest(async (requeset, response)=>{
     }
   
     const userRef = db.collection("users").doc(`${requeset.body.github_id}`)
-    const userDoc = await userRef.get()
-    if(!userDoc.exists) {
+    const userDoc = await get_user_doc(db, requeset.body.github_id, requeset.body.screen_name)
+    if(!userDoc || !userDoc.exists) {
       await userRef.set({
         github_id: requeset.body.github_id,
         display_name: requeset.body.display_name,
@@ -732,7 +749,7 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
       functions.logger.info("decodetToken non")
       return
     }
-    if(!request.body.github_id) {
+    if(!request.body.github_id || !request.body.screen_name) {
       response.json({
         status: "faild parameter"
       })
@@ -745,10 +762,10 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
     try {
   
       functions.logger.info("get 1")
-      const userDoc = await userRef.get()
+      const userDoc = await get_user_doc(db, github_id, request.body.screen_name)
       functions.logger.info("get 2" )
   
-      if(!userDoc.exists) {
+      if(!userDoc || !userDoc.exists) {
         // 登録されてない
         response.json({
           "status": "faild",

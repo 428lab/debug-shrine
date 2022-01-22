@@ -8,6 +8,8 @@ export default {
   publicRuntimeConfig: {
     baseUrl: process.env.BASE_URL || 'http://localhost:3000',
     apiUrl: process.env.API_URL,
+    appEnv: process.env.APP_ENV,
+    authEmulatorUrl: process.env.FIREBASE_AUTH_EMULATOR_URL
   },
 
   // Global page headers (https://go.nuxtjs.dev/config-head)
@@ -89,7 +91,13 @@ export default {
       appId: process.env.APP_ID
     },
     services: {
-      auth: true // Just as example. Can be any other service.
+      auth: process.env.APP_ENV!=='local' ? true :
+      {
+        persistence: 'local', // default
+        ssr: false, // default
+        emulatorPort: 9099,
+        emulatorHost: 'http://localhost',
+      }
     }
   },
 
