@@ -15,7 +15,7 @@ services:
 #      - 8085:8085 # Cloud Pub/Sub
 #      - 9000:9000 # Realtime Database
     volumes:
-      - ./firebase/emulators/:/app:cached
+      # - ./firebase/emulators/:/app:cached
       - ./firebase/bin/:/root/.cache:cached
       - ./firebase/config/:/root/.config:cached
       - ./app:/app
