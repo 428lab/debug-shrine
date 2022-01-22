@@ -26,20 +26,16 @@
                   href="https://twitter.com/debug_shrine"
                   target="_blank"
                 >
-                  <img src="/brandlogo/twitter.svg" alt="" width="20px" /><span
-                    class="ms-2 d-inline"
-                    >Twitter</span
-                  >
+                  <i class="fab fa-twitter fa-lg fa-fw"></i>
+                  Twitter
                 </a>
                 <a
                   class="ms-3 btn bg-github text-white"
                   href="https://github.com/428lab/debug-shrine"
                   target="_blank"
                 >
-                  <img src="/brandlogo/github.svg" alt="" width="20px" /><span
-                    class="ms-2 d-inline"
-                    >GitHub</span
-                  >
+                  <i class="fab fa-twitter fa-lg fa-fw"></i>
+                  GitHub
                 </a>
                 <!-- <a class="d-inline-block" href="https://428lab.net/" target="_blank">
                 <img src="/brandlogo/lab_icon.svg" alt="" width="40px" />
