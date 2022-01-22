@@ -365,7 +365,7 @@ exports.status = functions.https.onRequest(async (request, response) => {
       return
     }
 
-    const userRef = await get_user_ref(db, userData.id, request.query.user)
+    const userRef = await get_user_ref(db, userData.github_id, request.query.user)
     const raw_activities_list = await get_activity_list(userRef)
     let user_data = user_performance(raw_activities_list, request.query.user)
     let return_Data = user_formated_performance(user_data, appendData)
