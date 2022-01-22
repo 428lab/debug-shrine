@@ -3,17 +3,13 @@
     <div v-if="title !== ''">{{ title }}</div>
     <div class="mt-2">
       <a :href="twitterUrl" class="btn text-white bg-twitter" target="_blank">
-        <img src="/brandlogo/twitter.svg" alt="" width="24px" />
-        <span class="ms-2"> Twitter </span>
+        <i class="fab fa-twitter fa-lg fa-fw"></i>
+        Twitter
       </a>
       <a :href="facebookUrl" class="btn text-white bg-facebook" target="_blank">
-        <img src="/brandlogo/facebook.svg" alt="" width="24px" />
-        <span class="ms-2"> Facebook </span>
+        <i class="fab fa-facebook fa-lg fa-fw"></i>
+        Facebook
       </a>
-      <!-- <a :href="lineUrl" class="btn text-white bg-line" target="_blank">
-        <img src="/brandlogo/line.svg" alt="" width="24px" />
-        <span class="ms-2"> LINE </span>
-      </a> -->
     </div>
   </div>
 </template>

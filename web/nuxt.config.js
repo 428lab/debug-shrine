@@ -39,7 +39,12 @@ export default {
     ],
     link: [
       { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' }
-    ]
+    ],
+    script: [
+      { src: "/js/bootstrap.bundle.min.js" },
+      // { type: "text/javascript", src: "~/assets/js/matter.js" },
+      { src: "https://kit.fontawesome.com/18956ba71f.js", crossorigin:"anonymous"},
+    ],
   },
 
   // Global CSS (https://go.nuxtjs.dev/config-css)
@@ -48,11 +53,6 @@ export default {
     '~/assets/css/font.css',
     '~/assets/css/color.css',
     '~/assets/css/common.css',
-  ],
-
-  script: [
-    { type: "text/javascript", src: "~/assets/js/bootstrap.bundle.min.js" },
-    { type: "text/javascript", src: "~/assets/js/matter.js" }
   ],
 
   // Plugins to run before rendering page (https://go.nuxtjs.dev/config-plugins)

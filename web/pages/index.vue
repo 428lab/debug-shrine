@@ -21,7 +21,8 @@
           <div class="col-8 col-md-6 col-lg-4">
             <div class="row align-items-center">
               <div class="col-4 resizeimage">
-                <img src="/brandlogo/github.svg" class="img-fluid" />
+                <i class="fab fa-github fa-4x"></i>
+                <!-- <img src="/brandlogo/github.svg" class="img-fluid" /> -->
               </div>
               <div class="col-4 resizeimage">
                 <img src="/activity.svg" class="img-fluid w-75" />

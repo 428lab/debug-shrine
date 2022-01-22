@@ -18,8 +18,8 @@
             <div class="d-lg-flex align-items-center">
               <div class="fs-4 me-4">{{ user.display_name }}</div>
               <div class="align-items-center">
-                <img src="/brandlogo/github.svg" width="16px" alt="" />
-                <span class="">{{ user.screen_name }}</span>
+                <i class="fab fa-github fa-fw"></i>
+                {{ user.screen_name }}
               </div>
             </div>
             <div class="d-flex mt-3">

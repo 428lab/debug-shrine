@@ -21,8 +21,8 @@
                   class="d-flex align-items-center"
                   target="_blank"
                 >
-                  <img src="/brandlogo/github.svg" height="20px" alt="" />
-                  <span class="ms-2">{{ profile.screenName }} ></span>
+                  <i class="fab fa-github fa-fw"></i>
+                  {{ profile.screenName }}
                 </a>
                 <div class="mt-3">れべる：{{ status.level }}</div>
                 <div>ポイント：{{ status.points }}</div>
