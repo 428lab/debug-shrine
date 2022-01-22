@@ -1000,6 +1000,12 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
       }else {
         userAppendData.exp = add_exp
       }
+      // ユーザー情報も付与
+      userAppendData.user = {
+        display_name: userData.display_name,
+        screen_name: userData.screen_name,
+        github_image_path: userData.image_path
+      }
 
       // await ranking_update();
 
