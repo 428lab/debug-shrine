@@ -386,7 +386,7 @@ exports.userOGP = functions.https.onRequest(async (request, response) => {
     const username = request.query.user
     const filepath = `ogps/${encodeURIComponent(username)}.png`
 
-    fileExists = await isStrageExists(filepath)
+    fileExists = await isStorageExists(filepath)
     functions.logger.info(`file ${filepath}: ${fileExists}`)
 
     let url
@@ -411,7 +411,7 @@ exports.userOGP = functions.https.onRequest(async (request, response) => {
 })
 
 // strageに指定ファイル名のものが存在するか
-async function isStrageExists(filepath) {
+async function isStorageExists(filepath) {
   data = await bucket.file(filepath).exists()
   return data[0]
 }
@@ -432,7 +432,7 @@ async function createOgp(username, request, response) {
   const targetPath = `ogps/${encodeURIComponent(username)}.png`
   const localTargetPath = "/tmp/target.png"
 
-  baseexists = await isStrageExists(basePath)
+  baseexists = await isStorageExists(basePath)
 
   functions.logger.info(`${basePath} is ${baseexists}`)
   if(!baseexists){
