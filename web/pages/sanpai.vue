@@ -44,6 +44,14 @@
         <div class="fs-4 mt-4">追加のポイントはありませんでした</div>
       </div>
     </div>
+    <!-- v-if="result === 'success'" -->
+    <div class="my-5">
+      <Share
+        title="参拝したことをSNSで報告しよう"
+        :url="shareUrl"
+        :message="shareMessage"
+      ></Share>
+    </div>
     <nuxt-link class="btn btn-lg btn-primary" to="/dashboard">
       マイページを見る
     </nuxt-link>
@@ -112,6 +120,12 @@ export default {
   },
   computed: {
     ...mapGetters(["user", "token"]),
+    shareUrl() {
+      return this.$config.baseUrl;
+    },
+    shareMessage() {
+      return "でばっぐ神社に参拝して、" + this.status.get + "ポイント獲得しました。";
+    }
   },
 };
 </script>
