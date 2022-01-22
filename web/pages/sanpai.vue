@@ -43,10 +43,6 @@
         </div>
         <div class="fs-4 mt-4">追加のポイントはありませんでした</div>
       </div>
-      <div class="fs-5 my-3">
-        LEVEL {{ status.level }} <br />
-        所持ポイント {{ status.point }} pt
-      </div>
     </div>
     <nuxt-link class="btn btn-lg btn-primary" to="/dashboard">
       マイページを見る

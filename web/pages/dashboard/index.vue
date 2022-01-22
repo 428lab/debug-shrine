@@ -7,6 +7,9 @@
           >公開プロフィールを確認 ></nuxt-link
         >
       </div>
+      <div class="text-end mt-2 ms-3">
+        <a href="javascript:void(0)" @click="logout">ログアウト ></a>
+      </div>
     </div>
     <div class="p-3 profile-outline mt-3">
       <div class="row">
@@ -15,8 +18,8 @@
             <div class="d-lg-flex align-items-center">
               <div class="fs-4 me-4">{{ user.display_name }}</div>
               <div class="align-items-center">
-                <i class="fab fa-github fa-fw"></i>
-                {{ user.screen_name }}
+                <img src="/brandlogo/github.svg" width="16px" alt="" />
+                <span class="">{{ user.screen_name }}</span>
               </div>
             </div>
             <div class="d-flex mt-3">
@@ -105,7 +108,7 @@ export default {
   components: { RadarChart },
   async asyncData({ $axios, store }) {
     let response = await $axios.get(
-      "status?user=" + store.state.user.screen_name
+      `status?user=${store.state.user.screen_name}&github_id=${store.state.user.github_id}`
     );
     // 登録してなかったらエラーが出るのでエラー対応よろ
     let userChart = [];
@@ -156,6 +159,9 @@ export default {
     };
   },
   methods: {
+    logout: function () {
+      this.$store.dispatch("logout");
+    },
   },
   mounted() {
     console.log(this.user);
