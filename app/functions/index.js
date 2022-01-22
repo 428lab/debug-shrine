@@ -417,49 +417,6 @@ exports.status = functions.https.onRequest(async (request, response) => {
   })
 })
 
-exports.ranking = functions.https.onRequest(async (request, response) => {
-  cors(request, response, async()=> {
-    functions.logger.info("ranking", {structuredData: true})
-
-    const ranking = await get_ranking_top100(db)
-    // let userData
-    // if(userDoc && userDoc.exists) {
-    //   // ユーザーは登録さている
-    //   functions.logger.info("user registerd")
-    //   userData = userDoc.data()
-    //   functions.logger.info(`data: ${userData.exp}`)
-    //   if(userData.exp) {
-    //     appendData.exp = userData.exp
-    //   }
-    //   // ユーザー情報も付与
-    //   appendData.user = {
-    //     display_name: userData.display_name,
-    //     screen_name: userData.screen_name,
-    //     github_image_path: userData.image_path
-    //   }
-    // }else {
-    // }
-
-    let response_data = ranking
-
-    response.json(response_data)
-  })
-})
-
-
-exports.my_ranking = functions.https.onRequest(async (request, response) => {
-  cors(request, response, async()=> {
-    functions.logger.info("ranking", {structuredData: true})
-    functions.logger.info(request.query.user, {structuredData: true})
-
-    const my_ranking = await get_my_rank(db, request.query.screen_name)
-    let response_data = my_ranking
-
-    response.json(response_data)
-  })
-})
-
-
 exports.userOGP = functions.https.onRequest(async (request, response) => {
   cors(request, response, async()=>{
     functions.logger.info(request.query)
