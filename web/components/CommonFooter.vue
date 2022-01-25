@@ -34,7 +34,7 @@
                   href="https://github.com/428lab/debug-shrine"
                   target="_blank"
                 >
-                  <i class="fab fa-twitter fa-lg fa-fw"></i>
+                  <i class="fab fa-github fa-lg fa-fw"></i>
                   GitHub
                 </a>
                 <!-- <a class="d-inline-block" href="https://428lab.net/" target="_blank">
