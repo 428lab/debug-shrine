@@ -1,20 +1,25 @@
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
-export default function ({ redirect, store }) {
+function firebaseAuthCheck(store) {
+  return new Promise(resolve => {
+    console.log('firebase_auth_check')
+    // 認証インスタンスの取得
+    const auth = getAuth();
+    onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        store.dispatch('logout');
+      } else {
+        store.commit('setToken', user.refreshToken);
+        console.log('set_token')
+      }
+    });
+    resolve();
+  })
+}
+
+export default async function ({ redirect, store }) {
   if (!store.state.user) {
     return redirect('/');
   }
-  // 認証インスタンスの取得
-  const auth = getAuth();
-
-  // 認証状況の確認
-  onAuthStateChanged(auth, (user) => {
-    if (!user) {
-      // 非ログイン時ログアウト/リダイレクト処理の呼び出し
-      store.dispatch('logout');
-    } else {
-      // ログイン中はトークンのリフレッシュを行う
-      store.commit('setToken', user.refreshToken);
-    }
-  });
+  await firebaseAuthCheck(store);
 }
