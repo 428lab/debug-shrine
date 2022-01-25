@@ -12,6 +12,9 @@ export default function ({ redirect, store }) {
     if (!user) {
       // 非ログイン時ログアウト/リダイレクト処理の呼び出し
       store.dispatch('logout');
+    } else {
+      // ログイン中はトークンのリフレッシュを行う
+      store.commit('setToken', user.refreshToken);
     }
   });
 }

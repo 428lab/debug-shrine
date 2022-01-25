@@ -108,7 +108,9 @@ export default {
     onAuthStateChanged(auth, (user) => {
       if (!user) {
         this.$store.dispatch("logout");
+        return;
       }
+      this.$store.commit('setToken', user.refreshToken);
     });
     let ranking = await this.$axios.get("/ranking");
     let my_ranking = await this.$axios.get("/my_ranking?screen_name=1");
