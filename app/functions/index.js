@@ -334,7 +334,7 @@ function user_formated_performance(user_data, append_data={}) {
 
 
 async function get_ranking_top100(db) {
-  const snapshot = await db.collection("point_ranking").orderBy("total_exp","desc").limit(100).get()
+  const snapshot = await db.collection("point_ranking").orderBy("battle_point","desc").limit(100).get()
   let response = []
   snapshot.forEach((rank_item) => {
     const item = rank_item.data();
