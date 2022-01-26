@@ -559,6 +559,12 @@ async function createOgp(username, request, response) {
     if(userData.exp) {
       appendData.exp = userData.exp
     }
+    // ユーザー情報も付与
+    appendData.user = {
+      display_name: userData.display_name,
+      screen_name: userData.screen_name,
+      github_image_path: userData.image_path
+    }
   }else {
     response.status(404).send("user not found.")
     return
