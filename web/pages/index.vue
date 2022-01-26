@@ -61,6 +61,9 @@
             />
             {{ user.display_name }} でログイン中
           </div>
+          <a href="javascript:void(0)" class="btn btn-secondary" @click="logout"
+            >ログアウト</a
+          >
           <nuxt-link to="/dashboard" class="btn text-white"
             >マイページへ ></nuxt-link
           >
@@ -163,6 +166,9 @@ export default {
     },
     sanpai() {
       this.$router.push({ path: "/sanpai" });
+    },
+    logout() {
+      this.$store.dispatch("logout");
     },
   },
   computed: {
