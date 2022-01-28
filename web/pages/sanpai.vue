@@ -110,13 +110,6 @@ export default {
     sanpai() {
       this.$router.push("/result/" + "0123456789");
     },
-    auth() {
-      return new Promise(resolve => {
-          firebase.auth().onAuthStateChanged(user => {
-            resolve()
-          })
-        })
-    },
   },
   computed: {
     ...mapGetters(["user", "token"]),
