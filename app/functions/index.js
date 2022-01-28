@@ -362,16 +362,33 @@ async function get_my_rank(db, screen_name) {
 }
 
 async function ranking_update(db) {
-  const snapshot = await db.collection("point_ranking").where('screen_name','==',`${screen_name}`).get()
-  let response = {}
-  snapshot.forEach((rank_item) => {
-    const item = rank_item.data();
-    response.rank = item.rank;
-    response.screen_name = item.screen_name;
-    response.user_name = item.user_name;
-    response.total_exp = item.total_exp;
+  const snapshot = await db.collection("point_ranking").get()
+  let rankingTable = [];
+  snapshot.forEach((item) => {
+    let temp = {}
+    temp.id = item.id
+    temp.battlePoint = item.data().battle_point;
+    rankingTable.push(temp);
   })
-  return response
+  let sorted = [];
+  let tempRank = 1;
+  let tempPoint = -1;
+  rankingTable.sort((a, b) => a.battlePoint - b.battlePoint).forEach((item, index) => {
+    let temp = {}
+    temp.id = item.id
+    if(tempPoint !== item.battlePoint){
+      tempRank = index + 1
+      tempPoint = item.battlePoint
+    }
+    temp.rank = index
+    sorted.push(temp);
+  })
+  sorted.forEach(item => {
+    const rankingRef = db.collection("point_ranking").doc(`${item.id}`)
+    rankingRef.set({
+      rank: item.rank,
+    }, {merge: true})
+  })
 }
 
 
@@ -1027,6 +1044,9 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
         battle_point: userStatusData.total,
         rank: 9999999,
       }, {merge: true})
+
+      // ランキング更新
+      await ranking_update(db);
 
       await userRef.update({
         last_sanpai: FieldValue.serverTimestamp(),
