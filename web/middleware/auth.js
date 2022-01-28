@@ -8,9 +8,6 @@ function firebaseAuthCheck(store) {
     onAuthStateChanged(auth, (user) => {
       if (!user) {
         store.dispatch('logout');
-      } else {
-        store.commit('setToken', user.refreshToken);
-        console.log('set_token')
       }
     });
     resolve();
