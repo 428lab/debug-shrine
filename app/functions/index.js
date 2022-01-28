@@ -373,14 +373,14 @@ async function ranking_update(db) {
   let sorted = [];
   let tempRank = 1;
   let tempPoint = -1;
-  rankingTable.sort((a, b) => a.battlePoint - b.battlePoint).forEach((item, index) => {
+  rankingTable.sort((a, b) => b.battlePoint - a.battlePoint).forEach((item, index) => {
     let temp = {}
     temp.id = item.id
     if(tempPoint !== item.battlePoint){
       tempRank = index + 1
       tempPoint = item.battlePoint
     }
-    temp.rank = index
+    temp.rank = tempRank
     sorted.push(temp);
   })
   sorted.forEach(item => {
