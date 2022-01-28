@@ -61,6 +61,9 @@
             />
             {{ user.display_name }} でログイン中
           </div>
+          <a href="javascript:void(0)" class="btn btn-secondary" @click="logout"
+            >ログアウト</a
+          >
           <nuxt-link to="/dashboard" class="btn text-white"
             >マイページへ ></nuxt-link
           >
@@ -108,7 +111,9 @@ export default {
     onAuthStateChanged(auth, (user) => {
       if (!user) {
         this.$store.dispatch("logout");
+        return;
       }
+      this.$store.commit('setToken', user.refreshToken);
     });
     let ranking = await this.$axios.get("/ranking");
     let my_ranking = await this.$axios.get("/my_ranking?screen_name=1");
@@ -161,6 +166,9 @@ export default {
     },
     sanpai() {
       this.$router.push({ path: "/sanpai" });
+    },
+    logout() {
+      this.$store.dispatch("logout");
     },
   },
   computed: {
