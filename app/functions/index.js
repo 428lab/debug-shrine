@@ -341,8 +341,8 @@ async function get_ranking_top100(db) {
     response.push({
       rank: item.rank,
       screen_name: item.screen_name,
-      user_name: item.user_name,
-      total_exp: item.total_exp,
+      display_name: item.display_name,
+      battle_point: item.battle_point,
     });
   })
   return response
@@ -447,24 +447,6 @@ exports.ranking = functions.https.onRequest(async (request, response) => {
     functions.logger.info("ranking", {structuredData: true})
 
     const ranking = await get_ranking_top100(db)
-    // let userData
-    // if(userDoc && userDoc.exists) {
-    //   // ユーザーは登録さている
-    //   functions.logger.info("user registerd")
-    //   userData = userDoc.data()
-    //   functions.logger.info(`data: ${userData.exp}`)
-    //   if(userData.exp) {
-    //     appendData.exp = userData.exp
-    //   }
-    //   // ユーザー情報も付与
-    //   appendData.user = {
-    //     display_name: userData.display_name,
-    //     screen_name: userData.screen_name,
-    //     github_image_path: userData.image_path
-    //   }
-    // }else {
-    // }
-
     let response_data = ranking
 
     response.json(response_data)
@@ -1029,8 +1011,6 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
         screen_name: userData.screen_name,
         github_image_path: userData.image_path
       }
-
-      // await ranking_update();
 
       const raw_activities_list = await get_activity_list(userRef)
 
