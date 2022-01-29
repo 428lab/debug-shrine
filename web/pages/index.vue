@@ -70,6 +70,14 @@
         </div>
       </div>
     </div>
+    <div class="container mt-3">
+      <ranking-all max="10"></ranking-all>
+      <div class="text-end px-4 mt-3">
+        <nuxt-link to="/ranking">
+          ランキングの続き <i class="fas fa-fw fa-chevron-right"></i>
+        </nuxt-link>
+      </div>
+    </div>
     <!-- <div class="container py-5">
       <h1>レーダーチャートであなたの活動を可視化</h1>
     </div>
@@ -96,9 +104,13 @@ import {
   onAuthStateChanged,
 } from "firebase/auth";
 import { mapGetters } from "vuex";
+import RankingAll from "@/components/ranking/all";
 
 export default {
   layout: "single",
+  components: {
+    RankingAll
+  },
   data() {
     return {
       buttons: {
@@ -115,10 +127,6 @@ export default {
       }
       this.$store.commit('setToken', user.refreshToken);
     });
-    let ranking = await this.$axios.get("/ranking");
-    let my_ranking = await this.$axios.get("/my_ranking?screen_name=1");
-    console.log(ranking.data);
-    console.log(my_ranking.data);
   },
   methods: {
     GitHubAuth() {

@@ -4,12 +4,16 @@ import { getAuth, signOut, deleteUser } from 'firebase/auth';
 export const state = () => ({
   user: null,
   token: null,
+  ranking: [],
+  myRanking: {},
 })
 
 export const getters = {
   isLogin: state => !!state.user,
   user: state => state.user,
   token: state => state.token,
+  getRanking: state => state.ranking,
+  getMyRanking: state => state.myRanking,
 }
 
 export const mutations = {
@@ -18,6 +22,12 @@ export const mutations = {
   },
   setToken(state, token) {
     state.token = token;
+  },
+  setRanking(state, ranking) {
+    state.ranking = ranking;
+  },
+  setMyRanking(state, myRanking) {
+    state.myRanking = myRanking;
   },
   clear(state) {
     state.user = null;
