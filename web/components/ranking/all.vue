@@ -3,17 +3,17 @@
     <div class="card border-primary">
       <div class="card-header bg-primary">せんとうりょくランキング</div>
       <div class="list-group list-group-flush text-dark">
-        <a
+        <nuxt-link
           class="list-group-item d-flex text-dark"
           v-for="item in rankingView"
           :key="item.id"
-          href="javascript:void(0)"
+          :to="`/u/` + item.screen_name"
         >
           <div class="me-3">{{ item.rank }} 位</div>
           <div class="flex-fill me-3">{{ item.display_name }}</div>
           <div class="me-3">{{ item.battle_point }} bp</div>
           <div><i class="fas fa-fw fa-chevron-right"></i></div>
-        </a>
+        </nuxt-link>
       </div>
     </div>
   </div>
