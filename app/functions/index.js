@@ -355,8 +355,8 @@ async function get_my_rank(db, screen_name) {
     const item = rank_item.data();
     response.rank = item.rank;
     response.screen_name = item.screen_name;
-    response.user_name = item.user_name;
-    response.total_exp = item.total_exp;
+    response.display_name = item.display_name;
+    response.battle_point = item.battle_point;
   })
   return response
 }
