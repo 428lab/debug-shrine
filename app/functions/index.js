@@ -334,15 +334,15 @@ function user_formated_performance(user_data, append_data={}) {
 
 
 async function get_ranking_top100(db) {
-  const snapshot = await db.collection("point_ranking").orderBy("total_exp","desc").limit(100).get()
+  const snapshot = await db.collection("point_ranking").orderBy("battle_point","desc").limit(100).get()
   let response = []
   snapshot.forEach((rank_item) => {
     const item = rank_item.data();
     response.push({
       rank: item.rank,
       screen_name: item.screen_name,
-      user_name: item.user_name,
-      total_exp: item.total_exp,
+      display_name: item.display_name,
+      battle_point: item.battle_point,
     });
   })
   return response
@@ -355,23 +355,40 @@ async function get_my_rank(db, screen_name) {
     const item = rank_item.data();
     response.rank = item.rank;
     response.screen_name = item.screen_name;
-    response.user_name = item.user_name;
-    response.total_exp = item.total_exp;
+    response.display_name = item.display_name;
+    response.battle_point = item.battle_point;
   })
   return response
 }
 
 async function ranking_update(db) {
-  const snapshot = await db.collection("point_ranking").where('screen_name','==',`${screen_name}`).get()
-  let response = {}
-  snapshot.forEach((rank_item) => {
-    const item = rank_item.data();
-    response.rank = item.rank;
-    response.screen_name = item.screen_name;
-    response.user_name = item.user_name;
-    response.total_exp = item.total_exp;
+  const snapshot = await db.collection("point_ranking").get()
+  let rankingTable = [];
+  snapshot.forEach((item) => {
+    let temp = {}
+    temp.id = item.id
+    temp.battlePoint = item.data().battle_point;
+    rankingTable.push(temp);
   })
-  return response
+  let sorted = [];
+  let tempRank = 1;
+  let tempPoint = -1;
+  rankingTable.sort((a, b) => b.battlePoint - a.battlePoint).forEach((item, index) => {
+    let temp = {}
+    temp.id = item.id
+    if(tempPoint !== item.battlePoint){
+      tempRank = index + 1
+      tempPoint = item.battlePoint
+    }
+    temp.rank = tempRank
+    sorted.push(temp);
+  })
+  sorted.forEach(item => {
+    const rankingRef = db.collection("point_ranking").doc(`${item.id}`)
+    rankingRef.set({
+      rank: item.rank,
+    }, {merge: true})
+  })
 }
 
 
@@ -430,24 +447,6 @@ exports.ranking = functions.https.onRequest(async (request, response) => {
     functions.logger.info("ranking", {structuredData: true})
 
     const ranking = await get_ranking_top100(db)
-    // let userData
-    // if(userDoc && userDoc.exists) {
-    //   // ユーザーは登録さている
-    //   functions.logger.info("user registerd")
-    //   userData = userDoc.data()
-    //   functions.logger.info(`data: ${userData.exp}`)
-    //   if(userData.exp) {
-    //     appendData.exp = userData.exp
-    //   }
-    //   // ユーザー情報も付与
-    //   appendData.user = {
-    //     display_name: userData.display_name,
-    //     screen_name: userData.screen_name,
-    //     github_image_path: userData.image_path
-    //   }
-    // }else {
-    // }
-
     let response_data = ranking
 
     response.json(response_data)
@@ -1013,8 +1012,6 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
         github_image_path: userData.image_path
       }
 
-      // await ranking_update();
-
       const raw_activities_list = await get_activity_list(userRef)
 
       userStatusData = user_formated_performance(user_performance(raw_activities_list, userData.screen_name), userAppendData)
@@ -1027,6 +1024,9 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
         battle_point: userStatusData.total,
         rank: 9999999,
       }, {merge: true})
+
+      // ランキング更新
+      await ranking_update(db);
 
       await userRef.update({
         last_sanpai: FieldValue.serverTimestamp(),
