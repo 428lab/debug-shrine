@@ -1022,7 +1022,7 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
         display_name: userData.display_name,
         screen_name: userData.screen_name,
         battle_point: userStatusData.total,
-        rank: 9999999,
+        rank: 0,
       }, {merge: true})
 
       // ランキング更新
