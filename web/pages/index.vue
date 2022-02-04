@@ -51,7 +51,7 @@
         </div>
       </div>
     </div>
-    <div class="bg-github">
+    <div class="bg-dark">
       <div class="container py-4 mt-4">
         <div class="row flex-row-reverse">
           <div class="col-12 col-md-6 col-lg-4 px-4">
@@ -64,7 +64,7 @@
               </nuxt-link>
             </div>
           </div>
-          <div class="col-12 col-md-6 col-lg-8 px-4">
+          <div class="col-12 col-md-6 col-lg-8 px-4 mb-4">
             <p class="fs-2">でばっぐ神社とは</p>
             <p class="fs-4">
               <span class="text-danger"
@@ -77,10 +77,25 @@
               参拝することで御神体の御業により、参拝者の能力が具体化される。<br />
               自身の能力を把握することで改善の円環に身を投じることができよう。<br />
             </p>
-            <div class="text-end px-4 mt-3 mb-4">
+            <div class="text-end px-4 mt-3">
               <nuxt-link to="/about" class=""
                 >もっと詳しく <i class="fas fa-fw fa-chevron-right"></i
               ></nuxt-link>
+            </div>
+            <p class="fs-2 mt-3">開発コミュニティ</p>
+            <div class="">
+              <a href="https://discord.gg/HTdSVdgEXJ" target="_blank" class="btn btn-lg bg-discord text-white mt-2 me-2">
+                <i class="fab fa-discord fa-fw fa-lg"></i> 四谷ラボ Discord
+              </a>
+              <a href="https://github.com/428lab" target="_blank" class="btn btn-lg bg-github text-white mt-2">
+                <i class="fab fa-github fa-fw fa-lg"></i> 四谷ラボ GitHub
+              </a>
+            </div>
+            <p class="fs-2 mt-3">でばっぐ神社リポジトリ</p>
+            <div class="mt-2">
+              <a href="https://github.com/428lab/debug-shrine" target="_blank">
+                <i class="fab fa-github fa-fw fa-lg"></i> 428lab/debug-shrine
+              </a>
             </div>
           </div>
         </div>
