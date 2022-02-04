@@ -22,10 +22,15 @@
       <div class="collapse navbar-collapse" id="navbarSupportedContent">
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
           <li class="nav-item">
-            <nuxt-link class="navbar-brand" to="/">Home</nuxt-link>
+            <nuxt-link class="nav-link active" to="/">Home</nuxt-link>
           </li>
           <li class="nav-item">
-            <nuxt-link class="nav-link" to="/ranking">ランキング</nuxt-link>
+            <nuxt-link class="nav-link active" to="/about">でばっぐ神社とは</nuxt-link>
+          </li>
+          <li class="nav-item">
+            <nuxt-link class="nav-link active" to="/ranking"
+              >ランキング</nuxt-link
+            >
           </li>
           <!-- <li class="nav-item">
             <a class="nav-link" href="#">Link</a>

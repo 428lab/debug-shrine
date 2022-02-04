@@ -34,7 +34,7 @@ export default {
   computed: {
     ...mapGetters(["getRanking", "getMyRanking"]),
     rankingView() {
-      return this.getRanking.slice(0, this.max);
+      return this.getRanking.filter(item => item.rank > 0).slice(0, this.max);
     },
   },
 };
