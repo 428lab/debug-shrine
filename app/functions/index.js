@@ -361,7 +361,7 @@ async function get_my_rank(db, screen_name) {
   return response
 }
 
-exports.rankingUpdate = functions.pubsub.schedule('every 5 minutes').onRun( async (context) => {
+exports.rankingUpdate = functions.pubsub.schedule('every 60 minutes').onRun( async (context) => {
   functions.logger.info("ranking update", {structuredData: true})
   const snapshot = await db.collection("point_ranking").get()
   let rankingTable = [];
@@ -392,7 +392,7 @@ exports.rankingUpdate = functions.pubsub.schedule('every 5 minutes').onRun( asyn
   })
 });
 
-exports.rankingCache = functions.pubsub.schedule('every 5 minutes').onRun( async (context) => {
+exports.rankingCache = functions.pubsub.schedule('every 120 minutes').onRun( async (context) => {
   functions.logger.info("ranking cache", {structuredData: true})
   const snapshot = await db.collection("users").get()
   snapshot.forEach( async (item) => {
