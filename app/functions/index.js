@@ -361,7 +361,8 @@ async function get_my_rank(db, screen_name) {
   return response
 }
 
-async function ranking_update(db) {
+exports.rankingUpdate = functions.pubsub.schedule('every 60 minutes').onRun( async (context) => {
+  functions.logger.info("ranking update", {structuredData: true})
   const snapshot = await db.collection("point_ranking").get()
   let rankingTable = [];
   snapshot.forEach((item) => {
@@ -389,8 +390,23 @@ async function ranking_update(db) {
       rank: item.rank,
     }, {merge: true})
   })
-}
+});
 
+exports.rankingCache = functions.pubsub.schedule('every 120 minutes').onRun( async (context) => {
+  functions.logger.info("ranking cache", {structuredData: true})
+  const snapshot = await db.collection("users").get()
+  snapshot.forEach( async (item) => {
+    const rankingRef = db.collection("point_ranking").doc(`${item.id}`)
+  functions.logger.info(item.data(), {structuredData: true})
+
+    await rankingRef.set({
+      display_name: item.data().display_name,
+      screen_name: item.data().screen_name,
+      battle_point: item.data().status.total,
+      rank: 0,
+    }, {merge: true})
+  })
+});
 
 exports.status = functions.https.onRequest(async (request, response) => {
   cors(request, response, async()=> {
@@ -1024,9 +1040,6 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
         battle_point: userStatusData.total,
         rank: 0,
       }, {merge: true})
-
-      // ランキング更新
-      await ranking_update(db);
 
       await userRef.update({
         last_sanpai: FieldValue.serverTimestamp(),
