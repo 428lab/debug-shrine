@@ -1,81 +1,89 @@
 <template>
-  <div class="text-center">
-    <div class="container py-5 justify-content-center">
+  <div class="">
+    <div class="container pt-5 mt-5">
       <div class="row">
-        <div class="col-2 col-md-3 col-lg-4"></div>
-        <div class="col-8 col-md-6 col-lg-4">
-          <div class="">
-            <img src="/torii.svg" alt="でばっぐ神社" class="w-100" style="" />
-            <div class="text-end mt-4" style="">
-              <nuxt-link to="/about" class="">でばっぐ神社とは ></nuxt-link>
+        <div class="col-12 col-md-6 col-lg-8 mb-5">
+          <img src="/torii.svg" alt="でばっぐ神社" class="main-logo" style="" />
+          <!-- <div class="text-end mt-4" style="">
+            <nuxt-link to="/about" class="">でばっぐ神社とは ></nuxt-link>
+          </div> -->
+        </div>
+        <div class="col-12 col-md-6 col-lg-4 mb-5 text-center align-self-end">
+          <div class="mt-4" v-if="!isLogin">
+            <button
+              @click="GitHubAuth"
+              class="btn btn-lg btn-primary"
+              :disabled="false"
+            >
+              GitHubと連携して<br class="d-md-none" />参拝しよう
+            </button>
+          </div>
+          <div class="mt-4" v-else>
+            <div>
+              <button
+                @click="sanpai"
+                class="btn btn-lg btn-primary"
+                :disabled="false"
+              >
+                参拝する
+              </button>
+            </div>
+            <div class="mt-4 p-2 d-inline-block">
+              <div class="rounded border p-2 w-100 mb-2" v-if="isLogin">
+                <img
+                  :src="user.image_path"
+                  class="rounded-icon img-fluid"
+                  width="30px"
+                />
+                {{ user.display_name }} でログイン中
+              </div>
+              <a
+                href="javascript:void(0)"
+                class="btn btn-secondary"
+                @click="logout"
+                >ログアウト</a
+              >
+              <nuxt-link to="/dashboard" class="btn text-white"
+                >マイページへ ></nuxt-link
+              >
             </div>
           </div>
         </div>
-        <div class="col-2 col-md-3 col-lg-4"></div>
       </div>
     </div>
-    <div class="bg-github py-4">
-      <div class="container">
-        <div class="row py-3">
-          <div class="col-2 col-md-3 col-lg-4"></div>
-          <div class="col-8 col-md-6 col-lg-4">
-            <div class="row align-items-center">
-              <div class="col-4 resizeimage">
-                <i class="fab fa-github fa-4x"></i>
-                <!-- <img src="/brandlogo/github.svg" class="img-fluid" /> -->
-              </div>
-              <div class="col-4 resizeimage">
-                <img src="/activity.svg" class="img-fluid w-75" />
-              </div>
-              <div class="col-4 resizeimage">
-                <img src="/shrine.png" class="img-fluid" />
-              </div>
+    <div class="bg-github">
+      <div class="container py-4 mt-4">
+        <div class="row flex-row-reverse">
+          <div class="col-12 col-md-6 col-lg-4 px-4">
+            <p class="fs-2">ランキング</p>
+            <ranking-me></ranking-me>
+            <ranking-all max="10" class="mt-3"></ranking-all>
+            <div class="text-end px-4 mt-3 mb-4">
+              <nuxt-link to="/ranking">
+                ランキングの続き <i class="fas fa-fw fa-chevron-right"></i>
+              </nuxt-link>
             </div>
           </div>
-          <div class="col-2 col-md-3 col-lg-4"></div>
-        </div>
-        <div class="mt-4" v-if="!isLogin">
-          <button
-            @click="GitHubAuth"
-            class="btn btn-lg btn-primary"
-            :disabled="false"
-          >
-            GitHubと連携して<br class="d-md-none" />参拝しよう
-          </button>
-        </div>
-        <div class="mt-4" v-else>
-          <button
-            @click="sanpai"
-            class="btn btn-lg btn-primary"
-            :disabled="false"
-          >
-            参拝する
-          </button>
-        </div>
-        <div v-if="isLogin" class="mt-4 p-2 d-inline-block">
-          <div class="rounded border p-2 w-100 mb-2" v-if="isLogin">
-            <img
-              :src="user.image_path"
-              class="rounded-icon img-fluid"
-              width="30px"
-            />
-            {{ user.display_name }} でログイン中
+          <div class="col-12 col-md-6 col-lg-8 px-4">
+            <p class="fs-2">でばっぐ神社とは</p>
+            <p class="fs-4">
+              <span class="text-danger"
+                ><strong>露御読把和流（ろおどはわる）</strong></span
+              >をご神体とする仮想神社。<br />
+              参拝するためには<strong
+                >GitHubへの<span class="text-danger">コントリビューション</span
+                >が必須</strong
+              >である。<br />
+              参拝することで御神体の御業により、参拝者の能力が具体化される。<br />
+              自身の能力を把握することで改善の円環に身を投じることができよう。<br />
+            </p>
+            <div class="text-end px-4 mt-3 mb-4">
+              <nuxt-link to="/about" class=""
+                >もっと詳しく <i class="fas fa-fw fa-chevron-right"></i
+              ></nuxt-link>
+            </div>
           </div>
-          <a href="javascript:void(0)" class="btn btn-secondary" @click="logout"
-            >ログアウト</a
-          >
-          <nuxt-link to="/dashboard" class="btn text-white"
-            >マイページへ ></nuxt-link
-          >
         </div>
-      </div>
-    </div>
-    <div class="container mt-3">
-      <ranking-all max="10"></ranking-all>
-      <div class="text-end px-4 mt-3">
-        <nuxt-link to="/ranking">
-          ランキングの続き <i class="fas fa-fw fa-chevron-right"></i>
-        </nuxt-link>
       </div>
     </div>
     <!-- <div class="container py-5">
@@ -105,11 +113,13 @@ import {
 } from "firebase/auth";
 import { mapGetters } from "vuex";
 import RankingAll from "@/components/ranking/all";
+import RankingMe from "@/components/ranking/me";
 
 export default {
   layout: "single",
   components: {
-    RankingAll
+    RankingAll,
+    RankingMe,
   },
   data() {
     return {
@@ -125,7 +135,7 @@ export default {
         this.$store.dispatch("logout");
         return;
       }
-      this.$store.commit('setToken', user.refreshToken);
+      this.$store.commit("setToken", user.refreshToken);
     });
   },
   methods: {
@@ -151,21 +161,19 @@ export default {
               userData.display_name = userData.screen_name;
             }
             this.$store.commit("setUser", userData);
-            getAuth().currentUser.getIdToken()
-              .then(token => {
+            getAuth()
+              .currentUser.getIdToken()
+              .then((token) => {
                 this.$store.commit("setToken", token);
-                this.$axios.post("register",
-                userData,
-                {
+                this.$axios.post("register", userData, {
                   headers: {
-                    Authorization: `Bearer ${token}`
-                  }
-                })
+                    Authorization: `Bearer ${token}`,
+                  },
+                });
               })
-              .catch(e=>{
-                console.log(e)
-              })
-
+              .catch((e) => {
+                console.log(e);
+              });
           })
           .catch((error) => {
             console.error(error);
@@ -186,7 +194,8 @@ export default {
 </script>
 
 <style scoped>
-.resizeimage img {
+.main-logo {
   width: 100%;
+  max-width: 600px;
 }
 </style>
