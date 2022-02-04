@@ -1,5 +1,5 @@
 <template>
-  <div class="my-4 p-3 text-start your-ranking rounded" v-if="isLogin">
+  <div class="p-3 text-start your-ranking rounded" v-if="isLogin">
     <div class="fs-5 mb-3">あなたの順位</div>
     <table v-if="getMyRanking.rank !== 0">
       <tr>
