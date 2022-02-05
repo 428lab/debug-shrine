@@ -93,6 +93,7 @@
           </div>
         </div>
         <div class="col-12 col-md-6 col-lg-4">
+          <div class="mb-3">前回の参拝：{{formattedLastSanpai}}</div>
           <div class="bg-primary rounded p-2 text-center">
             でばっぐのうりょく
           </div>
@@ -135,6 +136,7 @@ export default {
         defence: response.data.defence,
         agility: response.data.agility,
         next: response.data.next_exp,
+        last_sanpai: response.data.last_sanpai,
       },
       chartData: {
         labels: [
@@ -167,9 +169,6 @@ export default {
       this.$store.dispatch("logout");
     },
   },
-  mounted() {
-    console.log(this.user);
-  },
   computed: {
     ...mapGetters(["user"]),
     shareUrl() {
@@ -181,6 +180,9 @@ export default {
     progressWidth() {
       return this.profile.exp.total / this.profile.next;
     },
+    formattedLastSanpai() {
+      return this.profile.last_sanpai;
+    }
   },
 };
 </script>
