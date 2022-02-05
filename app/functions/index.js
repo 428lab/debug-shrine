@@ -397,8 +397,10 @@ exports.rankingCache = functions.pubsub.schedule('every 120 minutes').onRun( asy
   const snapshot = await db.collection("users").get()
   snapshot.forEach( async (item) => {
     const rankingRef = db.collection("point_ranking").doc(`${item.id}`)
-  functions.logger.info(item.data(), {structuredData: true})
-
+    const rankingItem = await rankingRef.get()
+    if(!!rankingItem.data()){
+      return;
+    }
     await rankingRef.set({
       display_name: item.data().display_name,
       screen_name: item.data().screen_name,

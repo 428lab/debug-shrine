@@ -1,8 +1,9 @@
 <script>
-import { Radar } from "vue-chartjs";
+import { Radar, mixins } from "vue-chartjs";
 
 export default {
   extends: Radar,
+  mixins: [mixins.reactiveProp],
   data: function () {
     return {
       options: {
@@ -18,6 +19,8 @@ export default {
         scale: {
           ticks: {
             display: false,
+            min: 0,
+            max: 150,
           },
           gridLines: { color: "rgba(255, 255, 255, 0.7)" },
           angleLines: { color: "rgba(255, 255, 255, 0.7)" },
@@ -25,9 +28,9 @@ export default {
       },
     };
   },
-  props: ["chartData", "chartConfig"],
+  props: ["chartData"],
   mounted() {
-    this.options.scale.ticks = this.chartConfig
+    // this.options.scale.ticks = this.chartConfig
     this.renderChart(this.chartData, this.options);
   },
 };
