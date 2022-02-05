@@ -60,6 +60,7 @@
                 </table>
               </div>
             </div>
+          <div class="py-3">前回の参拝：{{formattedLastSanpai}}</div>
           </div>
         </div>
         <div class="col-12 col-md-7 col-xl-4">
@@ -163,6 +164,7 @@ export default {
         intelligence: response.data.intelligence,
         defence: response.data.defence,
         agility: response.data.agility,
+        last_sanpai: response.data.last_sanpai,
       },
       chartData: {
         labels: [
@@ -198,6 +200,9 @@ export default {
     shareMessage() {
       return "これが" + this.profile.nickName + "の でばっぐのうりょくだ！";
     },
+    formattedLastSanpai() {
+      return this.status.last_sanpai;
+    }
   },
 };
 </script>
