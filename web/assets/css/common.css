@@ -16,3 +16,7 @@ a {
 .rounded-icon {
     border-radius: 50%;
 }
+
+.h-min-100vh {
+   min-height: 100vh;
+}
