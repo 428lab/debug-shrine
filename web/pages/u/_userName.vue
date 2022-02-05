@@ -1,6 +1,6 @@
 <template>
   <main class="container p-3">
-    <div class="p-3 profile-outline">
+    <div class="p-3 profile-outline" v-if="!isLoading">
       <div class="row">
         <div class="col-12 col-md-5 col-xl-8 mb-4 mb-md-0">
           <div class="p-3 bg-dark h-100 rounded">
@@ -60,7 +60,7 @@
                 </table>
               </div>
             </div>
-          <div class="py-3">前回の参拝：{{formattedLastSanpai}}</div>
+            <div class="py-3">前回の参拝：{{ status.last_sanpai }}</div>
           </div>
         </div>
         <div class="col-12 col-md-7 col-xl-4">
@@ -77,7 +77,7 @@
               >
                 <small>でばっぐのうりょく</small>
               </div>
-              <RadarChart :chartData="chartData" :chartConfig="chartOptions" />
+              <RadarChart :chartData="chartData" />
             </div>
             <div class="col-4 align-items-center d-md-none">
               <img
@@ -107,6 +107,7 @@
         :message="shareMessage"
       ></Share>
     </div>
+    <Loading v-if="isLoading" message="ヨミコミチュウ..."></Loading>
   </main>
 </template>
 
@@ -137,35 +138,11 @@ export default {
     };
   },
   components: { RadarChart },
-  async asyncData({ $axios, route, error }) {
-    if (!route.params.userName) {
-      error({ statusCode: 404 });
-      return;
-    }
-    let response = await $axios.get("status?user=" + route.params.userName);
-    let userChart = [];
-    userChart.push(response.data.chart.hp);
-    userChart.push(response.data.chart.power);
-    userChart.push(response.data.chart.intelligence);
-    userChart.push(response.data.chart.defence);
-    userChart.push(response.data.chart.agility);
+  data() {
     return {
-      profile: {
-        nickName: response.data.user.display_name,
-        screenName: response.data.user.screen_name,
-        profileImage: response.data.user.github_image_path,
-      },
-      status: {
-        level: response.data.level,
-        points: response.data.points,
-        total: response.data.total,
-        hp: response.data.hp,
-        power: response.data.power,
-        intelligence: response.data.intelligence,
-        defence: response.data.defence,
-        agility: response.data.agility,
-        last_sanpai: response.data.last_sanpai,
-      },
+      isLoading: true,
+      profile: {},
+      status: {},
       chartData: {
         labels: [
           "たいりょく",
@@ -177,7 +154,7 @@ export default {
         datasets: [
           {
             type: "radar",
-            data: userChart,
+            data: [],
             fill: true,
             backgroundColor: "rgba(255, 99, 132, 0.6)",
             borderWidth: 0,
@@ -185,12 +162,37 @@ export default {
           },
         ],
       },
-      chartOptions: {
-        display: false,
-        min: 0,
-        max: 150,
-      },
     };
+  },
+  async mounted() {
+    if (!this.$route.params.userName) {
+      this.$nuxt.error({ statusCode: 404 });
+      return;
+    }
+    let response = await this.$axios.get("status?user=" + this.$route.params.userName);
+    let userChart = [];
+    userChart.push(response.data.chart.hp);
+    userChart.push(response.data.chart.power);
+    userChart.push(response.data.chart.intelligence);
+    userChart.push(response.data.chart.defence);
+    userChart.push(response.data.chart.agility);
+    this.chartData.datasets[0].data = userChart;
+
+    this.profile.nickName = response.data.user.display_name;
+    this.profile.screenName = response.data.user.screen_name;
+    this.profile.profileImage = response.data.user.github_image_path;
+    this.status.level = response.data.level;
+    this.status.points = response.data.points;
+    this.status.total = response.data.total;
+    this.status.hp = response.data.hp;
+    this.status.power = response.data.power;
+    this.status.intelligence = response.data.intelligence;
+    this.status.defence = response.data.defence;
+    this.status.agility = response.data.agility;
+    this.status.last_sanpai = response.data.last_sanpai;
+    if(response){
+      this.isLoading = false;
+    }
   },
   computed: {
     ...mapGetters(["user", "isLogin"]),
@@ -200,9 +202,6 @@ export default {
     shareMessage() {
       return "これが" + this.profile.nickName + "の でばっぐのうりょくだ！";
     },
-    formattedLastSanpai() {
-      return this.status.last_sanpai;
-    }
   },
 };
 </script>
