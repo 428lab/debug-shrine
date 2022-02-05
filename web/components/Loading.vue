@@ -12,12 +12,20 @@
         <div class="loading-outline">
           <div class="loading-icon"></div>
         </div>
-        <div class="fs-2 mt-4">ブンセキチュウ...</div>
+        <div class="fs-2 mt-4">{{ message }}</div>
         </div>
       </div>
     </div>
   </div>
 </template>
+
+<script>
+export default {
+  props: {
+    message: "",
+  }
+}
+</script>
 
 <style scoped>
 .outline {

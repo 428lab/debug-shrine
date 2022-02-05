@@ -1,6 +1,6 @@
 <template>
   <main class="container p-3">
-    <div class="d-md-flex justify-content-between align-items-end">
+    <div class="d-md-flex justify-content-between align-items-end" v-if="!isLoading">
       <div class="fs-1 flex-fill">マイページ</div>
       <div class="text-end mt-2 ms-3">
         <nuxt-link :to="`/u/` + user.screen_name"
@@ -33,7 +33,7 @@
               <div class="ms-4 flex-fill">
                 <div class="">れべる：{{ profile.level }}</div>
                 <div class="">ぽいんと：{{ profile.point }}</div>
-                <div class="S">せんとうりょく：{{ profile.total }}</div>
+                <div class="">せんとうりょく：{{ profile.total }}</div>
                 <div class="progress mt-2">
                   <div
                     class="progress-bar p-2"
@@ -93,14 +93,15 @@
           </div>
         </div>
         <div class="col-12 col-md-6 col-lg-4">
-          <div class="mb-3">前回の参拝：{{formattedLastSanpai}}</div>
+          <div class="mb-3">前回の参拝：{{ profile.last_sanpai }}</div>
           <div class="bg-primary rounded p-2 text-center">
             でばっぐのうりょく
           </div>
-          <RadarChart :chartData="chartData" :chartConfig="chartOptions" />
+          <RadarChart :chartData="chartData" />
         </div>
       </div>
     </div>
+    <Loading v-if="isLoading" message="ヨミコミチュウ..."></Loading>
   </main>
 </template>
 
@@ -111,33 +112,10 @@ import RadarChart from "@/components/charts/powerChart.vue";
 export default {
   middleware: ["auth"],
   components: { RadarChart },
-  async asyncData({ $axios, store }) {
-    let response = await $axios.get(
-      `status?user=${store.state.user.screen_name}`
-    );
-    // 登録してなかったらエラーが出るのでエラー対応よろ
-    let userChart = [];
-    console.log(response.data);
-    userChart.push(response.data.chart.hp);
-    userChart.push(response.data.chart.power);
-    userChart.push(response.data.chart.intelligence);
-    userChart.push(response.data.chart.defence);
-    userChart.push(response.data.chart.agility);
-
+  data() {
     return {
-      profile: {
-        total: response.data.total,
-        exp: response.data.total,
-        point: response.data.points,
-        level: response.data.level,
-        hp: response.data.hp,
-        power: response.data.power,
-        intelligence: response.data.intelligence,
-        defence: response.data.defence,
-        agility: response.data.agility,
-        next: response.data.next_exp,
-        last_sanpai: response.data.last_sanpai,
-      },
+      isLoading: true,
+      profile: {},
       chartData: {
         labels: [
           "たいりょく",
@@ -149,7 +127,7 @@ export default {
         datasets: [
           {
             type: "radar",
-            data: userChart,
+            data: [],
             fill: true,
             backgroundColor: "rgba(255, 99, 132, 0.6)",
             borderWidth: 0,
@@ -157,12 +135,35 @@ export default {
           },
         ],
       },
-      chartOptions: {
-        display: false,
-        min: 0,
-        max: 150,
-      },
     };
+  },
+  async mounted() {
+    let response = await this.$axios.get(
+      `status?user=${this.user.screen_name}`
+    );
+    // 登録してなかったらエラーが出るのでエラー対応よろ
+    let userChart = [];
+    userChart.push(response.data.chart.hp);
+    userChart.push(response.data.chart.power);
+    userChart.push(response.data.chart.intelligence);
+    userChart.push(response.data.chart.defence);
+    userChart.push(response.data.chart.agility);
+    this.chartData.datasets[0].data = userChart;
+
+    this.profile.total = response.data.total;
+    this.profile.exp = response.data.total;
+    this.profile.point = response.data.points;
+    this.profile.level = response.data.level;
+    this.profile.hp = response.data.hp;
+    this.profile.power = response.data.power;
+    this.profile.intelligence = response.data.intelligence;
+    this.profile.defence = response.data.defence;
+    this.profile.agility = response.data.agility;
+    this.profile.next = response.data.next_exp;
+    this.profile.last_sanpai = response.data.last_sanpai;
+    if(response){
+      this.isLoading = false;
+    }
   },
   methods: {
     logout: function () {
@@ -180,9 +181,6 @@ export default {
     progressWidth() {
       return this.profile.exp.total / this.profile.next;
     },
-    formattedLastSanpai() {
-      return this.profile.last_sanpai;
-    }
   },
 };
 </script>

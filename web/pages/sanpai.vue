@@ -55,7 +55,7 @@
     <nuxt-link class="btn btn-lg btn-primary" to="/dashboard">
       マイページを見る
     </nuxt-link>
-    <Loading v-if="isLoading"></Loading>
+    <Loading v-if="isLoading" message="ブンセキチュウ..."></Loading>
   </div>
 </template>
 
