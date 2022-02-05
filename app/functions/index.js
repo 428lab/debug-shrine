@@ -453,6 +453,7 @@ exports.status = functions.https.onRequest(async (request, response) => {
         status: return_Data
       })
     }
+    return_Data.last_sanpai = moment(userData.last_sanpai.toDate()).format('YYYY年MM月DD日 HH:mm');
 
     response.json(return_Data)
   })
