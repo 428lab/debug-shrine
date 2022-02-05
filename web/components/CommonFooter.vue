@@ -1,7 +1,7 @@
 <template>
-  <div>
-    <div class="py-5 my-5"></div>
-    <div class="fixed-bottom">
+  <div class="mt-auto">
+    <!-- <div class="py-5 my-5"></div> -->
+    <div class="">
       <div class="bg-dark">
         <div class="container">
           <div class="py-2 text-center">
