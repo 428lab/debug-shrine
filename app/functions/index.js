@@ -363,33 +363,30 @@ async function get_my_rank(db, screen_name) {
 
 exports.rankingUpdate = functions.pubsub.schedule('every 60 minutes').onRun( async (context) => {
   functions.logger.info("ranking update", {structuredData: true})
-  const snapshot = await db.collection("point_ranking").get()
+  const snapshot = await db.collection("users").orderBy("status.total","desc").limit(100).get()
   let rankingTable = [];
   snapshot.forEach((item) => {
-    let temp = {}
-    temp.id = item.id
-    temp.battlePoint = item.data().battle_point;
-    rankingTable.push(temp);
+    rankingTable.push({
+      display_name: item.data().display_name,
+      screen_name: item.data().screen_name,
+      image_path: item.data().image_path,
+      battle_point: item.data().status.total,
+    });
   })
-  let sorted = [];
   let tempRank = 1;
   let tempPoint = -1;
   rankingTable.sort((a, b) => b.battlePoint - a.battlePoint).forEach((item, index) => {
-    let temp = {}
-    temp.id = item.id
-    if(tempPoint !== item.battlePoint){
+    if(tempPoint !== item.battle_point){
       tempRank = index + 1
-      tempPoint = item.battlePoint
+      tempPoint = item.battle_point
     }
-    temp.rank = tempRank
-    sorted.push(temp);
+    item.rank = tempRank
   })
-  sorted.forEach(item => {
-    const rankingRef = db.collection("point_ranking").doc(`${item.id}`)
-    rankingRef.set({
-      rank: item.rank,
-    }, {merge: true})
-  })
+  const rankingRef = db.collection("cache_data").doc('ranking_cache')
+  rankingRef.set({
+    ranking: rankingTable,
+    latest_update: FieldValue.serverTimestamp(),
+  }, {merge: true})
 });
 
 exports.rankingCache = functions.pubsub.schedule('every 120 minutes').onRun( async (context) => {
@@ -1034,15 +1031,6 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
       const raw_activities_list = await get_activity_list(userRef)
 
       userStatusData = user_formated_performance(user_performance(raw_activities_list, userData.screen_name), userAppendData)
-      // 更新
-      // ランキングに反映
-      const rankingRef = db.collection("point_ranking").doc(`${github_id}`)
-      await rankingRef.set({
-        display_name: userData.display_name,
-        screen_name: userData.screen_name,
-        battle_point: userStatusData.total,
-        rank: 0,
-      }, {merge: true})
 
       await userRef.update({
         last_sanpai: FieldValue.serverTimestamp(),
