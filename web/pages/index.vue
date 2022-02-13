@@ -56,8 +56,7 @@
         <div class="row flex-row-reverse">
           <div class="col-12 col-md-6 col-lg-4 px-4">
             <p class="fs-2">ランキング</p>
-            <ranking-me></ranking-me>
-            <ranking-all max="10" class="mt-3"></ranking-all>
+            <ranking max="10" class="mt-3"></ranking>
             <div class="text-end px-4 mt-3 mb-4">
               <nuxt-link to="/ranking">
                 ランキングの続き <i class="fas fa-fw fa-chevron-right"></i>
@@ -127,14 +126,12 @@ import {
   onAuthStateChanged,
 } from "firebase/auth";
 import { mapGetters } from "vuex";
-import RankingAll from "@/components/ranking/all";
-import RankingMe from "@/components/ranking/me";
+import Ranking from "@/components/ranking";
 
 export default {
   layout: "single",
   components: {
-    RankingAll,
-    RankingMe,
+    Ranking,
   },
   data() {
     return {
