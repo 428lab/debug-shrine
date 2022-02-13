@@ -4,8 +4,11 @@ import { getAuth, signOut, deleteUser } from 'firebase/auth';
 export const state = () => ({
   user: null,
   token: null,
-  ranking: [],
-  myRanking: {},
+  ranking: {
+    ranking: [],
+    latest_update: null,
+    myRanking: null,
+  },
 })
 
 export const getters = {
@@ -13,7 +16,6 @@ export const getters = {
   user: state => state.user,
   token: state => state.token,
   getRanking: state => state.ranking,
-  getMyRanking: state => state.myRanking,
 }
 
 export const mutations = {
@@ -23,11 +25,11 @@ export const mutations = {
   setToken(state, token) {
     state.token = token;
   },
-  setRanking(state, ranking) {
-    state.ranking = ranking;
-  },
-  setMyRanking(state, myRanking) {
-    state.myRanking = myRanking;
+  setRanking(state, data) {
+    console.log(data);
+    state.ranking.ranking = data.ranking;
+    state.ranking.latest_update = data.latest_update;
+    if(data.my_rank) state.ranking.myRanking = data.my_rank;
   },
   clear(state) {
     state.user = null;
