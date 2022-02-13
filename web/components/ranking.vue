@@ -58,16 +58,27 @@ export default {
     pagenation: false,
     max: 100,
   },
+  data() {
+    return {
+      ranking: [],
+      myRanking: {},
+      latestUpdate: null,
+    }
+  },
   async beforeMount() {
-    let response = await this.$axios.get("/ranking?screen_name=ShinoharaTa");
-    this.$store.commit("setRanking", response.data);
+    let params = {};
+    if (this.isLogin) {
+      params.screen_name = this.user.screen_name;
+    }
+    let response = await this.$axios.get("/ranking", { params: params });
+    this.ranking = response.data.ranking;
+    this.myRanking = response.data.my_rank;
+    this.latestUpdate = response.data.latest_update;
   },
   computed: {
-    ...mapGetters(["getRanking", "isLogin"]),
+    ...mapGetters(["isLogin", "user"]),
     rankingView() {
-      return this.getRanking.ranking
-        ? this.getRanking.ranking.slice(0, this.max)
-        : [];
+      return this.ranking.slice(0, this.max);
     },
   },
 };
