@@ -363,7 +363,7 @@ async function get_my_rank(db, screen_name) {
 
 exports.rankingUpdate = functions.pubsub.schedule('every 60 minutes').onRun( async (context) => {
   functions.logger.info("ranking update", {structuredData: true})
-  const snapshot = await db.collection("users").orderBy("status.total","desc").limit(100).get()
+  const snapshot = await db.collection("users").orderBy("status.total","desc").get()
   let rankingTable = [];
   snapshot.forEach((item) => {
     rankingTable.push({
