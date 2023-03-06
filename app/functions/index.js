@@ -430,15 +430,16 @@ exports.status = functions.https.onRequest(async (request, response) => {
     let return_Data
     if (userData.status) {
       return_Data = userData.status
+      return_Data.last_sanpai = moment(userData.last_sanpai.toDate()).format('YYYY年MM月DD日 HH:mm');
     } else {
       const raw_activities_list = await get_activity_list(userRef)
       const user_data = user_performance(raw_activities_list, request.query.user)
       return_Data = user_formated_performance(user_data, appendData)
+      return_Data.last_sanpai = "参拝していないようです"
       await userRef.update({
         status: return_Data
       })
     }
-    return_Data.last_sanpai = moment(userData.last_sanpai.toDate()).format('YYYY年MM月DD日 HH:mm');
 
     response.json(return_Data)
   })
