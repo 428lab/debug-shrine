@@ -3,16 +3,28 @@ on:
     branches:
       - env/dev
 
+env:
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+  GCP_KEY_PATH: "/tmp/key.json"
+
 jobs:
   deploy:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       
+      - name: Run actionlint
+        shell: bash
+        run: |
+          set -ex
+          bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint -color
+
       - name: setup node
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v3
         with:
-          node-version: "16"
+          node-version: "18"
       
       - name: cache
         uses: actions/cache@v2
@@ -44,9 +56,28 @@ jobs:
           npm install
         working-directory: ./app/functions
       
+
+      # deploy setup
+      - name: gcp_key file
+        run: |
+          set -ex
+          echo "${{ secrets.DEV_GCLOUD_SERVICE_KEY }}" | base64 -d > ${{ env.GCP_KEY_PATH }}
+      - uses: 'google-github-actions/auth@v1'
+        with:
+          credentials_json: '${{ secrets.DEV_GCLOUD_SERVICE_KEY }}'
+
+      - name: 'Use gcloud CLI'
+        run: 'gcloud auth list --filter=status:ACTIVE --format="value(account)"'
+
+      - name: 'Set up Cloud SDK'
+        uses: 'google-github-actions/setup-gcloud@v1'
+        with:
+          install_components: ''
+          project_id: 'd-shrine-dev'
+
       - name: firebase deploy
         run: |
-          firebase deploy --project d-shrine-dev --token=${{ secrets.FIREBASE_TOKEN }}
+          firebase deploy --project d-shrine-dev
         working-directory: ./app
         
 
