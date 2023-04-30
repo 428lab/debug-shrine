@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Run actionlint
         shell: bash
         run: |
@@ -25,9 +25,9 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: "18"
-      
+
       - name: cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ~/.npm
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
@@ -37,25 +37,24 @@ jobs:
       - name: nuxt setup
         run: echo "${{ secrets.DEV_ENV }}" > .env
         working-directory: ./web
-        
+
       - name: nuxt generate
         run: |
           yarn
           yarn generate
         working-directory: ./web
-      
+
       - name: copy files
         run: |
           rm -rf app/dist
           cp -r web/dist app
         working-directory: ./
-      
+
       - name: firebase setup
         run: |
           npm install -g firebase-tools
           npm install
         working-directory: ./app/functions
-      
 
       # deploy setup
       - name: gcp_key file
@@ -79,5 +78,3 @@ jobs:
         run: |
           firebase deploy --project d-shrine-dev
         working-directory: ./app
-        
-
