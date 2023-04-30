@@ -9,7 +9,7 @@ env:
   GCP_KEY_PATH: "/tmp/key.json"
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
