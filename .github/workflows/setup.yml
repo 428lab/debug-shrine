@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Run actionlint
         shell: bash
         run: |
@@ -23,7 +23,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: "18"
-      
+
       - name: cache
         uses: actions/cache@v2
         with:
@@ -35,15 +35,24 @@ jobs:
       - name: nuxt setup
         run: echo "${{ secrets.DEV_ENV }}" > .env
         working-directory: ./web
-        
+
       - name: nuxt generate
         run: |
+          set -ex
           yarn
           yarn generate
         working-directory: ./web
-      
+
       - name: copy files
         run: |
+          set -ex
           rm -rf app/dist
           cp -r web/dist app
         working-directory: ./
+
+      - name: firebase setup
+        run: |
+          set -ex
+          npm install -g firebase-tools
+          npm install
+        working-directory: ./app/functions
