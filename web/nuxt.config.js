@@ -25,6 +25,7 @@ export default {
       { hid: 'og:site_name', name: 'og:site_name', content:'でばっぐ神社' },
       { hid: 'apple-mobile-web-app-title', name: 'apple-mobile-web-app-title', content:'でばっぐ神社' },
       { hid: 'og:url', name: 'og:url', content: process.env.BASE_URL|| 'http://localhost:3000' },
+      { hid: 'keywords', name: 'keywords', content: 'でばっぐ神社,デバッグ神社' },
       { hid: 'description', name: 'description', content: 'バグった時の神頼み。' },
       { hid: 'og:description', name: 'og:description', content: 'バグった時の神頼み。' },
       { hid: 'og:image', property: 'og:image', content: process.env.BASE_URL+`ogimage.png`},

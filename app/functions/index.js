@@ -34,7 +34,7 @@ const fontStyle = {
   font: '60px "Noto Sans JP"',
   fontname: "Noto Sans JP",
   fontsize: "60",
-  lineHight: 100,
+  lineHeight: 100,
   color: "#FFFFFF"
 }
 const target_points = [0,5,11,19,30,45,65,91,124,166,218,281,357,447,553,676,818,981,1167,1378,1616,1884,2184,2519,2892,3306,3764,4269,4825,5436,6106,6840,7643,8520,9477,10520,11656,12892,14236,15696,17281,19001,20867,22891,25086,27466,30046,32842,35872,39156]
@@ -119,7 +119,7 @@ async function get_user(username) {
       `GitHub X-RateLimit-Rest  : ${res.headers["x-ratelimit-reset"]}`,
       `GitHub X-RateLimit-Used  : ${res.headers["x-ratelimit-used"]}`
     ].join("¥n"))
-    
+
     const items = res.data;
     return items
   } catch (error) {
@@ -194,8 +194,8 @@ async function get_user_ref(db, github_id, screen_name=null) {
 
 
 async function get_activity_list(userRef) {
-  const github_acitivityRef = userRef.collection("github_activities")
-  const raw_activities = await github_acitivityRef.get()
+  const github_activityRef = userRef.collection("github_activities")
+  const raw_activities = await github_activityRef.get()
   let raw_activities_list = []
   raw_activities.forEach((postDoc) => {
     raw_activities_list.push(JSON.parse(postDoc.data().raw))
@@ -215,7 +215,7 @@ function user_performance(items, username) {
     intelligence: 0
   }
 
-  
+
   previousItem = null
   continuous_count = 0
   let sorted_item = items.sort(function(a, b) {
@@ -291,7 +291,7 @@ function user_performance(items, username) {
   return user_data
 }
 
-function user_formated_performance(user_data, append_data={}) {
+function user_formatted_performance(user_data, append_data={}) {
   let return_Data = {
     user: user_data.user,
     points: 0,
@@ -404,7 +404,7 @@ exports.status = functions.https.onRequest(async (request, response) => {
     let userData
     if(userDoc && userDoc.exists) {
       // ユーザーは登録さている
-      functions.logger.info("user registerd")
+      functions.logger.info("user registered")
       userData = userDoc.data()
       functions.logger.info(`data: ${userData.exp}`)
       if(userData.exp) {
@@ -418,10 +418,10 @@ exports.status = functions.https.onRequest(async (request, response) => {
       }
     }else {
       // 登録されていない
-      functions.logger.info("user not registerd")
+      functions.logger.info("user not registered")
       response.status(404).json({
-        staus: "faild",
-        message: "user not registerd."
+        status: "failed",
+        message: "user not registered."
       })
       return
     }
@@ -434,7 +434,7 @@ exports.status = functions.https.onRequest(async (request, response) => {
     } else {
       const raw_activities_list = await get_activity_list(userRef)
       const user_data = user_performance(raw_activities_list, request.query.user)
-      return_Data = user_formated_performance(user_data, appendData)
+      return_Data = user_formatted_performance(user_data, appendData)
       return_Data.last_sanpai = "参拝していないようです"
       await userRef.update({
         status: return_Data
@@ -547,7 +547,7 @@ async function createOgp(username, request, response) {
   let appendData = {}
   const userDoc = await get_user_doc(db, userData.id, username)
   if(userDoc && userDoc.exists) {
-    functions.logger.info("user registerd")
+    functions.logger.info("user registered")
     const userData = userDoc.data()
     functions.logger.info(`data: ${userData.exp}`)
     if(userData.exp) {
@@ -570,7 +570,7 @@ async function createOgp(username, request, response) {
     return_Data = userData.status
   } else {
     const raw_activities_list = await get_activity_list(userRef)
-    userFeedData = user_formated_performance(user_performance(raw_activities_list, username), appendData)
+    userFeedData = user_formatted_performance(user_performance(raw_activities_list, username), appendData)
     await userRef.update({
       status: userFeedData
     })
@@ -611,7 +611,7 @@ async function createOgp(username, request, response) {
   userCtx.drawImage(userIcon, 0, 0, userIcon.width, userIcon.height)
 
   ctx.drawImage(userIconCanvas, iconPos.x, iconPos.y, iconPos.iconSize, iconPos.iconSize)
-  
+
   // レベル
   const userDataStr = [
     "れべる：" + userFeedData.level,
@@ -623,7 +623,7 @@ async function createOgp(username, request, response) {
     ctx.fillText(
       userDataStr[idx],
       680,
-      740 + fontStyle.lineHight * idx
+      740 + fontStyle.lineHeight * idx
     )
   }
   // チャート
@@ -631,8 +631,8 @@ async function createOgp(username, request, response) {
     x: 1325,
     y: 300
   }
-  const chartWidht = 550
-  const chartHight = 550
+  const chartWidth = 550
+  const chartHeight = 550
   const chartbackColor = "rgba(255,255,255,0)"//"rgba(0,0,0,0)"
   const userChatData = [
     userFeedData.hp,
@@ -721,8 +721,8 @@ async function createOgp(username, request, response) {
   }
 
   const chartJSNodeCanvas = new ChartJSNodeCanvas({
-    width: chartWidht, 
-    height: chartHight,
+    width: chartWidth,
+    height: chartHeight,
     chartCallback: (ChartJS) => {
       // ChartJS.defaults.global.font.size = "rgb(255,255,255)"
     }
@@ -748,25 +748,25 @@ async function createOgp(username, request, response) {
   return getOgpUrl(username)
 }
 
-exports.register = functions.https.onRequest(async (requeset, response)=>{
-  cors(requeset, response, async()=>{
-    functions.logger.info(requeset.method)
-    functions.logger.info(requeset.body)
-    if(requeset.method != "POST"){
+exports.register = functions.https.onRequest(async (request, response)=>{
+  cors(request, response, async()=>{
+    functions.logger.info(request.method)
+    functions.logger.info(request.body)
+    if(request.method != "POST"){
       response.status(400).json({
         status: "missing request"
       })
       return
     }
-  
-    if(!requeset.headers.authorization) {
+
+    if(!request.headers.authorization) {
       // 認証情報付与してない
       response.status(401).json({
         status: "authorization missing."
       })
       return
     }
-    const token_match = requeset.headers.authorization.match(/^Bearer (.*)$/)
+    const token_match = request.headers.authorization.match(/^Bearer (.*)$/)
     if(!token_match) {
       // やっぱり認証情報付与してない
       response.status(401).json({
@@ -775,7 +775,7 @@ exports.register = functions.https.onRequest(async (requeset, response)=>{
       return
     }
     const token = token_match[1]  // firebase auth token
-  
+
     // トークンを検証
     const decodetToken = await admin.auth().verifyIdToken(token)
       .catch(e => {
@@ -790,34 +790,34 @@ exports.register = functions.https.onRequest(async (requeset, response)=>{
       functions.logger.info("decodetToken non")
       return
     }
-  
+
     // firestore に投げられたデータを保存
     // {
-    //   github_id, display_name, screen_name, image_path 
+    //   github_id, display_name, screen_name, image_path
     // }
     // firestoreに書き込み
     // key: github_id
     if(
-      !requeset.body.github_id ||
-      !requeset.body.display_name ||
-      !requeset.body.screen_name ||
-      !requeset.body.image_path
+      !request.body.github_id ||
+      !request.body.display_name ||
+      !request.body.screen_name ||
+      !request.body.image_path
       ){
-        // functions.logger.info(requeset.body)
+        // functions.logger.info(request.body)
         response.json({
-          status: "faild parameter"
+          status: "failed parameter"
         })
       return
     }
-  
-    const userRef = db.collection("users").doc(`${requeset.body.github_id}`)
-    const userDoc = await get_user_doc(db, requeset.body.github_id, requeset.body.screen_name)
+
+    const userRef = db.collection("users").doc(`${request.body.github_id}`)
+    const userDoc = await get_user_doc(db, request.body.github_id, request.body.screen_name)
     if(!userDoc || !userDoc.exists) {
       await userRef.set({
-        github_id: requeset.body.github_id,
-        display_name: requeset.body.display_name,
-        screen_name: requeset.body.screen_name,
-        image_path: requeset.body.image_path,
+        github_id: request.body.github_id,
+        display_name: request.body.display_name,
+        screen_name: request.body.screen_name,
+        image_path: request.body.image_path,
         create_at: FieldValue.serverTimestamp(),
         exp: 10,
         auth_user_uid: decodetToken.uid
@@ -839,7 +839,7 @@ exports.register = functions.https.onRequest(async (requeset, response)=>{
         return
       }else {
         response.json({
-          status: "registerd"
+          status: "registered"
         })
         return
       }
@@ -850,13 +850,13 @@ exports.register = functions.https.onRequest(async (requeset, response)=>{
 exports.sanpai = functions.https.onRequest(async(request, response) => {
   cors(request, response, async()=>{
     if(request.method != "POST") {
-      functions.logger.info("faild conection")
+      functions.logger.info("failed connection")
       response.json({
-        status: "faild"
+        status: "failed"
       })
       return
     }
-  
+
     if(!request.headers.authorization) {
       // 認証情報付与してない
       response.status(401).json({
@@ -873,7 +873,7 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
       return
     }
     const token = token_match[1]  // firebase auth token
-  
+
     // トークンを検証
     const decodetToken = await admin.auth().verifyIdToken(token)
       .catch(e => {
@@ -890,44 +890,44 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
     }
     if(!request.body.github_id || !request.body.screen_name) {
       response.json({
-        status: "faild parameter"
+        status: "failed parameter"
       })
       return
     }
     const github_id = request.body.github_id
     const userRef = db.collection("users").doc(`${github_id}`)
-    
+
     functions.logger.info("load")
     try {
-  
+
       functions.logger.info("get 1")
       const userDoc = await get_user_doc(db, github_id, request.body.screen_name)
       functions.logger.info("get 2" )
-  
+
       if(!userDoc || !userDoc.exists) {
         // 登録されてない
         response.json({
-          "status": "faild",
+          "status": "failed",
           "message": "not registered"
         })
         return
       }
-      functions.logger.info("registerd")
+      functions.logger.info("registered")
       let userStatusFeed = null
       let userStatusData = null
       let userAppendData = {}
       let add_exp = sanpai.add_point  // 最終的に得られるポイント
-  
+
       const userData = userDoc.data()
       functions.logger.info(userData)
       if(userData.exp) {
         userAppendData.exp = userData.exp
       }
       const last_sanpai = userData.last_sanpai
-  
+
       if(last_sanpai) {
         //参拝してる
-        
+
         functions.logger.info(last_sanpai)
         functions.logger.info(last_sanpai.seconds)
         // 前回の時間指定時間足して、期限がすぎる時間 今の時間
@@ -941,16 +941,16 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
           return
         }
       }
-  
+
       // アクティビティ取得
       userStatusFeed = await get_feed(userData.screen_name)
       const feed_items = userStatusFeed
       date = last_sanpai ? last_sanpai.seconds: moment("2008-04-01T00:00:00Z").unix() // github
       let splited_items = feed_items.filter(item => (moment(item.created_at).unix()) > date)  //前回の参拝からのアクティビティ(初回は取れるだけ)
       functions.logger.info(`activities: ${splited_items.length}`)
-  
+
       add_exp += Math.floor(splited_items.length/5)  // 取得できたアクティビティ5件につき1件
-  
+
       if(splited_items.length == 0) {
         // なんかアクションしてこい
         functions.logger.info("user not actions")
@@ -960,10 +960,10 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
         })
         return
       }
-  
+
       // アクティビティ反映
       const dbBatch = db.batch()
-      const github_acitivityRef = userRef.collection("github_activities")
+      const github_activityRef = userRef.collection("github_activities")
       for(i=0;i<splited_items.length;i++) {
         let item = {
           id: splited_items[i].id,
@@ -971,11 +971,11 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
           created_at: splited_items[i].created_at,
           raw: JSON.stringify(splited_items[i])
         }
-        let ref = github_acitivityRef.doc(item.id)
+        let ref = github_activityRef.doc(item.id)
         dbBatch.set(ref, item)
       }
       await dbBatch.commit()  //反映
-  
+
       var msg = ""
       var bonus_mag = get_bonus_mag(date_now)
       if (bonus_mag>1) {
@@ -983,7 +983,7 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
         add_exp *= bonus_mag
         msg = "2022/1/1〜2022/1/3はポイント3倍！"
       }
-  
+
       // 更新
       await userRef.update({
         last_sanpai: FieldValue.serverTimestamp(),
@@ -1009,7 +1009,7 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
 
       const raw_activities_list = await get_activity_list(userRef)
 
-      userStatusData = user_formated_performance(user_performance(raw_activities_list, userData.screen_name), userAppendData)
+      userStatusData = user_formatted_performance(user_performance(raw_activities_list, userData.screen_name), userAppendData)
 
       await userRef.update({
         last_sanpai: FieldValue.serverTimestamp(),
@@ -1026,7 +1026,7 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
       }
       if(splited_items.length == 0) {
         // アクティビティがないっぽい
-        return_data.staus = "noaction"
+        return_data.status = "noaction"
       }
       response.json(return_data)
     }catch(e) {
@@ -1048,9 +1048,9 @@ exports.scheduledOgpDelete = functions.pubsub
     })
   })
 
-exports.ogpRewrite = functions.https.onRequest(async (requeset, response) => {
+exports.ogpRewrite = functions.https.onRequest(async (request, response) => {
   // ogp用HTMLに書き換える
-  const req_path = requeset.url
+  const req_path = request.url
   functions.logger.info(`request url: ${req_path}`)
   const user_match = req_path.match("/u/(.+)")
   if(!user_match && user_match.length < 1) {
@@ -1067,11 +1067,11 @@ exports.ogpRewrite = functions.https.onRequest(async (requeset, response) => {
   //   url = `https://${projectID}.web.app/`
   // }
   const time = moment().unix()
-  
+
   const ogpURL = `https://us-central1-${projectID}.cloudfunctions.net/userOGP?user=${username}&t=${time}`
   const description = `これが${username}の でばっぐのうりょくだ！`
   const title = `${username}の でばっぐのうりょく - でばっぐ神社`
-  
+
   try {
     functions.logger.info(`username: ${username} base_url:${base_url}`)
     const res = await axios.get(base_url)
@@ -1120,7 +1120,7 @@ exports.ogpRewrite = functions.https.onRequest(async (requeset, response) => {
       `<meta data-n-head="1" data-hid="twitter:image" property="twitter:image" content="${base_url}ogimage.png">`,
       `<meta data-n-head="1" data-hid="twitter:image" property="twitter:image" content="${ogpURL}">`
     )
-    
+
     functions.logger.info("rewrite data")
     response.set('Cache-Control', 'public, max-age=300, s-maxage=300')
     response.send(data)
@@ -1129,6 +1129,6 @@ exports.ogpRewrite = functions.https.onRequest(async (requeset, response) => {
       const {status,statusText} = error.response;
       functions.logger.error(`Error! HTTP Status: ${status} ${statusText}`, {structuredData: true})
     }
-    response.status(404).send("faild")
+    response.status(404).send("failed")
   }
 })
