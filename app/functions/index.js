@@ -847,6 +847,14 @@ exports.register = functions.https.onRequest(async (request, response)=>{
   })
 })
 
+const bonus_branchs = [
+  "428lab/.*",
+  "nostr-jp/.*",
+  "penpenpng/rx-nostr",
+  "akiomik/nosvelte",
+  // "template/.*",
+]
+
 exports.sanpai = functions.https.onRequest(async(request, response) => {
   cors(request, response, async()=>{
     if(request.method != "POST") {
@@ -950,6 +958,9 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
       functions.logger.info(`activities: ${splited_items.length}`)
 
       add_exp += Math.floor(splited_items.length/5)  // 取得できたアクティビティ5件につき1件
+
+      // ボーナスブランチに変更があった場合は1件を1ポイントとする
+      add_exp += splited_items.filter(item => bonus_branchs.some(master => new RegExp('^' + master + '$').test(item.repo.name))).length;
 
       if(splited_items.length == 0) {
         // なんかアクションしてこい
