@@ -26,7 +26,7 @@ export default {
   computed: {
     twitterUrl() {
       return (
-        "https://twitter.com/share?url=" +
+        "https://twitter.com/intent/tweet?url=" +
         encodeURIComponent(this.url) +
         "&text=" +
         encodeURIComponent(this.message) +
