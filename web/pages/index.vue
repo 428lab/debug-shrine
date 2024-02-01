@@ -147,7 +147,7 @@ export default {
         this.$store.dispatch("logout");
         return;
       }
-      this.$store.commit("setToken", user.refreshToken);
+      this.$store.commit("setToken", user.accessToken);
     });
   },
   methods: {
