@@ -142,12 +142,13 @@ export default {
   },
   async beforeMount() {
     const auth = getAuth();
-    onAuthStateChanged(auth, (user) => {
+    onAuthStateChanged(auth, async (user) => {
       if (!user) {
         this.$store.dispatch("logout");
         return;
       }
-      this.$store.commit("setToken", user.accessToken);
+      const token = await user.getIdToken();
+      this.$store.commit("setToken", token);
     });
   },
   methods: {
