@@ -72,7 +72,7 @@ jobs:
         with:
           credentials_json: '${{ secrets.PROD_GCLOUD_SERVICE_KEY }}'
 
-      - name: 'Use Google Cloud CLI'
+      - name: 'Use gcloud CLI'
         run: 'gcloud auth list --filter=status:ACTIVE --format="value(account)"'
 
       - name: 'Set up gcloud Cloud SDK environment'
