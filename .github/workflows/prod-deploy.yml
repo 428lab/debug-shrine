@@ -1,3 +1,4 @@
+name: Product deploy
 on:
   push:
     branches:
