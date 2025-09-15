@@ -1,0 +1,25 @@
+services:
+  apps:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - "./firebase/bin:/root/.cache:cached"
+      - "./firebase/config:/root/.config:cached"
+      - "./app:/app"
+    ports:
+      - 4000:4000 # Emulator Suite UI
+      - 5000:5000 # Firebase Hosting
+      - 5001:5001 # Clound Functions
+      - 5002:5002 # App Hosting
+      - 8080:8080 # Cloud Firestore
+      - 9005:9005
+      - 9099:9099 # auth emulator
+      - 9199:9199 # storage emulator
+      - 8085:8085 # Cloud Pub/Sub
+    environment:
+      NODE_ENV: development
+    working_dir: /app
+    tty: true
+    stdin_open: true
+    command: /bin/bash

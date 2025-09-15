@@ -1,0 +1,8 @@
+{
+    "name": "debug-shrine dev container",
+    "dockerComposeFile": [
+        "../docker-compose.yaml"
+    ],
+    "service": "apps",
+    "workspaceFolder": "/app"
+}

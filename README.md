@@ -1,0 +1,1 @@
+macosユーザーはAirPlayを無効にすること
