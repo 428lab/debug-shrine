@@ -21,22 +21,29 @@
   },
   "emulators": {
     "apphosting": {
+      "host": "0.0.0.0",
       "port": 5002,
-      "rootDirectory": "./"
+      "rootDirectory": "./",
+      "startCommand": "npm exec -- vite dev --host 0.0.0.0 --port 5002"
     },
     "auth": {
+      "host": "0.0.0.0",
       "port": 9099
     },
     "firestore": {
+      "host": "0.0.0.0",
       "port": 8080
     },
     "pubsub": {
+      "host": "0.0.0.0",
       "port": 8085
     },
     "storage": {
+      "host": "0.0.0.0",
       "port": 9199
     },
     "ui": {
+      "host": "0.0.0.0",
       "enabled": true
     },
     "singleProjectMode": true
