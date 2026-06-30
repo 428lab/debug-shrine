@@ -59,6 +59,7 @@ export default {
   // Plugins to run before rendering page (https://go.nuxtjs.dev/config-plugins)
   plugins: [
     '~/plugins/persistedstate.js',
+    '~/plugins/sw-update.client.js',
   ],
 
   // Auto import components (https://go.nuxtjs.dev/config-components)
@@ -109,6 +110,13 @@ export default {
 
   // pwa module configuration
   pwa: {
+    // 新SWを待たせず即時有効化し、開いているクライアントの制御を奪う。
+    // (プラグイン sw-update.client.js がこの切替を検知して自動リロードする)
+    workbox: {
+      skipWaiting: true,
+      clientsClaim: true,
+      cleanupOutdatedCaches: true,
+    },
     manifest: {
       name: "でばっぐ神社",
       title: "でばっぐ神社",
