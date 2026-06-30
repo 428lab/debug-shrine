@@ -76,13 +76,5 @@ jobs:
 
       - name: firebase deploy
         run: |
-          set +e
-          firebase deploy --project d-shrine-dev --debug > /tmp/fb.log 2>&1
-          code=$?
-          echo "===== firebase deploy exit code: ${code} ====="
-          echo "===== error / failed lines ====="
-          grep -inE "error|failed|denied|permission|quota|exceed|invalid|unauthor|abort|resource_exhausted|http error|status code" /tmp/fb.log | tail -80
-          echo "===== last 80 lines of debug log ====="
-          tail -80 /tmp/fb.log
-          exit "${code}"
+          firebase deploy --project d-shrine-dev
         working-directory: ./app
