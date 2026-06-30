@@ -995,10 +995,10 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
         msg = "2022/1/1〜2022/1/3はポイント3倍！"
       }
 
-      // 更新
+      // 参拝可能時間のロックのため last_sanpai を先に確定させる
+      // (exp/status は計算後の下の update でまとめて反映する)
       await userRef.update({
-        last_sanpai: FieldValue.serverTimestamp(),
-        exp: FieldValue.increment(add_exp)
+        last_sanpai: FieldValue.serverTimestamp()
       })
       const sanpai_logsRef = userRef.collection("sanpai_logs")
       const sanpaiRes = await sanpai_logsRef.add({
