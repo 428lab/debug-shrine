@@ -22,6 +22,20 @@ GitHubのアクティビティを取得して更新
 ユーザー自身のページ  
 称号などユーザーが編集するデータとか?
 
+## `sanpai` レスポンスの変化情報
+
+参拝結果画面で「変化」を表示するため、`sanpai` 成功時のレスポンスに以下を含める。
+
+- `points_before` / `points_after` … ポイント(経験値)の参拝前後
+- `power_before` / `power_after` … 戦闘力(status.total)の参拝前後
+- `level_before` / `level_after` … レベルの参拝前後(いずれも戦闘力から `get_level` で算出)
+- `updated_repo_count` … 今回の参拝で更新したリポジトリ数(新着アクティビティの distinct repo)
+- `action_count` … 今回のアクション数(新着アクティビティの総件数。ポイント算出の元と同じ)
+  - GitHub Events API は 2025-10-07 に PushEvent payload から `commits` / `size` を
+    削除しコミット数が取得できないため、event 種別を問わない新着件数を用いる。
+
+`expire` / `noaction` 時はこれらの変化情報は含まない。
+
 ## 能力解析キャッシュ (`userData.status`)
 
 マイページ／プロフィール表示は `status` エンドポイントを呼ぶ。解析結果は

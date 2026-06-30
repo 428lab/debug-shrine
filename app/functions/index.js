@@ -11,6 +11,7 @@ const cors = require("cors")({
   origin: true
 })
 const {
+  get_level,
   user_performance,
   user_formatted_performance,
   raw_user_data_from_status,
@@ -938,13 +939,35 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
         status: userStatusData,
         last_activity_created_at: last_activity_created_at
       })
+
+      // 参拝による変化(before/after)を算出してフロントの変化表示に渡す
+      const power_before = userData.status ? userData.status.total : 0
+      const points_before = userData.exp ? userData.exp : 0
+      const level_before = get_level(power_before)
+      // 今回の参拝で更新したリポジトリ数とアクション数。
+      // アクション数は今回取得した新着アクティビティの総件数(ポイント算出の元と同じ)。
+      // GitHub Events API は 2025-10-07 に PushEvent payload から commits/size を
+      // 削除しコミット数が取得できないため、event 種別を問わない件数を用いる。
+      const updated_repo_count = new Set(
+        splited_items.map(item => item.repo && item.repo.name).filter(Boolean)
+      ).size
+      const action_count = splited_items.length
+
       let return_data = {
         status: "success",
         add_exp: add_exp,
         level: userStatusData.level,
         exp: userStatusData.points,
         next_exp: userStatusData.next_exp,
-        msg: msg
+        msg: msg,
+        points_before: points_before,
+        points_after: userStatusData.points,
+        power_before: power_before,
+        power_after: userStatusData.total,
+        level_before: level_before,
+        level_after: userStatusData.level,
+        updated_repo_count: updated_repo_count,
+        action_count: action_count
       }
       if(splited_items.length == 0) {
         // アクティビティがないっぽい
