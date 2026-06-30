@@ -115,7 +115,7 @@
     <nuxt-link class="btn btn-lg btn-primary" to="/dashboard">
       マイページを見る
     </nuxt-link>
-    <Loading v-if="isLoading" message="ブンセキチュウ..."></Loading>
+    <Loading v-if="isLoading" :messages="loadingMessages"></Loading>
   </div>
 </template>
 
@@ -140,6 +140,14 @@ export default {
       isLoading: true,
       isError: false,
       result: "",
+      loadingMessages: [
+        "ブンセキチュウ...",
+        "コミットをかぞえています",
+        "御神木にお伺いを立てています",
+        "バグを祓っています",
+        "戦闘力をはかっています",
+        "おみくじを準備しています",
+      ],
       status: {
         level: 0,
         point: 0,

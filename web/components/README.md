@@ -17,4 +17,6 @@ _Nuxt.js doesn't supercharge these components._
 - `ShareText.vue` … SNS投稿用テキストを表示し、ワンクリックでクリップボードへコピーする。
   テキストエリアは編集可能。props: `text` `title`。
 
-`Loading.vue`（鳥居＋スピナー）が参拝の解析中アニメーションを担う。
+- `Loading.vue` … 解析中/読込中のフルスクリーン演出。ふわふわ浮く鳥居＋発光、
+  舞い上がる光の粒、順に灯る提灯（進捗感）で構成。props: `message`（単一）、
+  `messages`（配列を渡すと一定間隔で巡回表示。参拝の解析中に使用）、`interval`。
