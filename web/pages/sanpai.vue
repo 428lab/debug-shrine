@@ -135,7 +135,7 @@ export default {
     },
   },
   computed: {
-    ...mapGetters(["user", "token"]),
+    ...mapGetters(["user"]),
     shareUrl() {
       return this.$config.baseUrl;
     },
