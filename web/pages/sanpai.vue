@@ -60,8 +60,18 @@
 </template>
 
 <script>
-import { getAuth } from "firebase/auth";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { mapGetters } from "vuex";
+
+// 認証状態の復元は非同期のため、最初に確定したユーザーを待ち受ける
+function resolveCurrentUser(auth) {
+  return new Promise((resolve) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe();
+      resolve(user);
+    });
+  });
+}
 
 export default {
   middleware: ["auth"],
@@ -78,6 +88,19 @@ export default {
     };
   },
   async mounted() {
+    const auth = getAuth();
+    const currentUser = await resolveCurrentUser(auth);
+    if (!currentUser) {
+      // 本当に未ログイン
+      this.$store.dispatch("logout");
+      this.isLoading = false;
+      return;
+    }
+    // IDトークンは発行から1時間で失効するため、送信直前に再取得する
+    // (失効していれば Firebase SDK が自動でリフレッシュする)
+    const token = await currentUser.getIdToken();
+    this.$store.commit("setToken", token);
+
     let payload = {
       github_id: this.user.github_id,
       screen_name: this.user.screen_name,
@@ -86,7 +109,7 @@ export default {
       payload,
       {
         headers: {
-          Authorization: `Bearer ${this.token}`
+          Authorization: `Bearer ${token}`
         }
       })
       .catch(e=>{
