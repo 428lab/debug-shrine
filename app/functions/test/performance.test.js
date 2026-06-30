@@ -128,6 +128,24 @@ test("latest_activity_created_at: 最新の created_at を返す", () => {
   assert.strictEqual(latest_activity_created_at(items), iso(5000))
 })
 
+test("compute_performance_increment: 不変条件違反(新着が境界より前)で警告を出す", () => {
+  const base = { user: "u", hp: 0, power: 0, defence: 0, agility: 0, intelligence: 0 }
+  const orig = console.warn
+  let warned = 0
+  console.warn = () => { warned++ }
+  try {
+    // 境界より前の created_at を渡す
+    compute_performance_increment(base, [item("PushEvent", 1000)], iso(5000))
+    assert.strictEqual(warned, 1)
+    // 境界より後なら警告は出ない
+    warned = 0
+    compute_performance_increment(base, [item("PushEvent", 9000)], iso(5000))
+    assert.strictEqual(warned, 0)
+  } finally {
+    console.warn = orig
+  }
+})
+
 // ============================================================
 // 増分計算の等価性(プロパティテスト)
 // ============================================================

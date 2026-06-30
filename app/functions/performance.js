@@ -6,7 +6,7 @@ const moment = require("moment")
 const target_points = [0,5,11,19,30,45,65,91,124,166,218,281,357,447,553,676,818,981,1167,1378,1616,1884,2184,2519,2892,3306,3764,4269,4825,5436,6106,6840,7643,8520,9477,10520,11656,12892,14236,15696,17281,19001,20867,22891,25086,27466,30046,32842,35872,39156]
 
 function get_level(points) {
-  level = 0
+  let level = 0
   for (let i=0; i < target_points.length; i++) {
     if (points <= target_points[i]) {
       level = i + 1
@@ -37,16 +37,16 @@ function user_performance(items, username) {
   }
 
 
-  previousItem = null
-  continuous_count = 0
+  let previousItem = null
+  let continuous_count = 0
   let sorted_item = items.sort(function(a, b) {
     return (moment(a.created_at).unix() < moment(b.created_at).unix()) ? -1 : 1
   })
   for (const item of sorted_item) {
     if (previousItem) {
-      previous_time = moment(previousItem.created_at)
-      current_time = moment(item.created_at)
-      diff = current_time.diff(previous_time)/1000
+      let previous_time = moment(previousItem.created_at)
+      let current_time = moment(item.created_at)
+      let diff = current_time.diff(previous_time)/1000
       if (30 < diff && diff <= 120) {
         user_data.agility += 6
       } else if (diff <= 180) {
@@ -180,6 +180,14 @@ function latest_activity_created_at(items) {
 // (previous_created_at と新着先頭の時間差)だけがクロスバッチ依存となるため、
 // 全件を再集計せずとも全件計算と同一の結果が得られる。
 // hp は「diff<=7200秒のペア数*2」であり、user_performance の continuous_count*2 と等価。
+//
+// 【前提となる不変条件】全件計算と一致するのは以下が成り立つ場合のみ:
+//   1. new_items は base_user_data に未集計のイベントだけで構成される(二重計上しない)。
+//   2. new_items の全イベントが previous_created_at(=累積済みイベントの最大時刻)より後である。
+//   3. previous_created_at は累積済みイベントの最大 created_at である。
+// 呼び出し側(sanpai)は「created_at > last_sanpai」で new_items を抽出し、
+// previous_created_at に保存済み最大時刻(last_activity_created_at)を渡すことでこれを満たす。
+// この前提が崩れると全件計算と不一致になり得るため、崩れた場合は警告ログを出す。
 function compute_performance_increment(base_user_data, new_items, previous_created_at) {
   let user_data = {
     user: base_user_data.user,
@@ -193,6 +201,11 @@ function compute_performance_increment(base_user_data, new_items, previous_creat
   let sorted_items = [...new_items].sort(function(a, b) {
     return (moment(a.created_at).unix() < moment(b.created_at).unix()) ? -1 : 1
   })
+  // 不変条件2の検知: 新着の最古イベントが境界より前なら前提が崩れている
+  if (previous_created_at && sorted_items.length > 0 &&
+      moment(sorted_items[0].created_at).unix() < moment(previous_created_at).unix()) {
+    console.warn(`[performance] 増分計算の前提違反: 新着の最古イベント(${sorted_items[0].created_at})が境界(${previous_created_at})より前です。全件計算と不一致になり得ます。`)
+  }
   let prev_created_at = previous_created_at
   for (const item of sorted_items) {
     if (prev_created_at) {

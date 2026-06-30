@@ -877,7 +877,10 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
       let raw_user_data
       let last_activity_created_at
       if (userData.status && userData.last_activity_created_at) {
-        // 保存済みステータスに新着分だけを加算(全件再集計しない)
+        // 保存済みステータスに新着分だけを加算(全件再集計しない)。
+        // splited_items は「created_at > last_sanpai」で抽出した未集計イベントのみ、
+        // last_activity_created_at は累積済みイベントの最大時刻であり、
+        // compute_performance_increment の不変条件(新着は累積分より後)を満たす。
         const base_user_data = raw_user_data_from_status(userData.status, userData.screen_name)
         const increment = compute_performance_increment(base_user_data, splited_items, userData.last_activity_created_at)
         raw_user_data = increment.user_data
