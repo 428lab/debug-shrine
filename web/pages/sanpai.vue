@@ -1,13 +1,16 @@
 <template>
   <div class="text-center">
     <div class="container" v-if="status">
+      <transition name="result-fade">
       <div v-if="result === 'success'">
         <div class="p-5">
           <img
             src="/sanpai/success_01.png"
             alt="でばっぐ神社"
             class="w-100"
-            style="max-width: 700px"
+            width="1500"
+            height="730"
+            style="max-width: 700px; height: auto"
           />
         </div>
         <div class="fs-1">「殊勝なことじゃ。きっと良きことがあるぞよ。」</div>
@@ -81,7 +84,9 @@
             src="/sanpai/expire_01.png"
             alt="でばっぐ神社"
             class="w-100"
-            style="max-width: 700px"
+            width="795"
+            height="723"
+            style="max-width: 700px; height: auto"
           />
         </div>
         <div class="fs-1">
@@ -95,7 +100,9 @@
             src="/sanpai/noaction_01.png"
             alt="でばっぐ神社"
             class="w-100"
-            style="max-width: 700px"
+            width="800"
+            height="749"
+            style="max-width: 700px; height: auto"
           />
         </div>
         <div class="fs-1">
@@ -103,6 +110,7 @@
         </div>
         <div class="fs-4 mt-4">追加のポイントはありませんでした</div>
       </div>
+      </transition>
     </div>
     <!-- v-if="result === 'success'" -->
     <div class="my-5">
@@ -115,7 +123,9 @@
     <nuxt-link class="btn btn-lg btn-primary" to="/dashboard">
       マイページを見る
     </nuxt-link>
-    <Loading v-if="isLoading" :messages="loadingMessages"></Loading>
+    <transition name="loading-fade">
+      <Loading v-if="isLoading" :messages="loadingMessages"></Loading>
+    </transition>
   </div>
 </template>
 
@@ -256,5 +266,26 @@ export default {
 }
 .result-activity > div {
   min-width: 130px;
+}
+
+/* 結果ブロックのフェードイン(下からふわっと) */
+.result-fade-enter-active {
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.result-fade-enter {
+  opacity: 0;
+  transform: translateY(16px);
+}
+.result-fade-enter-to {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ローディング表示のフェードアウト */
+.loading-fade-leave-active {
+  transition: opacity 0.45s ease;
+}
+.loading-fade-leave-to {
+  opacity: 0;
 }
 </style>
