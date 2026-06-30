@@ -5,3 +5,16 @@
 The components directory contains your Vue.js Components.
 
 _Nuxt.js doesn't supercharge these components._
+
+## 参拝結果の演出コンポーネント
+
+`pages/sanpai.vue`（参拝結果）で使う、変化表示・演出系の再利用コンポーネント。
+
+- `CountUp.vue` … 数値を `from`→`value` までアニメーションで増加表示する汎用コンポーネント。
+  ポイント・戦闘力などに使用。props: `value` `from` `duration` `delay` `prefix` `suffix`。
+- `LevelUpBanner.vue` … レベルアップ時に派手に表示するバナー。`from`/`to` を受け取り、
+  レベルが上がった時だけ親側で `v-if` 表示する。
+- `ShareText.vue` … SNS投稿用テキストを表示し、ワンクリックでクリップボードへコピーする。
+  テキストエリアは編集可能。props: `text` `title`。
+
+`Loading.vue`（鳥居＋スピナー）が参拝の解析中アニメーションを担う。
