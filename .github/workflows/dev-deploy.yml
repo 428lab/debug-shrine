@@ -76,5 +76,5 @@ jobs:
 
       - name: firebase deploy
         run: |
-          firebase deploy --project d-shrine-dev
+          firebase deploy --project d-shrine-dev --force
         working-directory: ./app
