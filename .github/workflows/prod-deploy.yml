@@ -12,7 +12,7 @@ jobs:
   deploy:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Run actionlint
         shell: bash
@@ -22,12 +22,12 @@ jobs:
           ./actionlint -color
 
       - name: setup node
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v4
         with:
           node-version: "18"
 
       - name: cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.npm
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
@@ -64,14 +64,14 @@ jobs:
         run: |
           set -ex
           echo "${{ secrets.PROD_GCLOUD_SERVICE_KEY }}" | base64 -d > ${{ env.GCP_KEY_PATH }}
-      - uses: 'google-github-actions/auth@v1'
+      - uses: 'google-github-actions/auth@v2'
         with:
           credentials_json: '${{ secrets.PROD_GCLOUD_SERVICE_KEY }}'
       - name: 'Use gcloud CLI'
         run: 'gcloud auth list --filter=status:ACTIVE --format="value(account)"'
 
       - name: 'Set up Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v1'
+        uses: 'google-github-actions/setup-gcloud@v2'
         with:
           install_components: ''
           project_id: 'd-shrine'
