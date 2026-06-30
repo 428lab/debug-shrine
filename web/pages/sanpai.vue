@@ -65,9 +65,9 @@
               </div>
             </div>
             <div class="mx-3">
-              <div class="fs-6">ステップ(コミット)</div>
+              <div class="fs-6">アクション</div>
               <div class="fs-3">
-                <CountUp :value="status.commitCount" :delay="900" />
+                <CountUp :value="status.actionCount" :delay="900" />
               </div>
             </div>
           </div>
@@ -170,7 +170,7 @@ export default {
         levelBefore: 0,
         levelAfter: 0,
         updatedRepoCount: 0,
-        commitCount: 0,
+        actionCount: 0,
       },
     };
   },
@@ -216,7 +216,7 @@ export default {
       this.status.levelBefore = d.level_before != null ? d.level_before : 0;
       this.status.levelAfter = d.level_after != null ? d.level_after : d.level;
       this.status.updatedRepoCount = d.updated_repo_count != null ? d.updated_repo_count : 0;
-      this.status.commitCount = d.commit_count != null ? d.commit_count : 0;
+      this.status.actionCount = d.action_count != null ? d.action_count : 0;
       this.result = d.status;
       this.isLoading = false;
     } else {
@@ -246,7 +246,7 @@ export default {
           (this.powerDelta > 0 ? ` (+${this.powerDelta})` : ""),
         `レベル: Lv.${this.status.levelAfter}` +
           (this.isLevelUp ? `（${this.status.levelBefore}からレベルアップ！）` : ""),
-        `更新リポジトリ: ${this.status.updatedRepoCount} / ステップ: ${this.status.commitCount}`,
+        `更新リポジトリ: ${this.status.updatedRepoCount} / アクション: ${this.status.actionCount}`,
         "#でばっぐ神社",
         this.shareUrl,
       ];
