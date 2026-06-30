@@ -944,14 +944,14 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
       const power_before = userData.status ? userData.status.total : 0
       const points_before = userData.exp ? userData.exp : 0
       const level_before = get_level(power_before)
-      // 今回の参拝で更新したリポジトリ数とプッシュ回数。
+      // 今回の参拝で更新したリポジトリ数とアクション数。
+      // アクション数は今回取得した新着アクティビティの総件数(ポイント算出の元と同じ)。
       // GitHub Events API は 2025-10-07 に PushEvent payload から commits/size を
-      // 削除したため、コミット数は events からは取得できない。取得可能な
-      // PushEvent の件数(プッシュ回数)を用いる。
+      // 削除しコミット数が取得できないため、event 種別を問わない件数を用いる。
       const updated_repo_count = new Set(
         splited_items.map(item => item.repo && item.repo.name).filter(Boolean)
       ).size
-      const push_count = splited_items.filter(item => item.type === "PushEvent").length
+      const action_count = splited_items.length
 
       let return_data = {
         status: "success",
@@ -967,7 +967,7 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
         level_before: level_before,
         level_after: userStatusData.level,
         updated_repo_count: updated_repo_count,
-        push_count: push_count
+        action_count: action_count
       }
       if(splited_items.length == 0) {
         // アクティビティがないっぽい
