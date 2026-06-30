@@ -249,6 +249,44 @@ exports.rankingCache = functions.pubsub.schedule('every 120 minutes').onRun( asy
   })
 });
 
+exports.statusCacheBackfill = functions.runWith({
+  timeoutSeconds: 300,
+  memory: "512MB"
+}).pubsub.schedule('every 30 minutes').onRun( async (context) => {
+  functions.logger.info("status cache backfill", {structuredData: true})
+  const MAX_PER_RUN = 10
+  // 直近半年以内に参拝(活動)があるユーザーのみ対象。休眠ユーザーは除外する。
+  const active_since = Timestamp.fromDate(moment().subtract(6, "months").toDate())
+  const snapshot = await db.collection("users").where("last_sanpai", ">=", active_since).get()
+  let processed = 0
+  for (const userDoc of snapshot.docs) {
+    if (processed >= MAX_PER_RUN) break
+    const userData = userDoc.data()
+    if (userData.status) continue
+
+    const userRef = userDoc.ref
+    const raw_activities_list = await get_activity_list(userRef)
+    let appendData = {}
+    if (userData.exp) {
+      appendData.exp = userData.exp
+    }
+    appendData.user = {
+      display_name: userData.display_name,
+      screen_name: userData.screen_name,
+      github_image_path: userData.image_path
+    }
+    const user_data = user_performance(raw_activities_list, userData.screen_name)
+    const status = user_formatted_performance(user_data, appendData)
+    await userRef.update({
+      status: status,
+      last_activity_created_at: latest_activity_created_at(raw_activities_list)
+    })
+    processed++
+    functions.logger.info(`backfilled status: ${userData.screen_name}`)
+  }
+  functions.logger.info(`status cache backfill done: ${processed} users`)
+});
+
 exports.status = functions.https.onRequest(async (request, response) => {
   cors(request, response, async()=> {
     functions.logger.info("status", {structuredData: true})
