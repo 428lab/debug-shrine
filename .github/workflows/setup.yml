@@ -80,8 +80,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-node-
 
+      # テストは performance.js(moment のみ依存)を検証するため、
+      # canvas 等のネイティブビルド(OGP生成専用)は不要。--ignore-scripts で高速・堅牢化する。
       - name: install functions deps
-        run: npm install
+        run: npm install --ignore-scripts
         working-directory: ./app/functions
 
       - name: run functions tests
