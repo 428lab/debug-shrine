@@ -30,7 +30,10 @@ GitHubのアクティビティを取得して更新
 - `power_before` / `power_after` … 戦闘力(status.total)の参拝前後
 - `level_before` / `level_after` … レベルの参拝前後(いずれも戦闘力から `get_level` で算出)
 - `updated_repo_count` … 今回の参拝で更新したリポジトリ数(新着アクティビティの distinct repo)
-- `commit_count` … 今回のステップ(コミット)数(新着 PushEvent の `payload.size` 合計)
+- `push_count` … 今回のプッシュ回数(新着 PushEvent の件数)
+  - GitHub Events API は 2025-10-07 に PushEvent payload から `commits` / `size` を
+    削除したため、コミット数は events から取得できない。取得可能な PushEvent の
+    件数(プッシュ回数)を返す。
 
 `expire` / `noaction` 時はこれらの変化情報は含まない。
 
