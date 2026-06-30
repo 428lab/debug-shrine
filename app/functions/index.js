@@ -333,6 +333,108 @@ function user_formatted_performance(user_data, append_data={}) {
 }
 
 
+// 保存済み status から user_performance 相当の生ステータスを復元する
+function raw_user_data_from_status(status, username) {
+  return {
+    user: username,
+    hp: status.hp,
+    power: status.power,
+    defence: status.defence,
+    dex: 0,
+    agility: status.agility,
+    intelligence: status.intelligence
+  }
+}
+
+// アクティビティ群の中で最も新しい created_at を返す(無ければ null)
+function latest_activity_created_at(items) {
+  return items.reduce((latest, item) => {
+    if (!latest) return item.created_at
+    return (moment(item.created_at).unix() > moment(latest).unix()) ? item.created_at : latest
+  }, null)
+}
+
+// 累積ステータス(base_user_data)に新着アクティビティ分だけを加算する増分計算。
+// user_performance の per-event / per-pair の寄与は加算的で、バッチ境界
+// (previous_created_at と新着先頭の時間差)だけがクロスバッチ依存となるため、
+// 全件を再集計せずとも全件計算と同一の結果が得られる。
+// hp は「diff<=7200秒のペア数*2」であり、user_performance の continuous_count*2 と等価。
+function compute_performance_increment(base_user_data, new_items, previous_created_at) {
+  let user_data = {
+    user: base_user_data.user,
+    hp: base_user_data.hp,
+    power: base_user_data.power,
+    defence: base_user_data.defence,
+    dex: base_user_data.dex || 0,
+    agility: base_user_data.agility,
+    intelligence: base_user_data.intelligence
+  }
+  let sorted_items = [...new_items].sort(function(a, b) {
+    return (moment(a.created_at).unix() < moment(b.created_at).unix()) ? -1 : 1
+  })
+  let prev_created_at = previous_created_at
+  for (const item of sorted_items) {
+    if (prev_created_at) {
+      let diff = moment(item.created_at).diff(moment(prev_created_at)) / 1000
+      if (30 < diff && diff <= 120) {
+        user_data.agility += 6
+      } else if (diff <= 180) {
+        user_data.agility += 3
+      } else if (diff <= 300) {
+        user_data.agility += 2
+      } else if (diff <= 1200) {
+        user_data.agility += 1
+      }
+      if (diff <= 7200) {
+        user_data.hp += 2
+      }
+    }
+    switch (item.type) {
+      case "ForkEvent":
+        user_data.power += 1
+        break
+      case "PushEvent":
+        user_data.power += 2
+        break
+      case "CreateEvent":
+      case "DeleteEvent":
+        user_data.power += 1
+        break
+      case "PullRequestEvent":
+        user_data.power += 3
+        break
+      case "IssuesEvent":
+        switch (item.payload) {
+          case "opened":
+            user_data.intelligence += 3
+            break
+          case "closed":
+            user_data.defence += 5
+            break
+        }
+        break
+      case "IssueCommentEvent":
+        user_data.intelligence += 2
+        break
+      case "PullRequestReviewEvent":
+        user_data.defence += 3
+        break
+      case "PullRequestReviewCommentEvent":
+        user_data.defence += 3
+        break
+      case "GollumEvent":
+        user_data.defence += 3
+        break
+      case "ReleaseEvent":
+        user_data.defence += 10
+        break
+    }
+    prev_created_at = item.created_at
+  }
+  return { user_data: user_data, last_created_at: prev_created_at }
+}
+
+
 async function get_ranking(db, screen_name) {
   const rankingCache = await db.collection("cache_data").doc("ranking_cache").get()
   let response = {}
@@ -1018,14 +1120,28 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
         github_image_path: userData.image_path
       }
 
-      const raw_activities_list = await get_activity_list(userRef)
+      let raw_user_data
+      let last_activity_created_at
+      if (userData.status && userData.last_activity_created_at) {
+        // 保存済みステータスに新着分だけを加算(全件再集計しない)
+        const base_user_data = raw_user_data_from_status(userData.status, userData.screen_name)
+        const increment = compute_performance_increment(base_user_data, splited_items, userData.last_activity_created_at)
+        raw_user_data = increment.user_data
+        last_activity_created_at = increment.last_created_at
+      } else {
+        // 初回(status未保存)は全アクティビティから計算し、増分計算の基準を初期化する
+        const raw_activities_list = await get_activity_list(userRef)
+        raw_user_data = user_performance(raw_activities_list, userData.screen_name)
+        last_activity_created_at = latest_activity_created_at(raw_activities_list)
+      }
 
-      userStatusData = user_formatted_performance(user_performance(raw_activities_list, userData.screen_name), userAppendData)
+      userStatusData = user_formatted_performance(raw_user_data, userAppendData)
 
       await userRef.update({
         last_sanpai: FieldValue.serverTimestamp(),
         exp: FieldValue.increment(add_exp),
-        status: userStatusData
+        status: userStatusData,
+        last_activity_created_at: last_activity_created_at
       })
       let return_data = {
         status: "success",
