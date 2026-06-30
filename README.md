@@ -1,5 +1,7 @@
 # debug-shrine
 
+🔗 **Live:** https://d-shrine.jp
+
 ## Build
 
 ```bash

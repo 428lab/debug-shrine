@@ -10,6 +10,13 @@ const { ChartJSNodeCanvas } = require("chartjs-node-canvas")
 const cors = require("cors")({
   origin: true
 })
+const {
+  user_performance,
+  user_formatted_performance,
+  raw_user_data_from_status,
+  latest_activity_created_at,
+  compute_performance_increment
+} = require("./performance")
 
 const projectID = process.env.GCLOUD_PROJECT
 const buggetName = `${projectID}.appspot.com`
@@ -37,7 +44,6 @@ const fontStyle = {
   lineHeight: 100,
   color: "#FFFFFF"
 }
-const target_points = [0,5,11,19,30,45,65,91,124,166,218,281,357,447,553,676,818,981,1167,1378,1616,1884,2184,2519,2892,3306,3764,4269,4825,5436,6106,6840,7643,8520,9477,10520,11656,12892,14236,15696,17281,19001,20867,22891,25086,27466,30046,32842,35872,39156]
 const date_now = (moment()).unix()
 const date_low = moment("2022-01-01T00:00:00Z").subtract(9, 'hours').unix()
 const date_max = moment("2022-01-04T00:00:00Z").subtract(9, 'hours').unix()
@@ -59,27 +65,6 @@ const sanpai = {
 
 // Create and Deploy Your First Cloud Functions
 // https://firebase.google.com/docs/functions/write-firebase-functions
-
-function get_level(points) {
-  level = 0
-  for (let i=0; i < target_points.length; i++) {
-    if (points <= target_points[i]) {
-      level = i + 1
-      break
-    }
-  }
-  return level
-}
-
-function get_next_leve_exp(points) {
-  let level = get_level(points)
-  let return_data = {
-    next_level: level + 1,
-    next_exp: target_points[level]
-  }
-  return return_data
-}
-
 
 async function get_feed(user, per_page=100) {
   functions.logger.info("get_feed")
@@ -201,135 +186,6 @@ async function get_activity_list(userRef) {
     raw_activities_list.push(JSON.parse(postDoc.data().raw))
   })
   return raw_activities_list
-}
-
-
-function user_performance(items, username) {
-  let user_data = {
-    user: username,
-    hp: 0,
-    power: 0,
-    defence: 0,
-    dex: 0,
-    agility: 0,
-    intelligence: 0
-  }
-
-
-  previousItem = null
-  continuous_count = 0
-  let sorted_item = items.sort(function(a, b) {
-    return (moment(a.created_at).unix() < moment(b.created_at).unix()) ? -1 : 1
-  })
-  for (const item of sorted_item) {
-    if (previousItem) {
-      previous_time = moment(previousItem.created_at)
-      current_time = moment(item.created_at)
-      diff = current_time.diff(previous_time)/1000
-      if (30 < diff && diff <= 120) {
-        user_data.agility += 6
-      } else if (diff <= 180) {
-        user_data.agility += 3
-      } else if (diff <= 300) {
-        user_data.agility += 2
-      } else if (diff <= 1200) {
-        user_data.agility += 1
-      }
-      if (diff <= 7200) {
-        continuous_count++
-      } else {
-        user_data.hp += continuous_count * 2
-        continuous_count = 0
-      }
-    }
-    switch (item.type) {
-      case "ForkEvent":
-        user_data.power += 1
-        break
-      case "PushEvent":
-        user_data.power += 2
-        break
-      case "CreateEvent":
-      case "DeleteEvent":
-        user_data.power += 1
-        break
-      case "PullRequestEvent":
-        user_data.power += 3
-        break
-      case "IssuesEvent":
-        switch (item.payload) {
-          case "opened":
-            user_data.intelligence += 3
-            break
-          case "closed":
-            user_data.defence += 5
-            break
-        }
-        break
-      case "IssueCommentEvent":
-        user_data.intelligence += 2
-        break
-      case "PullRequestReviewEvent":
-        user_data.defence += 3
-        break
-      case "PullRequestReviewCommentEvent":
-        user_data.defence += 3
-        break
-      case "GollumEvent":
-        user_data.defence += 3
-        break
-      case "ReleaseEvent":
-        user_data.defence += 10
-        break
-    }
-    previousItem = item
-  }
-  if (continuous_count > 0) {
-    user_data.hp += continuous_count * 2
-  }
-
-  return user_data
-}
-
-function user_formatted_performance(user_data, append_data={}) {
-  let return_Data = {
-    user: user_data.user,
-    points: 0,
-    hp: user_data.hp,
-    power: user_data.power,
-    intelligence: user_data.intelligence,
-    defence: user_data.defence,
-    agility: user_data.agility,
-    total: user_data.hp + user_data.power + user_data.intelligence + user_data.defence + user_data.agility,
-    level: 0,
-    exp: 0,
-    next_exp: 0,
-    chart: {
-      hp: 0,
-      power: 0,
-      intelligence: 0,
-      defence: 0,
-      agility: 0
-    }
-  }
-  // 経験値を反映
-  if(append_data.exp) {
-    return_Data.exp += append_data.exp
-    return_Data.points = append_data.exp
-  }
-  if(append_data.user) {
-    return_Data.user = append_data.user
-  }
-
-  return_Data.chart.hp = return_Data.hp
-  return_Data.chart.power = return_Data.power,
-  return_Data.chart.intelligence = return_Data.intelligence
-  return_Data.chart.defence = return_Data.defence
-  return_Data.chart.agility = return_Data.agility
-
-  return_Data.level = get_level(return_Data.total)
-  return_Data.next_exp = get_next_leve_exp(return_Data.total).next_exp
-  return return_Data
 }
 
 
@@ -995,10 +851,10 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
         msg = "2022/1/1〜2022/1/3はポイント3倍！"
       }
 
-      // 更新
+      // 参拝可能時間のロックのため last_sanpai を先に確定させる
+      // (exp/status は計算後の下の update でまとめて反映する)
       await userRef.update({
-        last_sanpai: FieldValue.serverTimestamp(),
-        exp: FieldValue.increment(add_exp)
+        last_sanpai: FieldValue.serverTimestamp()
       })
       const sanpai_logsRef = userRef.collection("sanpai_logs")
       const sanpaiRes = await sanpai_logsRef.add({
@@ -1018,14 +874,31 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
         github_image_path: userData.image_path
       }
 
-      const raw_activities_list = await get_activity_list(userRef)
+      let raw_user_data
+      let last_activity_created_at
+      if (userData.status && userData.last_activity_created_at) {
+        // 保存済みステータスに新着分だけを加算(全件再集計しない)。
+        // splited_items は「created_at > last_sanpai」で抽出した未集計イベントのみ、
+        // last_activity_created_at は累積済みイベントの最大時刻であり、
+        // compute_performance_increment の不変条件(新着は累積分より後)を満たす。
+        const base_user_data = raw_user_data_from_status(userData.status, userData.screen_name)
+        const increment = compute_performance_increment(base_user_data, splited_items, userData.last_activity_created_at)
+        raw_user_data = increment.user_data
+        last_activity_created_at = increment.last_created_at
+      } else {
+        // 初回(status未保存)は全アクティビティから計算し、増分計算の基準を初期化する
+        const raw_activities_list = await get_activity_list(userRef)
+        raw_user_data = user_performance(raw_activities_list, userData.screen_name)
+        last_activity_created_at = latest_activity_created_at(raw_activities_list)
+      }
 
-      userStatusData = user_formatted_performance(user_performance(raw_activities_list, userData.screen_name), userAppendData)
+      userStatusData = user_formatted_performance(raw_user_data, userAppendData)
 
       await userRef.update({
         last_sanpai: FieldValue.serverTimestamp(),
         exp: FieldValue.increment(add_exp),
-        status: userStatusData
+        status: userStatusData,
+        last_activity_created_at: last_activity_created_at
       })
       let return_data = {
         status: "success",
