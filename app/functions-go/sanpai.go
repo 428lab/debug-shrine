@@ -104,7 +104,9 @@ func getFirebaseAuthClient(ctx context.Context) (*auth.Client, error) {
 	return firebaseAuthClient, firebaseAuthErr
 }
 
-var githubHTTPClient = &http.Client{Timeout: 15 * time.Second}
+// Node版(axios)はクライアント側タイムアウトを設定していないため、Go版も揃える
+// (呼び出し全体の上限は Cloud Run functions のリクエストタイムアウト設定で担保する)。
+var githubHTTPClient = &http.Client{}
 
 // githubAPIBaseURL はテストでモックサーバーに差し替えるためのフック。
 var githubAPIBaseURL = "https://api.github.com"
@@ -115,6 +117,7 @@ type githubEvent struct {
 	ID        string `json:"id"`
 	Type      string `json:"type"`
 	CreatedAt string `json:"created_at"`
+	Payload   any    `json:"payload"`
 	Repo      struct {
 		Name string `json:"name"`
 	} `json:"repo"`
@@ -148,6 +151,11 @@ func fetchGitHubFeed(ctx context.Context, username string) ([]feedItem, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	log.Printf(
+		"GitHub X-RateLimit-Limit: %s, X-RateLimit-Reset: %s, X-RateLimit-Used: %s",
+		resp.Header.Get("X-RateLimit-Limit"), resp.Header.Get("X-RateLimit-Reset"), resp.Header.Get("X-RateLimit-Used"),
+	)
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -340,6 +348,13 @@ func runSanpai(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 		return err
 	}
 
+	// 意図的な省略: Node版にはここに「2022/1/1〜1/3はポイント3倍」という
+	// 期間限定ボーナス(get_bonus_mag/msg)があるが、判定基準の date_now が
+	// Node側でコールドスタート時刻に固定される実装のため、対象期間(2022年)を
+	// 過ぎた現在は常に等倍(bonus_mag=1, msg="")になり実害がない。将来にわたり
+	// 再度真になることのない期間限定ロジックのため、Go版では意図的に移植せず
+	// msg は常に空文字とする(詳細は docs/backend.md 参照)。
+
 	// 参拝可能時間のロックのため last_sanpai を先に確定させる
 	// (exp/status は計算後の下の update でまとめて反映する)
 	if _, err := userRef.Update(ctx, []firestore.Update{
@@ -359,7 +374,7 @@ func runSanpai(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 
 	activities := make([]performance.Activity, len(splited))
 	for i, it := range splited {
-		activities[i] = performance.Activity{Type: it.Event.Type, CreatedAt: it.Event.CreatedAt}
+		activities[i] = performance.Activity{Type: it.Event.Type, CreatedAt: it.Event.CreatedAt, Payload: it.Event.Payload}
 	}
 
 	var rawUserData performance.RawUserData
