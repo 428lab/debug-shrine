@@ -70,7 +70,9 @@ export default {
     if (this.isLogin) {
       params.screen_name = this.user.screen_name;
     }
-    let response = await this.$axios.get("/ranking", { params: params });
+    // Go版(rankingGo)はコールドスタートが短くランキング表示が速くなるため
+    // 使用する(Node版のrankingとレスポンス形式は同一。docs/backend.md参照)
+    let response = await this.$axios.get("/rankingGo", { params: params });
     this.ranking = response.data.ranking;
     this.myRanking = response.data.my_rank;
     this.latestUpdate = response.data.latest_update;
