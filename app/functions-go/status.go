@@ -232,7 +232,12 @@ func statusHandler(w http.ResponseWriter, r *http.Request) {
 			GithubImagePath: userData.ImagePath,
 		},
 	})
-	resp := StatusResponse{FormattedPerformance: formatted, LastSanpai: "参拝していないようです"}
+	// last_sanpai は cache-current パス(上)と同じく、キャッシュ有無に関わらず
+	// トップレベルの last_sanpai(Timestamp)から生成する。未参拝(ゼロ値)のときだけ
+	// formatLastSanpai が "参拝していないようです" を返す。
+	// ※status_version 導入によりキャッシュ未計算の既存ユーザーは初回に必ずこの
+	//   recompute パスを通るため、ここで固定文字列にすると参拝済みでも未参拝表示になる。
+	resp := StatusResponse{FormattedPerformance: formatted, LastSanpai: formatLastSanpai(userData.LastSanpai)}
 
 	if _, err := userDoc.Ref.Update(ctx, []firestore.Update{
 		{Path: "status", Value: toFirestoreStatus(formatted, resp.LastSanpai)},
