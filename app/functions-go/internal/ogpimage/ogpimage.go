@@ -56,8 +56,14 @@ const (
 	avatarY    = 431.0
 	avatarSize = 215.0
 
-	statsX = 680.0
-	statsY = 740.0
+	// ステータス3行。左パネル(青)のステータス行の右端は実測で design x≈1292、左端は624。
+	// せんとうりょく等が大きい値(例: 99999)でも右端をはみ出さないよう、開始位置を
+	// 左へ寄せ(680→640)、さらに上限幅ガードを設ける。
+	// 「せんとうりょく：99999」=645px は縮小なしで収まり、6桁など上限を超える値のみ
+	// canvasのfillText(maxWidth)と同様に横方向へ縮小する。
+	statsX        = 640.0
+	statsMaxWidth = 650.0 // 640 + 650 = 1290 ≦ パネル右端1292
+	statsY        = 740.0
 
 	// チャート(chartPost + chartWidth/Height=550)。中心はボックス中央。
 	chartCenterX = 1325.0 + 550.0/2.0 // 1600
@@ -188,7 +194,7 @@ func Render(p Params) (image.Image, error) {
 		fmt.Sprintf("せんとうりょく：%d", p.Total),
 	}
 	for i, line := range stats {
-		drawTextTopScaled(dc, nameFace, line, statsX*scale, (statsY+lineHeight*float64(i))*scale, 0)
+		drawTextTopScaled(dc, nameFace, line, statsX*scale, (statsY+lineHeight*float64(i))*scale, statsMaxWidth*scale)
 	}
 
 	// レーダーチャート
