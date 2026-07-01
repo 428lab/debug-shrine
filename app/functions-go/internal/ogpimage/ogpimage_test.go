@@ -43,17 +43,14 @@ func sampleParams() Params {
 	}
 }
 
-func TestRenderDimensionsMatchBase(t *testing.T) {
-	base, err := loadBase()
-	if err != nil {
-		t.Fatalf("loadBase: %v", err)
-	}
+func TestRenderOutputDimensions(t *testing.T) {
 	img, err := Render(sampleParams())
 	if err != nil {
 		t.Fatalf("Render: %v", err)
 	}
-	if img.Bounds() != base.Bounds() {
-		t.Fatalf("rendered bounds = %v, want %v", img.Bounds(), base.Bounds())
+	want := image.Rect(0, 0, outputWidth, outputHeight)
+	if img.Bounds() != want {
+		t.Fatalf("rendered bounds = %v, want %v (OG standard, cropped+resized)", img.Bounds(), want)
 	}
 }
 

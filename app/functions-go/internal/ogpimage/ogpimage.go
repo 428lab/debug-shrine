@@ -8,9 +8,14 @@
 //   - 座標はNode版のデザイン基準(2500x1313)をそのまま定数として保持し、
 //     実際の base 画像の幅から scale = baseW/2500 を求めて全座標を比例縮小する。
 //     これによりベース画像の解像度を変えてもレイアウトを1箇所で追従できる。
-//   - ベースPNGとフォント(Noto Sans JP)はバイナリに go:embed で同梱する。
+//   - ベースPNG(2500x1313)とフォント(Noto Sans JP)はバイナリに go:embed で同梱する。
 //     Node版のように実行時にGCSからbase.pngをダウンロードする往復が不要になり
 //     高速化する。
+//   - レンダリングは base の元解像度(2500x1313)で行い、合成後に「カード領域」を
+//     OG比(outputWidth:outputHeight)でクロップしてから最終出力サイズへ一度だけ
+//     高品質縮小する。元画像には上下左右に暗い背景の余白が広く、そのまま縮小すると
+//     カード=文字が小さくなってしまうため、余白を除去して相対的に大きく見せる
+//     (元解像度でレンダリング→クロップ→縮小、の順にすることで再拡大による画質劣化を避ける)。
 //   - 出力はWebP(可逆VP8L)。フラットなカード画像はPNGより大幅に小さくなる。
 package ogpimage
 
@@ -67,6 +72,19 @@ const (
 	gridLineWidth  = 3.0
 	dataStrokeW    = 2.0
 	radarGridSteps = 15 // max(150)/stepSize(10)
+
+	// 最終出力サイズ(OGP標準)。クロップ後にこのサイズへ一度だけ縮小する。
+	outputWidth  = 1200
+	outputHeight = 630
+
+	// カード(塗り=黒/青)の外接矩形。base.png(2500x1313)から実測した値
+	// (black|blue 画素の bbox)。base.png を差し替えたら再計測して更新すること。
+	cardMinX = 594.0
+	cardMaxX = 1905.0
+	cardMinY = 228.0
+	cardMaxY = 1084.0
+	// カードの丸角/枠を切り落とさないための余白(デザイン基準px)。
+	cardMargin = 20.0
 )
 
 // Params は1枚のOGP画像を生成するための入力。
@@ -186,7 +204,66 @@ func Render(p Params) (image.Image, error) {
 		labelFace:  labelFace,
 	})
 
-	return dc.Image(), nil
+	return cropCardAndResize(dc.Image(), scale), nil
+}
+
+// cropCardAndResize は合成済み画像(base元解像度)から、カード領域をOG比で切り出し、
+// 最終出力サイズ(outputWidth×outputHeight)へ一度だけ高品質縮小する。
+func cropCardAndResize(src image.Image, scale float64) image.Image {
+	// デザイン基準でのクロップ矩形(OG比を保ちつつカード全体を含む最小矩形)。
+	boxL := cardMinX - cardMargin
+	boxR := cardMaxX + cardMargin
+	boxT := cardMinY - cardMargin
+	boxB := cardMaxY + cardMargin
+	boxW := boxR - boxL
+	boxH := boxB - boxT
+	cx := (boxL + boxR) / 2
+	cy := (boxT + boxB) / 2
+
+	ratio := float64(outputWidth) / float64(outputHeight)
+	cropH := boxH
+	if w := boxW / ratio; w > cropH {
+		cropH = w
+	}
+	cropW := cropH * ratio
+
+	// 実ピクセルへ換算し、中心を合わせつつ画像内へクランプ。
+	sw := float64(src.Bounds().Dx())
+	sh := float64(src.Bounds().Dy())
+	cwp := cropW * scale
+	chp := cropH * scale
+	if cwp > sw {
+		cwp = sw
+	}
+	if chp > sh {
+		chp = sh
+	}
+	x0 := cx*scale - cwp/2
+	y0 := cy*scale - chp/2
+	if x0 < 0 {
+		x0 = 0
+	}
+	if y0 < 0 {
+		y0 = 0
+	}
+	if x0+cwp > sw {
+		x0 = sw - cwp
+	}
+	if y0+chp > sh {
+		y0 = sh - chp
+	}
+	rect := image.Rect(int(x0+0.5), int(y0+0.5), int(x0+cwp+0.5), int(y0+chp+0.5)).Add(src.Bounds().Min)
+
+	sub := image.Image(src)
+	if si, ok := src.(interface {
+		SubImage(r image.Rectangle) image.Image
+	}); ok {
+		sub = si.SubImage(rect)
+	}
+
+	out := image.NewRGBA(image.Rect(0, 0, outputWidth, outputHeight))
+	xdraw.CatmullRom.Scale(out, out.Bounds(), sub, sub.Bounds(), xdraw.Over, nil)
+	return out
 }
 
 // drawTextTopScaled は「上揃え(textBaseline=top)」でテキストを描く。maxWidth>0 かつ
