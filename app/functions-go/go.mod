@@ -7,7 +7,10 @@ require (
 	cloud.google.com/go/storage v1.63.0
 	firebase.google.com/go/v4 v4.20.0
 	github.com/GoogleCloudPlatform/functions-framework-go v1.9.2
+	github.com/HugoSmits86/nativewebp v1.3.0
 	github.com/cloudevents/sdk-go/v2 v2.15.2
+	github.com/fogleman/gg v1.3.0
+	golang.org/x/image v0.43.0
 	google.golang.org/api v0.287.0
 	google.golang.org/grpc v1.81.1
 )
@@ -35,6 +38,7 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
+	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/uuid v1.6.0 // indirect

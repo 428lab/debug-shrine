@@ -38,6 +38,7 @@ functions-go/
   register_test.go
   ogp_rewrite.go         # ogpRewriteGo エンドポイント
   ogp_rewrite_test.go
+  userogp.go             # userOGPGo エンドポイント(OGP画像生成)
   ranking_update.go      # rankingUpdateGo (Pub/Subトリガー、スケジュール関数)
   ranking_update_test.go
   ranking_cache.go       # rankingCacheGo (Pub/Subトリガー、スケジュール関数)
@@ -52,9 +53,16 @@ functions-go/
     performance/
       performance.go      # app/functions/performance.js の対象範囲のGoポート
       performance_test.go # performance.test.js と同一の入出力を検証
+    ogpimage/             # OGP画像合成(userOGPGoが利用)。設計は同ディレクトリのREADME参照
+      ogpimage.go         # 合成本体(座標/クロップ/縮小/WebPエンコード)
+      radar.go            # レーダーチャート描画
+      base.png            # ベース画像(2500x1313, go:embed)
+      fonts/              # Noto Sans JP(go:embed)
 ```
 
-`userOGP`(OGP画像生成)は対象外(理由は `docs/backend.md`「Go移植を見送った機能」を参照)。
+OGP画像生成 `userOGP` も Go へ移植済み(`userOGPGo`)。画像描画は `internal/ogpimage`
+に分離している(詳細は `docs/backend.md`「`userOGP` エンドポイントのGo移植」および
+`internal/ogpimage/README.md` を参照)。
 
 ## 関数の命名規則(既存Node関数との共存)
 
@@ -126,10 +134,13 @@ gcloud functions deploy statusGo \
   `projectID == 'd-shrine' ? 300 : 60` とプロジェクトIDで分岐しているが、Go版は
   デプロイ時に明示的な値を渡す(dev: `60`。prod移植時は `300` を指定する)。
 
-`rankingGo`/`registerGo`/`ogpRewriteGo` も同様のパターンでデプロイしている。
+`rankingGo`/`registerGo`/`ogpRewriteGo`/`userOGPGo` も同様のパターンでデプロイしている。
 `ogpRewriteGo` は追加で `FUNC_BASE_URL`(Node版の
 `functions.config().func.base_url` 相当)と `OGP_PROJECT_ID` を
-`--set-env-vars` で渡す必要がある。
+`--set-env-vars` で渡す必要がある。`userOGPGo` は画像合成・WebPエンコード・
+アバター取得・GCSアップロードを行うため他HTTP関数より余裕を持たせ
+(`--memory=512Mi --timeout=60s`)、OGPキャッシュ書き込み先の
+`STORAGE_BUCKET_NAME` を `--set-env-vars` で渡す。
 
 ## スケジュール関数(Pub/Subトリガー)のデプロイ
 

@@ -109,143 +109,39 @@ jobs:
             'cd functions-go && go test ./...'
         working-directory: ./app
 
-      # Go版Cloud Run functions(statusGo)のデプロイ。既存のstatus(Node)とは別関数として
-      # 共存させ、フロントエンドの切替タイミングを制御できるようにしている
-      # (詳細は docs/backend.md「status エンドポイントのGo移植」を参照)。
-      - name: enable required GCP services for Go functions
+      # OGP画像生成(userOGPGo)のQC。サンプルOGPをPNG/WebPでレンダリングして
+      # アーティファクト化し、生成物を目視確認できるようにする(描画の破綻を
+      # デプロイ前に検知する目的も兼ねる)。
+      - name: generate OGP sample for QC
+        run: |
+          go test ./internal/ogpimage/ -run TestWriteQCArtifacts -count=1 -v
+        working-directory: ./app/functions-go
+        env:
+          OGP_QC_OUT: ${{ github.workspace }}/ogp-qc
+
+      - name: upload OGP sample artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ogp-sample
+          path: ${{ github.workspace }}/ogp-qc/
+          if-no-files-found: error
+
+      # ここから Go版 Cloud Run functions のデプロイ。
+      # Gen2(Cloud Run)関数のデプロイは内部でCloud Buildのコンテナビルドを伴い
+      # 1本あたり数分かかる。関数間に依存が無いため、以前のように1本ずつ直列で
+      # deployすると全体で15〜30分規模になっていた。そこで前提処理(サービス有効化・
+      # Pub/Subトピック作成・認証情報取得・ロケーション解決)を先に済ませてから、
+      # 全関数のdeployをバックグラウンドで同時に起動して一括waitする
+      # (体感で最も遅い1本分の時間に短縮)。
+
+      # HTTP関数とスケジュール関数(Pub/Subトリガー)の両方に必要なGCPサービスを一括有効化。
+      - name: enable required GCP services
         run: |
           gcloud services enable \
             cloudfunctions.googleapis.com \
             run.googleapis.com \
             cloudbuild.googleapis.com \
             artifactregistry.googleapis.com \
-            --project=d-shrine-dev
-
-      - name: deploy statusGo (Cloud Run function, Go)
-        run: |
-          gcloud functions deploy statusGo \
-            --project=d-shrine-dev \
-            --gen2 \
-            --runtime=go125 \
-            --region=us-central1 \
-            --source=. \
-            --entry-point=StatusGo \
-            --trigger-http \
-            --allow-unauthenticated \
-            --memory=256Mi \
-            --timeout=30s
-        working-directory: ./app/functions-go
-
-      # Go版Cloud Run functions(sanpaiGo)のデプロイ。既存のsanpai(Node)とは別関数として
-      # 共存させ、フロントエンドの切替タイミングを制御できるようにしている
-      # (詳細は docs/backend.md「sanpai エンドポイントのGo移植」を参照)。
-      #
-      # GitHub OAuth Appのclient_id/client_secretは、Node版が使う
-      # `firebase functions:config:get` (既にGCP側に設定済みの値)からそのまま取得し、
-      # 新規のGitHub Secretsは増やさない。ログに値が出ないよう ::add-mask:: で
-      # マスクしてから $GITHUB_ENV に渡す。
-      - name: fetch GitHub OAuth credentials for sanpaiGo
-        run: |
-          set -eo pipefail
-          CONFIG_JSON=$(firebase functions:config:get github --project d-shrine-dev)
-          CLIENT_ID=$(echo "$CONFIG_JSON" | jq -r '.client_id')
-          CLIENT_SECRET=$(echo "$CONFIG_JSON" | jq -r '.client_secret')
-          echo "::add-mask::$CLIENT_ID"
-          echo "::add-mask::$CLIENT_SECRET"
-          echo "SANPAI_GH_CLIENT_ID=$CLIENT_ID" >> "$GITHUB_ENV"
-          echo "SANPAI_GH_CLIENT_SECRET=$CLIENT_SECRET" >> "$GITHUB_ENV"
-        working-directory: ./app
-
-      - name: deploy sanpaiGo (Cloud Run function, Go)
-        run: |
-          gcloud functions deploy sanpaiGo \
-            --project=d-shrine-dev \
-            --gen2 \
-            --runtime=go125 \
-            --region=us-central1 \
-            --source=. \
-            --entry-point=SanpaiGo \
-            --trigger-http \
-            --allow-unauthenticated \
-            --memory=256Mi \
-            --timeout=30s \
-            --set-env-vars=GITHUB_CLIENT_ID=${{ env.SANPAI_GH_CLIENT_ID }},GITHUB_CLIENT_SECRET=${{ env.SANPAI_GH_CLIENT_SECRET }},SANPAI_NEXT_TIME_SECONDS=60
-        working-directory: ./app/functions-go
-
-      # Go版Cloud Run functions(registerGo)のデプロイ。既存のregister(Node)とは別関数として
-      # 共存させる(詳細は docs/backend.md「register エンドポイントのGo移植」を参照)。
-      - name: deploy registerGo (Cloud Run function, Go)
-        run: |
-          gcloud functions deploy registerGo \
-            --project=d-shrine-dev \
-            --gen2 \
-            --runtime=go125 \
-            --region=us-central1 \
-            --source=. \
-            --entry-point=RegisterGo \
-            --trigger-http \
-            --allow-unauthenticated \
-            --memory=256Mi \
-            --timeout=30s
-        working-directory: ./app/functions-go
-
-      # Go版Cloud Run functions(rankingGo)のデプロイ。既存のranking(Node)とは別関数として
-      # 共存させる(詳細は docs/backend.md「ranking エンドポイントのGo移植」を参照)。
-      - name: deploy rankingGo (Cloud Run function, Go)
-        run: |
-          gcloud functions deploy rankingGo \
-            --project=d-shrine-dev \
-            --gen2 \
-            --runtime=go125 \
-            --region=us-central1 \
-            --source=. \
-            --entry-point=RankingGo \
-            --trigger-http \
-            --allow-unauthenticated \
-            --memory=256Mi \
-            --timeout=30s
-        working-directory: ./app/functions-go
-
-      # Go版Cloud Run functions(ogpRewriteGo)のデプロイ。既存のogpRewrite(Node)とは
-      # 別関数として共存させる(詳細は docs/backend.md「ogpRewrite エンドポイントのGo移植」を参照)。
-      #
-      # FUNC_BASE_URLはNode版が functions.config().func.base_url から読む値と同じもので、
-      # sanpaiGoのGitHub資格情報と同様に既存のFirebase Functions Configから取得する。
-      - name: fetch base_url for ogpRewriteGo
-        run: |
-          set -eo pipefail
-          CONFIG_JSON=$(firebase functions:config:get func --project d-shrine-dev)
-          BASE_URL=$(echo "$CONFIG_JSON" | jq -r '.base_url')
-          echo "OGP_FUNC_BASE_URL=$BASE_URL" >> "$GITHUB_ENV"
-        working-directory: ./app
-
-      - name: deploy ogpRewriteGo (Cloud Run function, Go)
-        run: |
-          gcloud functions deploy ogpRewriteGo \
-            --project=d-shrine-dev \
-            --gen2 \
-            --runtime=go125 \
-            --region=us-central1 \
-            --source=. \
-            --entry-point=OgpRewriteGo \
-            --trigger-http \
-            --allow-unauthenticated \
-            --memory=256Mi \
-            --timeout=30s \
-            --set-env-vars=FUNC_BASE_URL=${{ env.OGP_FUNC_BASE_URL }},OGP_PROJECT_ID=d-shrine-dev
-        working-directory: ./app/functions-go
-
-      # スケジュール関数(Pub/Sub トリガー)のGo移植分。既存のNode版
-      # (rankingUpdate/rankingCache/statusCacheBackfill/scheduledOgpDelete)とは
-      # 別のCloud Scheduler ジョブ・Pub/Subトピック・関数名で完全に独立してデプロイし、
-      # 安定稼働を確認してからNode版を止める(詳細は docs/backend.md
-      # 「スケジュール関数のGo移植」を参照)。
-      #
-      # Cloud SchedulerジョブはApp Engineのロケーションに紐づくため、
-      # 既存プロジェクトの設定値を動的に取得して使う。
-      - name: enable required GCP services for scheduled Go functions
-        run: |
-          gcloud services enable \
             pubsub.googleapis.com \
             cloudscheduler.googleapis.com \
             eventarc.googleapis.com \
@@ -262,6 +158,33 @@ jobs:
             gcloud pubsub topics describe "$TOPIC" --project=d-shrine-dev \
               || gcloud pubsub topics create "$TOPIC" --project=d-shrine-dev
           done
+
+      # GitHub OAuth Appのclient_id/client_secretは、Node版が使う
+      # `firebase functions:config:get` (既にGCP側に設定済みの値)からそのまま取得し、
+      # 新規のGitHub Secretsは増やさない。ログに値が出ないよう ::add-mask:: で
+      # マスクしてから $GITHUB_ENV に渡す(sanpaiGoで使用)。
+      - name: fetch GitHub OAuth credentials for sanpaiGo
+        run: |
+          set -eo pipefail
+          CONFIG_JSON=$(firebase functions:config:get github --project d-shrine-dev)
+          CLIENT_ID=$(echo "$CONFIG_JSON" | jq -r '.client_id')
+          CLIENT_SECRET=$(echo "$CONFIG_JSON" | jq -r '.client_secret')
+          echo "::add-mask::$CLIENT_ID"
+          echo "::add-mask::$CLIENT_SECRET"
+          echo "SANPAI_GH_CLIENT_ID=$CLIENT_ID" >> "$GITHUB_ENV"
+          echo "SANPAI_GH_CLIENT_SECRET=$CLIENT_SECRET" >> "$GITHUB_ENV"
+        working-directory: ./app
+
+      # FUNC_BASE_URLはNode版が functions.config().func.base_url から読む値と同じもので、
+      # sanpaiGoのGitHub資格情報と同様に既存のFirebase Functions Configから取得する
+      # (ogpRewriteGoで使用)。
+      - name: fetch base_url for ogpRewriteGo
+        run: |
+          set -eo pipefail
+          CONFIG_JSON=$(firebase functions:config:get func --project d-shrine-dev)
+          BASE_URL=$(echo "$CONFIG_JSON" | jq -r '.base_url')
+          echo "OGP_FUNC_BASE_URL=$BASE_URL" >> "$GITHUB_ENV"
+        working-directory: ./app
 
       # Cloud SchedulerジョブのlocationはプロジェクトのApp Engineアプリと
       # 同一でなければならない(App Engineが存在するプロジェクトでは、それ以外の
@@ -282,126 +205,102 @@ jobs:
           echo "resolved App Engine location: $RAW_LOCATION -> $LOCATION"
           echo "APP_ENGINE_LOCATION=$LOCATION" >> "$GITHUB_ENV"
 
-      # timeout=300s: Node版はrunWith()を使わずデフォルト(60s)のままだが、
-      # 全ユーザーをスキャンする処理のため安全側に長めの値を明示指定する
-      # (実行時間そのものはNode版と同等の想定で、上限を厳しくしすぎて
-      # ユーザー数増加時にタイムアウトする事故を避けるのが目的)。
-      - name: deploy rankingUpdateGo (Cloud Run function, Go, Pub/Sub trigger)
-        run: |
-          gcloud functions deploy rankingUpdateGo \
-            --project=d-shrine-dev \
-            --gen2 \
-            --runtime=go125 \
-            --region=us-central1 \
-            --source=. \
-            --entry-point=RankingUpdateGo \
-            --trigger-topic=ranking-update-go \
-            --memory=256Mi \
-            --timeout=300s
+      # 全Go関数のデプロイをバックグラウンドで同時起動し、まとめてwaitする。
+      # 依存関係(トピック/認証情報/ロケーション)は上の先行ステップで解決済み。
+      # timeout: HTTP関数は30s、スケジュール関数は全ユーザースキャン等で長くなり得るため
+      # 安全側に300sを明示。ログは関数ごとにファイルへ退避し、最後に順番に出力する
+      # (並行実行でログが混ざるのを防ぐ)。1本でも失敗したらステップを失敗させる。
+      - name: deploy all Go Cloud Run functions in parallel
         working-directory: ./app/functions-go
-
-      - name: create/update Cloud Scheduler job for rankingUpdateGo
         run: |
-          gcloud scheduler jobs update pubsub ranking-update-go \
-            --project=d-shrine-dev --location=${{ env.APP_ENGINE_LOCATION }} \
-            --schedule="0 * * * *" \
-            --topic=ranking-update-go \
-            --message-body="{}" \
-            --time-zone=Etc/UTC \
-          || gcloud scheduler jobs create pubsub ranking-update-go \
-            --project=d-shrine-dev --location=${{ env.APP_ENGINE_LOCATION }} \
-            --schedule="0 * * * *" \
-            --topic=ranking-update-go \
-            --message-body="{}" \
-            --time-zone=Etc/UTC
+          set -uo pipefail
+          declare -a PIDS NAMES
+          deploy() {
+            local name="$1"; shift
+            local entry="$1"; shift
+            echo "start deploy: $name"
+            ( gcloud functions deploy "$name" \
+                --project=d-shrine-dev \
+                --gen2 \
+                --runtime=go125 \
+                --region=us-central1 \
+                --source=. \
+                --entry-point="$entry" \
+                "$@" ) > "/tmp/deploy-$name.log" 2>&1 &
+            PIDS+=("$!")
+            NAMES+=("$name")
+          }
 
-      # timeout=300s: rankingUpdateGoと同様の理由(全ユーザースキャンのため安全側)。
-      - name: deploy rankingCacheGo (Cloud Run function, Go, Pub/Sub trigger)
-        run: |
-          gcloud functions deploy rankingCacheGo \
-            --project=d-shrine-dev \
-            --gen2 \
-            --runtime=go125 \
-            --region=us-central1 \
-            --source=. \
-            --entry-point=RankingCacheGo \
-            --trigger-topic=ranking-cache-go \
-            --memory=256Mi \
-            --timeout=300s
-        working-directory: ./app/functions-go
+          # HTTPトリガー関数
+          deploy statusGo StatusGo \
+            --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s
+          deploy sanpaiGo SanpaiGo \
+            --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s \
+            --set-env-vars="GITHUB_CLIENT_ID=$SANPAI_GH_CLIENT_ID,GITHUB_CLIENT_SECRET=$SANPAI_GH_CLIENT_SECRET,SANPAI_NEXT_TIME_SECONDS=60"
+          deploy registerGo RegisterGo \
+            --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s
+          deploy rankingGo RankingGo \
+            --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s
+          deploy ogpRewriteGo OgpRewriteGo \
+            --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s \
+            --set-env-vars="FUNC_BASE_URL=$OGP_FUNC_BASE_URL,OGP_PROJECT_ID=d-shrine-dev"
+          # userOGPGoは画像合成(base同梱)+WebPエンコード+アバター取得+GCSアップロードを
+          # 行うため、他HTTP関数より余裕を持たせる(512Mi/60s)。
+          deploy userOGPGo UserOGPGo \
+            --trigger-http --allow-unauthenticated --memory=512Mi --timeout=60s \
+            --set-env-vars="STORAGE_BUCKET_NAME=d-shrine-dev.appspot.com"
 
-      - name: create/update Cloud Scheduler job for rankingCacheGo
-        run: |
-          gcloud scheduler jobs update pubsub ranking-cache-go \
-            --project=d-shrine-dev --location=${{ env.APP_ENGINE_LOCATION }} \
-            --schedule="0 */2 * * *" \
-            --topic=ranking-cache-go \
-            --message-body="{}" \
-            --time-zone=Etc/UTC \
-          || gcloud scheduler jobs create pubsub ranking-cache-go \
-            --project=d-shrine-dev --location=${{ env.APP_ENGINE_LOCATION }} \
-            --schedule="0 */2 * * *" \
-            --topic=ranking-cache-go \
-            --message-body="{}" \
-            --time-zone=Etc/UTC
+          # Pub/Subトリガー(スケジュール)関数
+          deploy rankingUpdateGo RankingUpdateGo \
+            --trigger-topic=ranking-update-go --memory=256Mi --timeout=300s
+          deploy rankingCacheGo RankingCacheGo \
+            --trigger-topic=ranking-cache-go --memory=256Mi --timeout=300s
+          deploy statusCacheBackfillGo StatusCacheBackfillGo \
+            --trigger-topic=status-cache-backfill-go --memory=512Mi --timeout=300s
+          deploy scheduledOgpDeleteGo ScheduledOgpDeleteGo \
+            --trigger-topic=scheduled-ogp-delete-go --memory=256Mi --timeout=300s \
+            --set-env-vars="STORAGE_BUCKET_NAME=d-shrine-dev.appspot.com"
 
-      - name: deploy statusCacheBackfillGo (Cloud Run function, Go, Pub/Sub trigger)
-        run: |
-          gcloud functions deploy statusCacheBackfillGo \
-            --project=d-shrine-dev \
-            --gen2 \
-            --runtime=go125 \
-            --region=us-central1 \
-            --source=. \
-            --entry-point=StatusCacheBackfillGo \
-            --trigger-topic=status-cache-backfill-go \
-            --memory=512Mi \
-            --timeout=300s
-        working-directory: ./app/functions-go
+          fail=0
+          for idx in "${!NAMES[@]}"; do
+            name="${NAMES[$idx]}"
+            if wait "${PIDS[$idx]}"; then
+              status=OK
+            else
+              status=FAILED
+              fail=1
+            fi
+            echo "::group::deploy $status: $name"
+            cat "/tmp/deploy-$name.log"
+            echo "::endgroup::"
+          done
+          if [ "$fail" -ne 0 ]; then
+            echo "one or more Go function deployments failed" >&2
+          fi
+          exit "$fail"
 
-      - name: create/update Cloud Scheduler job for statusCacheBackfillGo
+      # スケジュール関数用のCloud Schedulerジョブを作成/更新する(冪等)。
+      # ジョブはトピックにメッセージを流すだけなので関数デプロイ完了後に一括で行う。
+      # update が存在しないジョブに対して失敗したら create にフォールバックする。
+      - name: create/update Cloud Scheduler jobs for scheduled Go functions
         run: |
-          gcloud scheduler jobs update pubsub status-cache-backfill-go \
-            --project=d-shrine-dev --location=${{ env.APP_ENGINE_LOCATION }} \
-            --schedule="*/30 * * * *" \
-            --topic=status-cache-backfill-go \
-            --message-body="{}" \
-            --time-zone=Etc/UTC \
-          || gcloud scheduler jobs create pubsub status-cache-backfill-go \
-            --project=d-shrine-dev --location=${{ env.APP_ENGINE_LOCATION }} \
-            --schedule="*/30 * * * *" \
-            --topic=status-cache-backfill-go \
-            --message-body="{}" \
-            --time-zone=Etc/UTC
-
-      # timeout=300s: OGPキャッシュファイル数が多い場合でも一覧・削除が
-      # 途中で打ち切られないよう安全側に長めの値を明示指定する。
-      - name: deploy scheduledOgpDeleteGo (Cloud Run function, Go, Pub/Sub trigger)
-        run: |
-          gcloud functions deploy scheduledOgpDeleteGo \
-            --project=d-shrine-dev \
-            --gen2 \
-            --runtime=go125 \
-            --region=us-central1 \
-            --source=. \
-            --entry-point=ScheduledOgpDeleteGo \
-            --trigger-topic=scheduled-ogp-delete-go \
-            --memory=256Mi \
-            --timeout=300s \
-            --set-env-vars=STORAGE_BUCKET_NAME=d-shrine-dev.appspot.com
-        working-directory: ./app/functions-go
-
-      - name: create/update Cloud Scheduler job for scheduledOgpDeleteGo
-        run: |
-          gcloud scheduler jobs update pubsub scheduled-ogp-delete-go \
-            --project=d-shrine-dev --location=${{ env.APP_ENGINE_LOCATION }} \
-            --schedule="0 */1 * * *" \
-            --topic=scheduled-ogp-delete-go \
-            --message-body="{}" \
-            --time-zone=Etc/UTC \
-          || gcloud scheduler jobs create pubsub scheduled-ogp-delete-go \
-            --project=d-shrine-dev --location=${{ env.APP_ENGINE_LOCATION }} \
-            --schedule="0 */1 * * *" \
-            --topic=scheduled-ogp-delete-go \
-            --message-body="{}" \
-            --time-zone=Etc/UTC
+          set -uo pipefail
+          upsert_job() {
+            local job="$1" schedule="$2" topic="$3"
+            gcloud scheduler jobs update pubsub "$job" \
+              --project=d-shrine-dev --location="$APP_ENGINE_LOCATION" \
+              --schedule="$schedule" \
+              --topic="$topic" \
+              --message-body="{}" \
+              --time-zone=Etc/UTC \
+            || gcloud scheduler jobs create pubsub "$job" \
+              --project=d-shrine-dev --location="$APP_ENGINE_LOCATION" \
+              --schedule="$schedule" \
+              --topic="$topic" \
+              --message-body="{}" \
+              --time-zone=Etc/UTC
+          }
+          upsert_job ranking-update-go        "0 * * * *"    ranking-update-go
+          upsert_job ranking-cache-go         "0 */2 * * *"  ranking-cache-go
+          upsert_job status-cache-backfill-go "*/30 * * * *" status-cache-backfill-go
+          upsert_job scheduled-ogp-delete-go  "0 */1 * * *"  scheduled-ogp-delete-go
