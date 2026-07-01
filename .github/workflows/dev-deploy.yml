@@ -78,3 +78,42 @@ jobs:
         run: |
           firebase deploy --project d-shrine-dev --force
         working-directory: ./app
+
+      - name: setup go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: go build & test (functions-go)
+        run: |
+          go build ./...
+          go vet ./...
+          go test ./...
+        working-directory: ./app/functions-go
+
+      # Go版Cloud Run functions(statusGo)のデプロイ。既存のstatus(Node)とは別関数として
+      # 共存させ、フロントエンドの切替タイミングを制御できるようにしている
+      # (詳細は docs/backend.md「status エンドポイントのGo移植」を参照)。
+      - name: enable required GCP services for Go functions
+        run: |
+          gcloud services enable \
+            cloudfunctions.googleapis.com \
+            run.googleapis.com \
+            cloudbuild.googleapis.com \
+            artifactregistry.googleapis.com \
+            --project=d-shrine-dev
+
+      - name: deploy statusGo (Cloud Run function, Go)
+        run: |
+          gcloud functions deploy statusGo \
+            --project=d-shrine-dev \
+            --gen2 \
+            --runtime=go125 \
+            --region=us-central1 \
+            --source=. \
+            --entry-point=StatusGo \
+            --trigger-http \
+            --allow-unauthenticated \
+            --memory=256Mi \
+            --timeout=30s
+        working-directory: ./app/functions-go
