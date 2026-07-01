@@ -30,6 +30,8 @@ Cloud Run functions(Go)の制約上、関数のエントリポイント(`functio
 functions-go/
   go.mod
   status.go              # statusGo エンドポイント(モジュールルートパッケージ)
+  sanpai.go              # sanpaiGo エンドポイント(モジュールルートパッケージ)
+  sanpai_test.go         # sanpaiGoのFirestoreエミュレータ統合テスト
   cmd/
     main.go               # ローカル動作確認専用(デプロイでは使わない)
   internal/
@@ -57,6 +59,10 @@ go build ./...
 go vet ./...
 go test ./...
 
+# sanpaiGoのFirestore統合テストも含めて実行する場合
+# (firebase emulators:start --only firestore を別途起動しておく)
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 go test ./... -v
+
 # Firestoreエミュレータ(別途起動)に対してローカルでHTTPサーバーを起動する場合
 FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 \
 GOOGLE_CLOUD_PROJECT=d-shrine-dev \
@@ -64,6 +70,11 @@ FUNCTION_TARGET=StatusGo \
 PORT=8090 \
 go run ./cmd
 ```
+
+`sanpai_test.go` は `FIRESTORE_EMULATOR_HOST` が未設定の場合は自動的にスキップする
+ため、通常のCI(`go test ./...`)には影響しない。GitHub Events APIはテスト用の
+`httptest` モックサーバーに差し替えており(`githubAPIBaseURL` 変数)、実際の
+GitHub APIやFirebase Authへの通信は発生しない。
 
 ## デプロイ
 
@@ -84,9 +95,21 @@ gcloud functions deploy statusGo \
 ```
 
 `--source=.`(functions-goディレクトリ全体)を指定し、`--entry-point` でどの
-`functions.HTTP(...)` 登録を使うかを選ぶ。将来 `sanpai`/`ranking`/`register` を
-移植する場合も、モジュールルートに新しいファイル(例: `sanpai.go`)を追加し、
-別の `--entry-point`/関数名でデプロイを追加する想定。
+`functions.HTTP(...)` 登録を使うかを選ぶ。
+
+`sanpaiGo` は書き込み系(Firebase認証・GitHub API呼び出し・Firestore更新)のため、
+デプロイ時に以下の環境変数を追加で渡している(`--set-env-vars`)。
+
+- `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`: GitHub Events API呼び出し用の
+  OAuth App資格情報。Node版が `functions.config().github` から読む値と同じもので、
+  CIが `firebase functions:config:get github` から取得しCloud Functionsの環境変数
+  として橋渡ししている(新規のGitHub Secretsは追加していない)。
+- `SANPAI_NEXT_TIME_SECONDS`: 参拝のクールダウン秒数。Node版は
+  `projectID == 'd-shrine' ? 300 : 60` とプロジェクトIDで分岐しているが、Go版は
+  デプロイ時に明示的な値を渡す(dev: `60`。prod移植時は `300` を指定する)。
+
+将来 `ranking`/`register` を移植する場合も、モジュールルートに新しいファイル
+(例: `ranking.go`)を追加し、別の `--entry-point`/関数名でデプロイを追加する想定。
 
 ## Node版との等価性の確認方法
 
