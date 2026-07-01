@@ -109,6 +109,23 @@ jobs:
             'cd functions-go && go test ./...'
         working-directory: ./app
 
+      # OGP画像生成(userOGPGo)のQC。サンプルOGPをPNG/WebPでレンダリングして
+      # アーティファクト化し、生成物を目視確認できるようにする(描画の破綻を
+      # デプロイ前に検知する目的も兼ねる)。
+      - name: generate OGP sample for QC
+        run: |
+          go test ./internal/ogpimage/ -run TestWriteQCArtifacts -count=1 -v
+        working-directory: ./app/functions-go
+        env:
+          OGP_QC_OUT: ${{ github.workspace }}/ogp-qc
+
+      - name: upload OGP sample artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ogp-sample
+          path: ${{ github.workspace }}/ogp-qc/
+          if-no-files-found: error
+
       # ここから Go版 Cloud Run functions のデプロイ。
       # Gen2(Cloud Run)関数のデプロイは内部でCloud Buildのコンテナビルドを伴い
       # 1本あたり数分かかる。関数間に依存が無いため、以前のように1本ずつ直列で
@@ -227,6 +244,11 @@ jobs:
           deploy ogpRewriteGo OgpRewriteGo \
             --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s \
             --set-env-vars="FUNC_BASE_URL=$OGP_FUNC_BASE_URL,OGP_PROJECT_ID=d-shrine-dev"
+          # userOGPGoは画像合成(base同梱)+WebPエンコード+アバター取得+GCSアップロードを
+          # 行うため、他HTTP関数より余裕を持たせる(512Mi/60s)。
+          deploy userOGPGo UserOGPGo \
+            --trigger-http --allow-unauthenticated --memory=512Mi --timeout=60s \
+            --set-env-vars="STORAGE_BUCKET_NAME=d-shrine-dev.appspot.com"
 
           # Pub/Subトリガー(スケジュール)関数
           deploy rankingUpdateGo RankingUpdateGo \
