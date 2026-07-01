@@ -60,14 +60,19 @@ test("user_performance: 未対応イベントは加点しない", () => {
   assert.strictEqual(r.power + r.defence + r.intelligence + r.agility + r.hp, 0)
 })
 
-test("user_performance: IssuesEvent は payload が文字列の時のみ加点(既存仕様)", () => {
-  // 文字列 payload の場合のみ switch にマッチする
-  assert.strictEqual(user_performance([item("IssuesEvent", 1000, "opened")], "u").intelligence, 3)
-  assert.strictEqual(user_performance([item("IssuesEvent", 1000, "closed")], "u").defence, 5)
-  // GitHub API 実体のオブジェクト payload はマッチせず加点されない(既存挙動)
-  const objR = user_performance([item("IssuesEvent", 1000, { action: "opened" })], "u")
-  assert.strictEqual(objR.intelligence, 0)
-  assert.strictEqual(objR.defence, 0)
+test("user_performance: IssuesEvent は payload.action で加点する", () => {
+  // GitHub Events API の payload は {action:"opened"} 等のオブジェクト。
+  // payload.action を見て加点する(opened -> intelligence+3, closed -> defence+5)。
+  assert.strictEqual(user_performance([item("IssuesEvent", 1000, { action: "opened" })], "u").intelligence, 3)
+  assert.strictEqual(user_performance([item("IssuesEvent", 1000, { action: "closed" })], "u").defence, 5)
+  // opened/closed 以外(reopened等)は加点されない
+  const reopened = user_performance([item("IssuesEvent", 1000, { action: "reopened" })], "u")
+  assert.strictEqual(reopened.intelligence, 0)
+  assert.strictEqual(reopened.defence, 0)
+  // payload がオブジェクトでない(文字列/null)場合は action を取れず加点されない
+  const strR = user_performance([item("IssuesEvent", 1000, "opened")], "u")
+  assert.strictEqual(strR.intelligence, 0)
+  assert.strictEqual(strR.defence, 0)
 })
 
 // ============================================================

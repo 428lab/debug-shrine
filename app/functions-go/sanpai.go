@@ -267,6 +267,7 @@ type sanpaiUserDocument struct {
 	LastSanpai            time.Time        `firestore:"last_sanpai"`
 	LastActivityCreatedAt string           `firestore:"last_activity_created_at"`
 	Status                *firestoreStatus `firestore:"status"`
+	StatusVersion         int64            `firestore:"status_version"`
 }
 
 // runSanpai は参拝処理の本体。エラーを返した場合は呼び出し元で
@@ -385,11 +386,15 @@ func runSanpai(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 
 	var rawUserData performance.RawUserData
 	var lastActivityCreatedAt string
-	if userData.Status != nil && userData.LastActivityCreatedAt != "" {
+	if statusCacheIsCurrent(userData.Status, userData.StatusVersion) && userData.LastActivityCreatedAt != "" {
 		// 保存済みステータスに新着分だけを加算(全件再集計しない)。
 		// splited は「created_at > last_sanpai」で抽出した未集計イベントのみ、
 		// last_activity_created_at は累積済みイベントの最大時刻であり、
 		// ComputePerformanceIncrement の不変条件(新着は累積分より後)を満たす。
+		//
+		// status_version が古いキャッシュ(旧ロジックで計算)を基準に増分すると
+		// 過去分の誤りを現行バージョンとして固定化してしまうため、その場合は
+		// この分岐に入らず下の全件再計算パスに落として基準ごと作り直す。
 		baseUserData := performance.RawUserDataFromStatus(fromFirestoreStatus(*userData.Status).FormattedPerformance, userData.ScreenName)
 		inc := performance.ComputePerformanceIncrement(baseUserData, activities, userData.LastActivityCreatedAt)
 		rawUserData = inc.UserData
@@ -417,6 +422,7 @@ func runSanpai(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 		{Path: "last_sanpai", Value: firestore.ServerTimestamp},
 		{Path: "exp", Value: firestore.Increment(addExp)},
 		{Path: "status", Value: toFirestoreStatus(formatted, "")},
+		{Path: "status_version", Value: performance.StatusLogicVersion},
 		{Path: "last_activity_created_at", Value: lastActivityCreatedAt},
 	}); err != nil {
 		return err

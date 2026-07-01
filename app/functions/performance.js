@@ -3,6 +3,19 @@
 // 副作用(Firestore/HTTP/認証)を持たず、ユニットテスト可能な単位として index.js から分離している。
 const moment = require("moment")
 
+// STATUS_LOGIC_VERSION は能力解析(performance)の計算ロジックのバージョン。
+// 計算式(加点テーブルや判定条件など、同一アクティビティに対する算出結果)を変えたら
+// 必ずインクリメントすること。users/{id}.status_version に保存され、キャッシュ済み
+// status がこのバージョン未満なら再計算対象になる(status/sanpai/statusCacheBackfill)。
+//
+// 履歴:
+//   1: IssuesEvent を payload.action で加点するよう修正(それ以前は常に未加点だった)。
+//      未設定(フィールドが存在しない旧キャッシュ)は undefined として扱われ再計算される。
+//
+// Go版 (app/functions-go/internal/performance/performance.go) の StatusLogicVersion と
+// 必ず一致させること。
+const STATUS_LOGIC_VERSION = 1
+
 const target_points = [0,5,11,19,30,45,65,91,124,166,218,281,357,447,553,676,818,981,1167,1378,1616,1884,2184,2519,2892,3306,3764,4269,4825,5436,6106,6840,7643,8520,9477,10520,11656,12892,14236,15696,17281,19001,20867,22891,25086,27466,30046,32842,35872,39156]
 
 function get_level(points) {
@@ -78,7 +91,9 @@ function user_performance(items, username) {
         user_data.power += 3
         break
       case "IssuesEvent":
-        switch (item.payload) {
+        // GitHub Events API の payload はオブジェクトで、開閉種別は payload.action
+        // ("opened"/"closed"/...) に入る。opened で intelligence+3, closed で defence+5。
+        switch (item.payload && item.payload.action) {
           case "opened":
             user_data.intelligence += 3
             break
@@ -238,7 +253,9 @@ function compute_performance_increment(base_user_data, new_items, previous_creat
         user_data.power += 3
         break
       case "IssuesEvent":
-        switch (item.payload) {
+        // GitHub Events API の payload はオブジェクトで、開閉種別は payload.action
+        // ("opened"/"closed"/...) に入る。opened で intelligence+3, closed で defence+5。
+        switch (item.payload && item.payload.action) {
           case "opened":
             user_data.intelligence += 3
             break
@@ -269,6 +286,7 @@ function compute_performance_increment(base_user_data, new_items, previous_creat
 }
 
 module.exports = {
+  STATUS_LOGIC_VERSION,
   target_points,
   get_level,
   get_next_leve_exp,
