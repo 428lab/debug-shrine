@@ -88,8 +88,18 @@ jobs:
         run: |
           go build ./...
           go vet ./...
-          go test ./...
         working-directory: ./app/functions-go
+
+      # sanpai/ranking/register/statusCacheBackfill等のFirestore統合テストは
+      # FIRESTORE_EMULATOR_HOST未設定時は自動スキップされる設計(README参照)。
+      # CIでも実際に検証されるよう、Firestoreエミュレータを起動した状態で
+      # go test を実行する(firebase emulators:exec が終了時に自動でエミュレータを
+      # 落とすため、後続ステップに影響しない)。
+      - name: go test (functions-go, with Firestore emulator)
+        run: |
+          firebase emulators:exec --project d-shrine-dev --only firestore \
+            'cd functions-go && go test ./...'
+        working-directory: ./app
 
       # Go版Cloud Run functions(statusGo)のデプロイ。既存のstatus(Node)とは別関数として
       # 共存させ、フロントエンドの切替タイミングを制御できるようにしている
@@ -216,3 +226,164 @@ jobs:
             --timeout=30s \
             --set-env-vars=FUNC_BASE_URL=${{ env.OGP_FUNC_BASE_URL }},OGP_PROJECT_ID=d-shrine-dev
         working-directory: ./app/functions-go
+
+      # スケジュール関数(Pub/Sub トリガー)のGo移植分。既存のNode版
+      # (rankingUpdate/rankingCache/statusCacheBackfill/scheduledOgpDelete)とは
+      # 別のCloud Scheduler ジョブ・Pub/Subトピック・関数名で完全に独立してデプロイし、
+      # 安定稼働を確認してからNode版を止める(詳細は docs/backend.md
+      # 「スケジュール関数のGo移植」を参照)。
+      #
+      # --trigger-topic に指定したPub/SubトピックはCloud Functions側が
+      # 存在しなければ自動作成するため、事前のトピック作成手順は不要。
+      # Cloud SchedulerジョブはApp Engineのロケーションに紐づくため、
+      # 既存プロジェクトの設定値を動的に取得して使う。
+      - name: enable required GCP services for scheduled Go functions
+        run: |
+          gcloud services enable \
+            pubsub.googleapis.com \
+            cloudscheduler.googleapis.com \
+            eventarc.googleapis.com \
+            --project=d-shrine-dev
+
+      # Cloud SchedulerジョブのlocationはプロジェクトのApp Engineアプリと
+      # 同一でなければならない(App Engineが存在するプロジェクトでは、それ以外の
+      # リージョンを指定すると `Location must equal <app-engine-location>` エラーになる)。
+      # `gcloud app describe` が返す locationId はレガシーなApp Engine表記
+      # (例: "us-central")の場合があり、Cloud Scheduler/Cloud Functions等の
+      # 通常のCloudリージョン表記(例: "us-central1")とは異なることがあるため、
+      # 既知の対応表で変換する。
+      - name: resolve App Engine location for Cloud Scheduler
+        run: |
+          set -eo pipefail
+          RAW_LOCATION=$(gcloud app describe --project=d-shrine-dev --format='value(locationId)')
+          case "$RAW_LOCATION" in
+            us-central) LOCATION=us-central1 ;;
+            europe-west) LOCATION=europe-west1 ;;
+            *) LOCATION="$RAW_LOCATION" ;;
+          esac
+          echo "resolved App Engine location: $RAW_LOCATION -> $LOCATION"
+          echo "APP_ENGINE_LOCATION=$LOCATION" >> "$GITHUB_ENV"
+
+      # timeout=300s: Node版はrunWith()を使わずデフォルト(60s)のままだが、
+      # 全ユーザーをスキャンする処理のため安全側に長めの値を明示指定する
+      # (実行時間そのものはNode版と同等の想定で、上限を厳しくしすぎて
+      # ユーザー数増加時にタイムアウトする事故を避けるのが目的)。
+      - name: deploy rankingUpdateGo (Cloud Run function, Go, Pub/Sub trigger)
+        run: |
+          gcloud functions deploy rankingUpdateGo \
+            --project=d-shrine-dev \
+            --gen2 \
+            --runtime=go125 \
+            --region=us-central1 \
+            --source=. \
+            --entry-point=RankingUpdateGo \
+            --trigger-topic=ranking-update-go \
+            --memory=256Mi \
+            --timeout=300s
+        working-directory: ./app/functions-go
+
+      - name: create/update Cloud Scheduler job for rankingUpdateGo
+        run: |
+          gcloud scheduler jobs update pubsub ranking-update-go \
+            --project=d-shrine-dev --location=${{ env.APP_ENGINE_LOCATION }} \
+            --schedule="0 * * * *" \
+            --topic=ranking-update-go \
+            --message-body="{}" \
+            --time-zone=Etc/UTC \
+          || gcloud scheduler jobs create pubsub ranking-update-go \
+            --project=d-shrine-dev --location=${{ env.APP_ENGINE_LOCATION }} \
+            --schedule="0 * * * *" \
+            --topic=ranking-update-go \
+            --message-body="{}" \
+            --time-zone=Etc/UTC
+
+      # timeout=300s: rankingUpdateGoと同様の理由(全ユーザースキャンのため安全側)。
+      - name: deploy rankingCacheGo (Cloud Run function, Go, Pub/Sub trigger)
+        run: |
+          gcloud functions deploy rankingCacheGo \
+            --project=d-shrine-dev \
+            --gen2 \
+            --runtime=go125 \
+            --region=us-central1 \
+            --source=. \
+            --entry-point=RankingCacheGo \
+            --trigger-topic=ranking-cache-go \
+            --memory=256Mi \
+            --timeout=300s
+        working-directory: ./app/functions-go
+
+      - name: create/update Cloud Scheduler job for rankingCacheGo
+        run: |
+          gcloud scheduler jobs update pubsub ranking-cache-go \
+            --project=d-shrine-dev --location=${{ env.APP_ENGINE_LOCATION }} \
+            --schedule="0 */2 * * *" \
+            --topic=ranking-cache-go \
+            --message-body="{}" \
+            --time-zone=Etc/UTC \
+          || gcloud scheduler jobs create pubsub ranking-cache-go \
+            --project=d-shrine-dev --location=${{ env.APP_ENGINE_LOCATION }} \
+            --schedule="0 */2 * * *" \
+            --topic=ranking-cache-go \
+            --message-body="{}" \
+            --time-zone=Etc/UTC
+
+      - name: deploy statusCacheBackfillGo (Cloud Run function, Go, Pub/Sub trigger)
+        run: |
+          gcloud functions deploy statusCacheBackfillGo \
+            --project=d-shrine-dev \
+            --gen2 \
+            --runtime=go125 \
+            --region=us-central1 \
+            --source=. \
+            --entry-point=StatusCacheBackfillGo \
+            --trigger-topic=status-cache-backfill-go \
+            --memory=512Mi \
+            --timeout=300s
+        working-directory: ./app/functions-go
+
+      - name: create/update Cloud Scheduler job for statusCacheBackfillGo
+        run: |
+          gcloud scheduler jobs update pubsub status-cache-backfill-go \
+            --project=d-shrine-dev --location=${{ env.APP_ENGINE_LOCATION }} \
+            --schedule="*/30 * * * *" \
+            --topic=status-cache-backfill-go \
+            --message-body="{}" \
+            --time-zone=Etc/UTC \
+          || gcloud scheduler jobs create pubsub status-cache-backfill-go \
+            --project=d-shrine-dev --location=${{ env.APP_ENGINE_LOCATION }} \
+            --schedule="*/30 * * * *" \
+            --topic=status-cache-backfill-go \
+            --message-body="{}" \
+            --time-zone=Etc/UTC
+
+      # timeout=300s: OGPキャッシュファイル数が多い場合でも一覧・削除が
+      # 途中で打ち切られないよう安全側に長めの値を明示指定する。
+      - name: deploy scheduledOgpDeleteGo (Cloud Run function, Go, Pub/Sub trigger)
+        run: |
+          gcloud functions deploy scheduledOgpDeleteGo \
+            --project=d-shrine-dev \
+            --gen2 \
+            --runtime=go125 \
+            --region=us-central1 \
+            --source=. \
+            --entry-point=ScheduledOgpDeleteGo \
+            --trigger-topic=scheduled-ogp-delete-go \
+            --memory=256Mi \
+            --timeout=300s \
+            --set-env-vars=STORAGE_BUCKET_NAME=d-shrine-dev.appspot.com
+        working-directory: ./app/functions-go
+
+      - name: create/update Cloud Scheduler job for scheduledOgpDeleteGo
+        run: |
+          gcloud scheduler jobs update pubsub scheduled-ogp-delete-go \
+            --project=d-shrine-dev --location=${{ env.APP_ENGINE_LOCATION }} \
+            --schedule="0 */1 * * *" \
+            --topic=scheduled-ogp-delete-go \
+            --message-body="{}" \
+            --time-zone=Etc/UTC \
+          || gcloud scheduler jobs create pubsub scheduled-ogp-delete-go \
+            --project=d-shrine-dev --location=${{ env.APP_ENGINE_LOCATION }} \
+            --schedule="0 */1 * * *" \
+            --topic=scheduled-ogp-delete-go \
+            --message-body="{}" \
+            --time-zone=Etc/UTC

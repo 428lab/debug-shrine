@@ -38,6 +38,14 @@ functions-go/
   register_test.go
   ogp_rewrite.go         # ogpRewriteGo エンドポイント
   ogp_rewrite_test.go
+  ranking_update.go      # rankingUpdateGo (Pub/Subトリガー、スケジュール関数)
+  ranking_update_test.go
+  ranking_cache.go       # rankingCacheGo (Pub/Subトリガー、スケジュール関数)
+  ranking_cache_test.go
+  status_cache_backfill.go      # statusCacheBackfillGo (Pub/Subトリガー、スケジュール関数)
+  status_cache_backfill_test.go
+  scheduled_ogp_delete.go       # scheduledOgpDeleteGo (Pub/Subトリガー、スケジュール関数)
+  scheduled_ogp_delete_test.go
   cmd/
     main.go               # ローカル動作確認専用(デプロイでは使わない)
   internal/
@@ -46,9 +54,7 @@ functions-go/
       performance_test.go # performance.test.js と同一の入出力を検証
 ```
 
-`userOGP`(OGP画像生成)とPub/Subスケジュール関数(`rankingUpdate`/
-`rankingCache`/`statusCacheBackfill`/`scheduledOgpDelete`)は対象外
-(理由は `docs/backend.md`「Go移植を見送った機能」を参照)。
+`userOGP`(OGP画像生成)は対象外(理由は `docs/backend.md`「Go移植を見送った機能」を参照)。
 
 ## 関数の命名規則(既存Node関数との共存)
 
@@ -81,10 +87,12 @@ PORT=8090 \
 go run ./cmd
 ```
 
-`sanpai_test.go` は `FIRESTORE_EMULATOR_HOST` が未設定の場合は自動的にスキップする
-ため、通常のCI(`go test ./...`)には影響しない。GitHub Events APIはテスト用の
-`httptest` モックサーバーに差し替えており(`githubAPIBaseURL` 変数)、実際の
-GitHub APIやFirebase Authへの通信は発生しない。
+Firestoreエミュレータ統合テスト(`sanpai_test.go`等)は `FIRESTORE_EMULATOR_HOST`
+が未設定の場合は自動的にスキップするが、CI(`dev-deploy.yml`)では
+`firebase emulators:exec --only firestore 'go test ./...'` の形でFirestore
+エミュレータを起動した状態で実行しているため、実際にスキップされず検証される。
+GitHub Events APIはテスト用の `httptest` モックサーバーに差し替えており
+(`githubAPIBaseURL` 変数)、実際のGitHub APIやFirebase Authへの通信は発生しない。
 
 ## デプロイ
 
@@ -122,6 +130,66 @@ gcloud functions deploy statusGo \
 `ogpRewriteGo` は追加で `FUNC_BASE_URL`(Node版の
 `functions.config().func.base_url` 相当)と `OGP_PROJECT_ID` を
 `--set-env-vars` で渡す必要がある。
+
+## スケジュール関数(Pub/Subトリガー)のデプロイ
+
+`rankingUpdateGo`/`rankingCacheGo`/`statusCacheBackfillGo`/`scheduledOgpDeleteGo`
+はHTTPトリガーではなくPub/Sub(Cloud Scheduler経由)トリガーのため、
+デプロイ方法が異なる。
+
+```bash
+gcloud functions deploy rankingUpdateGo \
+  --project=d-shrine-dev \
+  --gen2 \
+  --runtime=go125 \
+  --region=us-central1 \
+  --source=. \
+  --entry-point=RankingUpdateGo \
+  --trigger-topic=ranking-update-go \
+  --memory=256Mi \
+  --timeout=300s
+```
+
+`--trigger-topic` に指定したPub/Subトピックは存在しなければCloud Functions側が
+自動作成するため、事前のトピック作成は不要。ただし実際に定期実行するには
+別途Cloud Schedulerジョブが必要で、CIでは「更新を試みて、ジョブが無ければ
+作成する」形で冪等にセットアップしている(`update`は対象ジョブが存在しない場合
+失敗するため、`||`で`create`にフォールバックする)。
+
+Cloud SchedulerジョブのlocationはプロジェクトのApp Engineアプリと同一の
+リージョンでなければならない制約があるため、`gcloud app describe`から動的に
+取得している。ただし `gcloud app describe` が返す `locationId` はレガシーな
+App Engine表記(例: `us-central`)の場合があり、Cloud Scheduler側が要求する
+通常のCloudリージョン表記(例: `us-central1`)と異なることがあるため、
+既知のパターンを変換してから使用する(詳細はCIのコメント参照)。
+
+```bash
+RAW_LOCATION=$(gcloud app describe --project=d-shrine-dev --format='value(locationId)')
+# us-central -> us-central1 等、既知の表記ゆれを変換した値をLOCATIONとする
+gcloud scheduler jobs update pubsub ranking-update-go \
+  --project=d-shrine-dev --location="$LOCATION" \
+  --schedule="0 * * * *" \
+  --topic=ranking-update-go \
+  --message-body="{}" \
+  --time-zone=Etc/UTC \
+|| gcloud scheduler jobs create pubsub ranking-update-go \
+     --project=d-shrine-dev --location="$LOCATION" \
+     --schedule="0 * * * *" \
+     --topic=ranking-update-go \
+     --message-body="{}" \
+     --time-zone=Etc/UTC
+```
+
+`statusCacheBackfillGo` はNode版の `runWith({timeoutSeconds:300, memory:"512MB"})`
+に合わせて `--memory=512Mi --timeout=300s` を指定している。`scheduledOgpDeleteGo`
+はCloud Storageを操作するため `STORAGE_BUCKET_NAME`(Node版の
+`${projectID}.appspot.com` 相当)を `--set-env-vars` で渡している。
+
+各スケジュールの間隔・タイムゾーンはNode版と揃えているが、固定間隔
+(`every N minutes`)の実行に対してタイムゾーンの選択は実行時刻そのものには
+影響しない(例えば「毎時0分」はUTCでもAsia/Tokyoでも同じ実時刻に発火する。
+Asia/Tokyoは夏時間の無い固定オフセットのため)ため、CI側は全て `Etc/UTC` を
+明示指定している。
 
 ## Node版との等価性の確認方法
 
