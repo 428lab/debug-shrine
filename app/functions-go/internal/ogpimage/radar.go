@@ -102,12 +102,13 @@ func drawRadar(dc *gg.Context, p radarParams) {
 		for i := 0; i < 5; i++ {
 			theta := axisAngle(i)
 			x, y := axisPoint(p.cx, p.cy, p.labelDist, theta)
-			// 左方向へ伸びる軸(すばやさ/しゅびりょく)のラベルは右寄せにして、
-			// テキストが中心(レーダー)側に被らないよう外側(左)へ逃がす。
+			// 左方向へ伸びる軸(すばやさ/しゅびりょく)のラベルはやや右寄せにして、
+			// テキストが中心(レーダー)側に被らないよう外側(左)へ少しだけ逃がす。
+			// 完全な右寄せ(1.0)だと左の青パネルに重なるため、控えめの0.7にする。
 			// 右側/上下は従来どおり中央寄せ(右寄せにするとカード外へはみ出すため)。
 			ax := 0.5
 			if math.Cos(theta) < -0.3 {
-				ax = 1.0
+				ax = 0.7
 			}
 			dc.DrawStringAnchored(p.labels[i], x, y, ax, 0.5)
 		}
