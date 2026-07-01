@@ -4,6 +4,9 @@
 package performance
 
 import (
+	"math/rand"
+	"reflect"
+	"sort"
 	"testing"
 	"time"
 )
@@ -143,6 +146,149 @@ func TestUserPerformance_HPByContinuousPairs(t *testing.T) {
 	}, "u")
 	if three.HP != 4 {
 		t.Errorf("three.HP = %d, want 4", three.HP)
+	}
+}
+
+func TestRawUserDataFromStatus(t *testing.T) {
+	status := FormattedPerformance{HP: 1, Power: 2, Defence: 3, Agility: 4, Intelligence: 5}
+	got := RawUserDataFromStatus(status, "u")
+	want := RawUserData{User: "u", HP: 1, Power: 2, Defence: 3, Dex: 0, Agility: 4, Intelligence: 5}
+	if got != want {
+		t.Errorf("RawUserDataFromStatus = %+v, want %+v", got, want)
+	}
+}
+
+func TestLatestActivityCreatedAt(t *testing.T) {
+	if got := LatestActivityCreatedAt(nil); got != "" {
+		t.Errorf("LatestActivityCreatedAt(nil) = %q, want empty", got)
+	}
+	items := []Activity{item("PushEvent", 3000, nil), item("PushEvent", 1000, nil), item("PushEvent", 5000, nil)}
+	want := iso(5000)
+	if got := LatestActivityCreatedAt(items); got != want {
+		t.Errorf("LatestActivityCreatedAt = %q, want %q", got, want)
+	}
+}
+
+func TestComputePerformanceIncrement_InvariantViolationDoesNotPanic(t *testing.T) {
+	base := RawUserData{User: "u"}
+	// 境界より前のcreated_atを渡しても(警告ログのみで)パニックしないことを確認する。
+	_ = ComputePerformanceIncrement(base, []Activity{item("PushEvent", 1000, nil)}, iso(5000))
+	_ = ComputePerformanceIncrement(base, []Activity{item("PushEvent", 9000, nil)}, iso(5000))
+}
+
+// ============================================================
+// 増分計算の等価性(プロパティテスト)
+// performance.test.js の同名テストと同一のロジックをGoで移植。
+// ============================================================
+
+var eventTypes = []string{
+	"ForkEvent", "PushEvent", "CreateEvent", "DeleteEvent", "PullRequestEvent",
+	"IssuesEvent", "IssueCommentEvent", "PullRequestReviewEvent",
+	"PullRequestReviewCommentEvent", "GollumEvent", "ReleaseEvent", "WatchEvent",
+}
+
+var payloadCandidates = []any{
+	map[string]any{"action": "opened"}, map[string]any{"action": "closed"}, "opened", "closed", nil,
+}
+
+func genItems(rng *rand.Rand, count int, startUnix int64) []Activity {
+	t := startUnix
+	items := make([]Activity, 0, count)
+	for i := 0; i < count; i++ {
+		t += rng.Int63n(10000) // 7200秒境界を跨ぐようばらつかせる
+		items = append(items, item(eventTypes[rng.Intn(len(eventTypes))], t, payloadCandidates[rng.Intn(len(payloadCandidates))]))
+	}
+	return items
+}
+
+func sortByCreatedAt(items []Activity) {
+	sort.SliceStable(items, func(i, j int) bool {
+		return parseCreatedAt(items[i].CreatedAt).Before(parseCreatedAt(items[j].CreatedAt))
+	})
+}
+
+// pickedFields は比較対象のフィールドのみ抽出する(performance.test.js の pick と同じ意図)。
+type pickedFields struct {
+	HP, Power, Intelligence, Defence, Agility, Total, Level, NextExp, Points, Exp int
+}
+
+func pick(f FormattedPerformance) pickedFields {
+	return pickedFields{f.HP, f.Power, f.Intelligence, f.Defence, f.Agility, f.Total, f.Level, f.NextExp, f.Points, f.Exp}
+}
+
+var appendForTest = AppendData{Exp: 42, User: UserInfo{DisplayName: "d", ScreenName: "s"}}
+
+func TestIncrementEqualsFullCalculation_TwoBatches(t *testing.T) {
+	rng := rand.New(rand.NewSource(1))
+	for c := 0; c < 2000; c++ {
+		all := genItems(rng, 1+rng.Intn(40), int64(1577836800)+rng.Int63n(1000000)) // 2020-01-01T00:00:00Z
+		sortByCreatedAt(all)
+		k := rng.Intn(len(all) + 1)
+		oldItems := all[:k]
+		newItems := all[k:]
+		if len(newItems) == 0 {
+			continue
+		}
+
+		full := UserFormattedPerformance(UserPerformance(all, ""), appendForTest)
+
+		var incFmt FormattedPerformance
+		if len(oldItems) > 0 {
+			baseStatus := UserFormattedPerformance(UserPerformance(oldItems, ""), AppendData{})
+			inc := ComputePerformanceIncrement(RawUserDataFromStatus(baseStatus, "s"), newItems, LatestActivityCreatedAt(oldItems))
+			incFmt = UserFormattedPerformance(inc.UserData, appendForTest)
+		} else {
+			incFmt = UserFormattedPerformance(UserPerformance(newItems, ""), appendForTest)
+		}
+		if !reflect.DeepEqual(pick(incFmt), pick(full)) {
+			t.Fatalf("case %d: increment=%+v full=%+v", c, pick(incFmt), pick(full))
+		}
+	}
+}
+
+func applyIncrement(rng *rand.Rand, prevStatus *FormattedPerformance, prevTs string, batch []Activity) (FormattedPerformance, string) {
+	if prevStatus != nil {
+		inc := ComputePerformanceIncrement(RawUserDataFromStatus(*prevStatus, "s"), batch, prevTs)
+		return UserFormattedPerformance(inc.UserData, AppendData{}), inc.LastCreatedAt
+	}
+	return UserFormattedPerformance(UserPerformance(batch, ""), AppendData{}), LatestActivityCreatedAt(batch)
+}
+
+func TestIncrementEqualsFullCalculation_ThreeBatchesSequential(t *testing.T) {
+	rng := rand.New(rand.NewSource(2))
+	for c := 0; c < 1000; c++ {
+		all := genItems(rng, 3+rng.Intn(40), int64(1577836800)+rng.Int63n(1000000))
+		sortByCreatedAt(all)
+		p1 := rng.Intn(len(all) + 1)
+		p2 := p1 + rng.Intn(len(all)-p1+1)
+		b1, b2, b3 := all[:p1], all[p1:p2], all[p2:]
+		if len(b3) == 0 {
+			continue
+		}
+
+		full := UserFormattedPerformance(UserPerformance(all, ""), appendForTest)
+
+		var s *FormattedPerformance
+		var ts string
+		if len(b1) > 0 {
+			r, t2 := applyIncrement(rng, s, ts, b1)
+			s, ts = &r, t2
+		}
+		if len(b2) > 0 {
+			r, t2 := applyIncrement(rng, s, ts, b2)
+			s, ts = &r, t2
+		}
+
+		var finalFmt FormattedPerformance
+		if s != nil {
+			inc := ComputePerformanceIncrement(RawUserDataFromStatus(*s, "s"), b3, ts)
+			finalFmt = UserFormattedPerformance(inc.UserData, appendForTest)
+		} else {
+			finalFmt = UserFormattedPerformance(UserPerformance(b3, ""), appendForTest)
+		}
+		if !reflect.DeepEqual(pick(finalFmt), pick(full)) {
+			t.Fatalf("case %d: final=%+v full=%+v", c, pick(finalFmt), pick(full))
+		}
 	}
 }
 

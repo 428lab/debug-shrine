@@ -117,3 +117,102 @@ jobs:
             --memory=256Mi \
             --timeout=30s
         working-directory: ./app/functions-go
+
+      # Go版Cloud Run functions(sanpaiGo)のデプロイ。既存のsanpai(Node)とは別関数として
+      # 共存させ、フロントエンドの切替タイミングを制御できるようにしている
+      # (詳細は docs/backend.md「sanpai エンドポイントのGo移植」を参照)。
+      #
+      # GitHub OAuth Appのclient_id/client_secretは、Node版が使う
+      # `firebase functions:config:get` (既にGCP側に設定済みの値)からそのまま取得し、
+      # 新規のGitHub Secretsは増やさない。ログに値が出ないよう ::add-mask:: で
+      # マスクしてから $GITHUB_ENV に渡す。
+      - name: fetch GitHub OAuth credentials for sanpaiGo
+        run: |
+          set -eo pipefail
+          CONFIG_JSON=$(firebase functions:config:get github --project d-shrine-dev)
+          CLIENT_ID=$(echo "$CONFIG_JSON" | jq -r '.client_id')
+          CLIENT_SECRET=$(echo "$CONFIG_JSON" | jq -r '.client_secret')
+          echo "::add-mask::$CLIENT_ID"
+          echo "::add-mask::$CLIENT_SECRET"
+          echo "SANPAI_GH_CLIENT_ID=$CLIENT_ID" >> "$GITHUB_ENV"
+          echo "SANPAI_GH_CLIENT_SECRET=$CLIENT_SECRET" >> "$GITHUB_ENV"
+        working-directory: ./app
+
+      - name: deploy sanpaiGo (Cloud Run function, Go)
+        run: |
+          gcloud functions deploy sanpaiGo \
+            --project=d-shrine-dev \
+            --gen2 \
+            --runtime=go125 \
+            --region=us-central1 \
+            --source=. \
+            --entry-point=SanpaiGo \
+            --trigger-http \
+            --allow-unauthenticated \
+            --memory=256Mi \
+            --timeout=30s \
+            --set-env-vars=GITHUB_CLIENT_ID=${{ env.SANPAI_GH_CLIENT_ID }},GITHUB_CLIENT_SECRET=${{ env.SANPAI_GH_CLIENT_SECRET }},SANPAI_NEXT_TIME_SECONDS=60
+        working-directory: ./app/functions-go
+
+      # Go版Cloud Run functions(registerGo)のデプロイ。既存のregister(Node)とは別関数として
+      # 共存させる(詳細は docs/backend.md「register エンドポイントのGo移植」を参照)。
+      - name: deploy registerGo (Cloud Run function, Go)
+        run: |
+          gcloud functions deploy registerGo \
+            --project=d-shrine-dev \
+            --gen2 \
+            --runtime=go125 \
+            --region=us-central1 \
+            --source=. \
+            --entry-point=RegisterGo \
+            --trigger-http \
+            --allow-unauthenticated \
+            --memory=256Mi \
+            --timeout=30s
+        working-directory: ./app/functions-go
+
+      # Go版Cloud Run functions(rankingGo)のデプロイ。既存のranking(Node)とは別関数として
+      # 共存させる(詳細は docs/backend.md「ranking エンドポイントのGo移植」を参照)。
+      - name: deploy rankingGo (Cloud Run function, Go)
+        run: |
+          gcloud functions deploy rankingGo \
+            --project=d-shrine-dev \
+            --gen2 \
+            --runtime=go125 \
+            --region=us-central1 \
+            --source=. \
+            --entry-point=RankingGo \
+            --trigger-http \
+            --allow-unauthenticated \
+            --memory=256Mi \
+            --timeout=30s
+        working-directory: ./app/functions-go
+
+      # Go版Cloud Run functions(ogpRewriteGo)のデプロイ。既存のogpRewrite(Node)とは
+      # 別関数として共存させる(詳細は docs/backend.md「ogpRewrite エンドポイントのGo移植」を参照)。
+      #
+      # FUNC_BASE_URLはNode版が functions.config().func.base_url から読む値と同じもので、
+      # sanpaiGoのGitHub資格情報と同様に既存のFirebase Functions Configから取得する。
+      - name: fetch base_url for ogpRewriteGo
+        run: |
+          set -eo pipefail
+          CONFIG_JSON=$(firebase functions:config:get func --project d-shrine-dev)
+          BASE_URL=$(echo "$CONFIG_JSON" | jq -r '.base_url')
+          echo "OGP_FUNC_BASE_URL=$BASE_URL" >> "$GITHUB_ENV"
+        working-directory: ./app
+
+      - name: deploy ogpRewriteGo (Cloud Run function, Go)
+        run: |
+          gcloud functions deploy ogpRewriteGo \
+            --project=d-shrine-dev \
+            --gen2 \
+            --runtime=go125 \
+            --region=us-central1 \
+            --source=. \
+            --entry-point=OgpRewriteGo \
+            --trigger-http \
+            --allow-unauthenticated \
+            --memory=256Mi \
+            --timeout=30s \
+            --set-env-vars=FUNC_BASE_URL=${{ env.OGP_FUNC_BASE_URL }},OGP_PROJECT_ID=d-shrine-dev
+        working-directory: ./app/functions-go

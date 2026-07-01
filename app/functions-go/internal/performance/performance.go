@@ -7,6 +7,7 @@
 package performance
 
 import (
+	"log"
 	"sort"
 	"time"
 )
@@ -198,6 +199,128 @@ type FormattedPerformance struct {
 type AppendData struct {
 	Exp  int
 	User UserInfo
+}
+
+// RawUserDataFromStatus は保存済み status から user_performance 相当の生ステータスを
+// 復元する(Node版 raw_user_data_from_status と同一)。
+func RawUserDataFromStatus(status FormattedPerformance, username string) RawUserData {
+	return RawUserData{
+		User:         username,
+		HP:           status.HP,
+		Power:        status.Power,
+		Defence:      status.Defence,
+		Dex:          0,
+		Agility:      status.Agility,
+		Intelligence: status.Intelligence,
+	}
+}
+
+// LatestActivityCreatedAt はアクティビティ群の中で最も新しい created_at を返す
+// (無ければ空文字。Node版 latest_activity_created_at は null を返すが、Goでは
+// zero valueとして空文字を使う)。
+func LatestActivityCreatedAt(items []Activity) string {
+	latest := ""
+	for _, item := range items {
+		if latest == "" || parseCreatedAt(item.CreatedAt).After(parseCreatedAt(latest)) {
+			latest = item.CreatedAt
+		}
+	}
+	return latest
+}
+
+// IncrementResult は ComputePerformanceIncrement の戻り値。
+type IncrementResult struct {
+	UserData      RawUserData
+	LastCreatedAt string
+}
+
+// ComputePerformanceIncrement は累積ステータス(baseUserData)に新着アクティビティ分だけを
+// 加算する増分計算(Node版 compute_performance_increment と同一)。
+//
+// user_performance の per-event / per-pair の寄与は加算的で、バッチ境界
+// (previousCreatedAt と新着先頭の時間差)だけがクロスバッチ依存となるため、
+// 全件を再集計せずとも全件計算と同一の結果が得られる。
+//
+// 前提となる不変条件(全件計算と一致するのは以下が成り立つ場合のみ):
+//  1. newItems は baseUserData に未集計のイベントだけで構成される(二重計上しない)。
+//  2. newItems の全イベントが previousCreatedAt(累積済みイベントの最大時刻)より後である。
+//  3. previousCreatedAt は累積済みイベントの最大 created_at である。
+//
+// 呼び出し側(sanpai)は「created_at > last_sanpai」で newItems を抽出し、
+// previousCreatedAt に保存済み最大時刻(last_activity_created_at)を渡すことでこれを満たす。
+func ComputePerformanceIncrement(baseUserData RawUserData, newItems []Activity, previousCreatedAt string) IncrementResult {
+	data := RawUserData{
+		User:         baseUserData.User,
+		HP:           baseUserData.HP,
+		Power:        baseUserData.Power,
+		Defence:      baseUserData.Defence,
+		Dex:          baseUserData.Dex,
+		Agility:      baseUserData.Agility,
+		Intelligence: baseUserData.Intelligence,
+	}
+
+	sorted := make([]Activity, len(newItems))
+	copy(sorted, newItems)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		return parseCreatedAt(sorted[i].CreatedAt).Before(parseCreatedAt(sorted[j].CreatedAt))
+	})
+
+	// 不変条件2の検知: 新着の最古イベントが境界より前なら前提が崩れている。
+	if previousCreatedAt != "" && len(sorted) > 0 &&
+		parseCreatedAt(sorted[0].CreatedAt).Before(parseCreatedAt(previousCreatedAt)) {
+		log.Printf("[performance] 増分計算の前提違反: 新着の最古イベント(%s)が境界(%s)より前です。全件計算と不一致になり得ます。", sorted[0].CreatedAt, previousCreatedAt)
+	}
+
+	prevCreatedAt := previousCreatedAt
+	for i := range sorted {
+		item := &sorted[i]
+		if prevCreatedAt != "" {
+			diff := parseCreatedAt(item.CreatedAt).Sub(parseCreatedAt(prevCreatedAt)).Seconds()
+
+			switch {
+			case diff > 30 && diff <= 120:
+				data.Agility += 6
+			case diff <= 180:
+				data.Agility += 3
+			case diff <= 300:
+				data.Agility += 2
+			case diff <= 1200:
+				data.Agility += 1
+			}
+			if diff <= 7200 {
+				data.HP += 2
+			}
+		}
+
+		switch item.Type {
+		case "ForkEvent":
+			data.Power += 1
+		case "PushEvent":
+			data.Power += 2
+		case "CreateEvent", "DeleteEvent":
+			data.Power += 1
+		case "PullRequestEvent":
+			data.Power += 3
+		case "IssuesEvent":
+			if payloadEquals(item.Payload, "opened") {
+				data.Intelligence += 3
+			} else if payloadEquals(item.Payload, "closed") {
+				data.Defence += 5
+			}
+		case "IssueCommentEvent":
+			data.Intelligence += 2
+		case "PullRequestReviewEvent":
+			data.Defence += 3
+		case "PullRequestReviewCommentEvent":
+			data.Defence += 3
+		case "GollumEvent":
+			data.Defence += 3
+		case "ReleaseEvent":
+			data.Defence += 10
+		}
+		prevCreatedAt = item.CreatedAt
+	}
+	return IncrementResult{UserData: data, LastCreatedAt: prevCreatedAt}
 }
 
 // UserFormattedPerformance は生ステータスを表示用に整形する(Node版 user_formatted_performance と同一)。
