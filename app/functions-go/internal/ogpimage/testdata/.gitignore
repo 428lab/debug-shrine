@@ -1,4 +1,0 @@
-# QC用に生成されるサンプル画像(ビルド成果物)はコミットしない。
-# CIでは actions/upload-artifact でアーティファクト化して確認する。
-sample_ogp.png
-sample_ogp.webp
