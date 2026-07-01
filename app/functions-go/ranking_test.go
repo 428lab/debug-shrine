@@ -2,6 +2,7 @@ package gofunctions
 
 import (
 	"context"
+	"encoding/json"
 	"strconv"
 	"testing"
 	"time"
@@ -69,6 +70,68 @@ func TestRanking_NoScreenNameOmitsMyRank(t *testing.T) {
 	}
 	if out.MyRank != nil {
 		t.Errorf("my_rank should be nil when screen_name is not given, got: %+v", out.MyRank)
+	}
+}
+
+func TestRanking_MissingRankingFieldIsError(t *testing.T) {
+	client := emulatorClient(t)
+	ctx := context.Background()
+
+	docID := "ranking_cache_TestRanking_MissingRankingFieldIsError"
+	if _, err := client.Collection("cache_data").Doc(docID).Set(ctx, map[string]interface{}{
+		"latest_update": time.Now(),
+	}); err != nil {
+		t.Fatalf("failed to seed ranking cache: %v", err)
+	}
+
+	if _, err := buildRankingResponseFromDoc(ctx, client, docID, ""); err == nil {
+		t.Fatal("expected an error when ranking field is missing, got nil")
+	}
+}
+
+func TestRanking_ResponseJSONFieldNames(t *testing.T) {
+	client := emulatorClient(t)
+	ctx := context.Background()
+
+	docID := "ranking_cache_TestRanking_ResponseJSONFieldNames"
+	now := time.Date(2026, 2, 2, 3, 4, 5, 600000000, time.UTC)
+	if _, err := client.Collection("cache_data").Doc(docID).Set(ctx, map[string]interface{}{
+		"ranking": []map[string]interface{}{
+			{"display_name": "a", "screen_name": "a", "image_path": "", "battle_point": int64(1), "rank": int64(1)},
+		},
+		"latest_update": now,
+	}); err != nil {
+		t.Fatalf("failed to seed ranking cache: %v", err)
+	}
+
+	out, err := buildRankingResponseFromDoc(ctx, client, docID, "a")
+	if err != nil {
+		t.Fatalf("buildRankingResponseFromDoc: %v", err)
+	}
+	raw, err := json.Marshal(out)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	var asMap map[string]interface{}
+	if err := json.Unmarshal(raw, &asMap); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	latestUpdate, ok := asMap["latest_update"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("latest_update is not an object: %v", asMap["latest_update"])
+	}
+	if _, ok := latestUpdate["_seconds"]; !ok {
+		t.Errorf("latest_update JSON is missing _seconds key: %v", latestUpdate)
+	}
+	if _, ok := latestUpdate["_nanoseconds"]; !ok {
+		t.Errorf("latest_update JSON is missing _nanoseconds key: %v", latestUpdate)
+	}
+	myRank, ok := asMap["my_rank"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("my_rank is not an object: %v", asMap["my_rank"])
+	}
+	if myRank["screen_name"] != "a" {
+		t.Errorf("my_rank.screen_name = %v, want a", myRank["screen_name"])
 	}
 }
 

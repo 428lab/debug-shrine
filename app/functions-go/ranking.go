@@ -11,6 +11,7 @@ package gofunctions
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -105,6 +106,13 @@ func buildRankingResponseFromDoc(ctx context.Context, client *firestore.Client, 
 	rawSeconds, rawNanos, hasLatestUpdate := extractTimestampField(snap, "latest_update")
 	if err := snap.DataTo(&doc); err != nil {
 		return rankingResponse{}, err
+	}
+	if doc.Ranking == nil {
+		// Node版は rankingData.ranking が undefined だと `.slice()` 呼び出しで
+		// 例外化する(未捕捉、呼び出し元で500になる)。Go版が `ranking: null` を
+		// 200で返すと「キャッシュ破損を握りつぶして正常応答する」ことになり
+		// Node版よりも実害を隠してしまうため、同様にエラーとして扱う。
+		return rankingResponse{}, fmt.Errorf("ranking_cache document %q has no ranking field", docID)
 	}
 
 	top := doc.Ranking

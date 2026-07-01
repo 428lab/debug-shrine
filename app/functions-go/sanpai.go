@@ -195,6 +195,16 @@ func sanpaiHandler(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
+	// Node版はExpressのbody-parserがルートハンドラ本体(メソッドチェックや
+	// 認証チェックより前)でリクエストボディをパースするため、不正なJSONの
+	// 場合はそれらに到達する前に400を返す。Go版もその順序を揃える。
+	var body sanpaiRequestBody
+	if err := decodeJSONBody(r, &body); err != nil {
+		log.Printf("sanpai: decodeJSONBody error: %v", err)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"status": "failed"})
+		return
+	}
+
 	if r.Method != http.MethodPost {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "failed"})
 		return
@@ -218,10 +228,6 @@ func sanpaiHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var body sanpaiRequestBody
-	if r.Body != nil {
-		_ = json.NewDecoder(r.Body).Decode(&body)
-	}
 	if body.GithubID == "" || body.ScreenName == "" {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "failed parameter"})
 		return

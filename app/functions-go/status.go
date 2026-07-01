@@ -13,6 +13,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"net/http"
 	"sync"
@@ -139,6 +140,28 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"status": "failed", "message": message})
+}
+
+// decodeJSONBody はリクエストボディをJSONとしてデコードする。
+//
+// Node版(Firebase Functions)はExpressのbody-parserがハンドラ本体より前に
+// リクエストボディをパースし、不正なJSONの場合はハンドラに到達する前に
+// 400を返す(空ボディの場合はエラーにせず `{}` 扱いにする)。Go版は自前で
+// デコードするため、同じ理由で失敗した場合は呼び出し元でハンドラ本体
+// (認証チェック等)より先に400を返すこと。
+func decodeJSONBody(r *http.Request, v any) error {
+	if r.Body == nil {
+		return nil
+	}
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(v); err != nil {
+		if errors.Is(err, io.EOF) {
+			// ボディが空(Content-Length: 0 等)。Express body-parserもエラーにしない。
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 func statusHandler(w http.ResponseWriter, r *http.Request) {

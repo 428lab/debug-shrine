@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -76,6 +78,48 @@ func TestRegister_AlreadyRegistered(t *testing.T) {
 		t.Fatalf("runRegister error: %v", err)
 	}
 	assertJSONStatus(t, rec, "registered")
+}
+
+func TestRegisterHandler_NonPostMethod(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/register", nil)
+	rec := httptest.NewRecorder()
+	registerHandler(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", rec.Code)
+	}
+	assertJSONStatus(t, rec, "missing request")
+}
+
+func TestRegisterHandler_MissingAuthorizationHeader(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(`{}`))
+	rec := httptest.NewRecorder()
+	registerHandler(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", rec.Code)
+	}
+	assertJSONStatus(t, rec, "authorization missing.")
+}
+
+func TestRegisterHandler_MalformedBearerHeader(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(`{}`))
+	req.Header.Set("Authorization", "Token abc")
+	rec := httptest.NewRecorder()
+	registerHandler(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", rec.Code)
+	}
+	assertJSONStatus(t, rec, "authorization missing.")
+}
+
+func TestRegisterHandler_MalformedJSONBody(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(`{invalid`))
+	req.Header.Set("Authorization", "Bearer some-token")
+	rec := httptest.NewRecorder()
+	registerHandler(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", rec.Code)
+	}
+	assertJSONStatus(t, rec, "missing request")
 }
 
 func assertJSONStatus(t *testing.T, rec *httptest.ResponseRecorder, want string) {

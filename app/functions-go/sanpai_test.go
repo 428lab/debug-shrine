@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -266,5 +267,42 @@ func TestSanpai_Increment_MatchesFullRecalculation(t *testing.T) {
 
 	if got := int(second["power_after"].(float64)); got != fullFormatted.Total {
 		t.Errorf("power_after(increment) = %d, want %d(full recalculation)", got, fullFormatted.Total)
+	}
+}
+
+// エミュレータを必要としないハンドラレベルのテスト(認証・ボディパースの分岐)。
+
+func TestSanpaiHandler_MalformedJSONBody(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/sanpai", strings.NewReader(`{invalid`))
+	req.Header.Set("Authorization", "Bearer some-token")
+	rec := httptest.NewRecorder()
+	sanpaiHandler(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", rec.Code)
+	}
+	var out map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("failed to decode response %q: %v", rec.Body.String(), err)
+	}
+	if out["status"] != "failed" {
+		t.Errorf("status field = %v, want failed", out["status"])
+	}
+}
+
+func TestSanpaiHandler_NonPostMethod(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/sanpai", nil)
+	rec := httptest.NewRecorder()
+	sanpaiHandler(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", rec.Code)
+	}
+}
+
+func TestSanpaiHandler_MissingAuthorizationHeader(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/sanpai", strings.NewReader(`{}`))
+	rec := httptest.NewRecorder()
+	sanpaiHandler(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", rec.Code)
 	}
 }
