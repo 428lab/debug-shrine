@@ -119,6 +119,20 @@ jobs:
             eventarc.googleapis.com \
             --project=d-shrine
 
+      # gen2(Cloud Run)関数のイメージ格納先であるArtifact Registryリポジトリ
+      # (デフォルト名 gcf-artifacts)を事前に作成しておく(冪等)。
+      # gcloudは通常このリポジトリを遅延自動解決するが、複数のdeployを並列実行すると
+      # その解決が競合し、一部が
+      # `gcloud crashed (AttributeError): 'NoneType' object has no attribute 'dockerRepository'`
+      # でクラッシュする(並列時のみ・ランダムな一部で発生する非決定的な競合)。
+      # 事前作成し、各deployで --docker-repository を明示指定することで自動解決の競合を無くす。
+      - name: ensure Artifact Registry repo for gen2 functions
+        run: |
+          gcloud artifacts repositories describe gcf-artifacts \
+            --location=us-central1 --project=d-shrine \
+            || gcloud artifacts repositories create gcf-artifacts \
+              --location=us-central1 --repository-format=docker --project=d-shrine
+
       - name: create Pub/Sub topics for scheduled Go functions
         run: |
           for TOPIC in ranking-update-go ranking-cache-go status-cache-backfill-go scheduled-ogp-delete-go; do
@@ -169,6 +183,8 @@ jobs:
         working-directory: ./app/functions-go
         run: |
           set -uo pipefail
+          # 事前作成済みのAR docker リポジトリを明示指定し、並列deploy時の自動解決競合を防ぐ。
+          DOCKER_REPO="projects/d-shrine/locations/us-central1/repositories/gcf-artifacts"
           declare -a PIDS NAMES
           deploy() {
             local name="$1"; shift
@@ -179,6 +195,7 @@ jobs:
                 --gen2 \
                 --runtime=go125 \
                 --region=us-central1 \
+                --docker-repository="$DOCKER_REPO" \
                 --source=. \
                 --entry-point="$entry" \
                 "$@" ) > "/tmp/deploy-$name.log" 2>&1 &
