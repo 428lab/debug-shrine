@@ -51,16 +51,24 @@ func TestOgpRewrite_Success(t *testing.T) {
 	if strings.Contains(body, `content="でばっぐ神社"`) {
 		t.Errorf("default title text should have been replaced; body=%s", body)
 	}
-	if !strings.Contains(body, "userOGP?user=octocat") {
-		t.Errorf("og:image should point to userOGP; body=%s", body)
+	if !strings.Contains(body, "userOGPGo?user=octocat") {
+		t.Errorf("og:image should point to userOGPGo; body=%s", body)
 	}
 	ogImageTag := extractMetaTag(body, "og:image")
 	twitterImageTag := extractMetaTag(body, "twitter:image")
-	if ogImageTag == "" || !strings.Contains(ogImageTag, "userOGP?user=octocat") {
+	if ogImageTag == "" || !strings.Contains(ogImageTag, "userOGPGo?user=octocat") {
 		t.Errorf("og:image tag not rewritten correctly: %q", ogImageTag)
 	}
-	if twitterImageTag == "" || !strings.Contains(twitterImageTag, "userOGP?user=octocat") {
+	if twitterImageTag == "" || !strings.Contains(twitterImageTag, "userOGPGo?user=octocat") {
 		t.Errorf("twitter:image tag not rewritten correctly: %q", twitterImageTag)
+	}
+	// WebP出力に伴い og:image:type / :width / :height を注入していること。
+	if !strings.Contains(body, `property="og:image:type" content="image/webp"`) {
+		t.Errorf("og:image:type=image/webp not injected; body=%s", body)
+	}
+	if !strings.Contains(body, `property="og:image:width" content="1200"`) ||
+		!strings.Contains(body, `property="og:image:height" content="630"`) {
+		t.Errorf("og:image dimensions not injected; body=%s", body)
 	}
 	if got := rec.Header().Get("Cache-Control"); got != "public, max-age=300, s-maxage=300" {
 		t.Errorf("Cache-Control = %q, want public, max-age=300, s-maxage=300", got)

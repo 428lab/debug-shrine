@@ -62,7 +62,8 @@ func runOgpRewrite(ctx context.Context, w http.ResponseWriter, username string) 
 	projectID := os.Getenv("OGP_PROJECT_ID")
 
 	nowUnix := time.Now().Unix()
-	ogpURL := fmt.Sprintf("https://us-central1-%s.cloudfunctions.net/userOGP?user=%s&t=%d", projectID, username, nowUnix)
+	// og:image は Go版OGP生成関数(userOGPGo)を指す。userOGPGoはWebP(1200x630)を返す。
+	ogpURL := fmt.Sprintf("https://us-central1-%s.cloudfunctions.net/userOGPGo?user=%s&t=%d", projectID, username, nowUnix)
 	description := fmt.Sprintf("これが%sの でばっぐのうりょくだ！", username)
 	title := fmt.Sprintf("%sの でばっぐのうりょく - でばっぐ神社", username)
 
@@ -88,7 +89,9 @@ func runOgpRewrite(ctx context.Context, w http.ResponseWriter, username string) 
 	replacements := []struct{ from, to string }{
 		{
 			fmt.Sprintf(`<meta data-n-head="1" data-hid="og:image" property="og:image" content="%sogimage.png">`, baseURL),
-			fmt.Sprintf(`<meta data-n-head="1" data-hid="og:image" property="og:image" content="%s">`, ogpURL),
+			// og:image を差し替えると同時に、WebPであることと固定サイズ(1200x630)を
+			// クローラに明示する og:image:type / :width / :height を後続に注入する。
+			fmt.Sprintf(`<meta data-n-head="1" data-hid="og:image" property="og:image" content="%s"><meta data-n-head="1" data-hid="og:image:type" property="og:image:type" content="image/webp"><meta data-n-head="1" data-hid="og:image:width" property="og:image:width" content="1200"><meta data-n-head="1" data-hid="og:image:height" property="og:image:height" content="630">`, ogpURL),
 		},
 		{
 			`<meta data-n-head="1" data-hid="og:description" name="og:description" property="og:description" content="バグった時の神頼み。">`,
