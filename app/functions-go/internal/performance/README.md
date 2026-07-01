@@ -2,15 +2,15 @@
 
 参拝の能力解析(パフォーマンス計算)に関する純粋ロジックのGoポート。
 
-`app/functions/performance.js` (Node版)のうち、現時点で `status` エンドポイント
-(Go版)が必要とする範囲のみを移植している:
+`app/functions/performance.js` (Node版)のうち、`status`/`sanpai` エンドポイント
+(Go版)が必要とする範囲を移植している:
 
 - `GetLevel` / `GetNextLevelExp` (Node版 `get_level` / `get_next_leve_exp`)
 - `UserPerformance` (Node版 `user_performance`)
 - `UserFormattedPerformance` (Node版 `user_formatted_performance`)
-
-`raw_user_data_from_status` / `compute_performance_increment`(増分計算)は
-`sanpai`/`statusCacheBackfill` 専用のため、これらをGoへ移植する際に追加する。
+- `RawUserDataFromStatus` (Node版 `raw_user_data_from_status`)
+- `ComputePerformanceIncrement` (Node版 `compute_performance_increment`、増分計算)
+- `LatestActivityCreatedAt` (Node版 `latest_activity_created_at`)
 
 ## Node版との既知の意図的な単純化
 
@@ -33,3 +33,10 @@
 `performance_test.go` は `app/functions/test/performance.test.js` のうち
 上記の移植範囲に対応するケースを同一の入出力で移植したもの。Node版のテストを
 変更する場合は、対応するGo側のテストも同時に更新すること。
+
+増分計算(`ComputePerformanceIncrement`)については、ランダム生成したアクティビティ
+列に対して「全件を一度に `UserPerformance` で計算した結果」と「バッチに分けて
+`ComputePerformanceIncrement` を繰り返し適用した結果」が完全一致することを
+プロパティテスト(`TestIncrementEqualsFullCalculation_TwoBatches`:2000ケース、
+`TestIncrementEqualsFullCalculation_ThreeBatchesSequential`:1000ケース)で
+検証している。これは `performance.test.js` の同名テストと同一のロジック。
