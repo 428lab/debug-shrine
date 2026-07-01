@@ -169,7 +169,9 @@ export default {
       this.$nuxt.error({ statusCode: 404 });
       return;
     }
-    let response = await this.$axios.get("status?user=" + this.$route.params.userName);
+    // Go版(statusGo)はコールドスタートが短く表示が速くなるため使用する
+    // (Node版のstatusとレスポンス形式は同一。docs/backend.md参照)
+    let response = await this.$axios.get("statusGo?user=" + this.$route.params.userName);
     let userChart = [];
     userChart.push(response.data.chart.hp);
     userChart.push(response.data.chart.power);
