@@ -43,6 +43,21 @@ GitHubのアクティビティを取得して更新
 `github_activities` を全件読み込んで `user_performance` でフル再計算し、結果を保存する
 (重い同期処理)。`sanpai` 成功時にも `status` と `last_activity_created_at` を更新する。
 
+### `IssuesEvent` 加点バグの修正(Go移植に合わせて Node版も修正)
+
+能力解析(`performance.js` / `internal/performance`)の `IssuesEvent` の加点は、
+移植前は `switch (item.payload)` のように payload そのものを文字列
+"opened"/"closed" と比較していた。しかし GitHub Events API の `payload` は
+オブジェクトで、開閉種別は `payload.action`("opened"/"closed"/"reopened"/
+"labeled"/... の文字列)に入る(公式ドキュメント API version 2022-11-28、
+および実データで確認済み)。このため比較は決して一致せず、**Issue のオープン
+(intelligence+3)・クローズ(defence+5)が一度も加点されていなかった**。
+
+移植を機に `payload.action` を参照するよう Go/Node 両実装を修正した。影響として、
+Issue 活動のあるユーザーは intelligence/defence/total(戦闘力・ランキング)が
+本来の値に増える。既にキャッシュ済みの `status` は次回の参拝(`sanpai`)または
+`statusCacheBackfill` で再計算されるまで旧値のままとなる(データ破壊はしない)。
+
 ### `statusCacheBackfill` (スケジュール関数)
 
 過去に参拝済み(`last_sanpai` あり)だが解析キャッシュ(`status`)が未保存のレガシー

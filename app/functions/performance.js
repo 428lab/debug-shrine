@@ -78,7 +78,9 @@ function user_performance(items, username) {
         user_data.power += 3
         break
       case "IssuesEvent":
-        switch (item.payload) {
+        // GitHub Events API の payload はオブジェクトで、開閉種別は payload.action
+        // ("opened"/"closed"/...) に入る。opened で intelligence+3, closed で defence+5。
+        switch (item.payload && item.payload.action) {
           case "opened":
             user_data.intelligence += 3
             break
@@ -238,7 +240,9 @@ function compute_performance_increment(base_user_data, new_items, previous_creat
         user_data.power += 3
         break
       case "IssuesEvent":
-        switch (item.payload) {
+        // GitHub Events API の payload はオブジェクトで、開閉種別は payload.action
+        // ("opened"/"closed"/...) に入る。opened で intelligence+3, closed で defence+5。
+        switch (item.payload && item.payload.action) {
           case "opened":
             user_data.intelligence += 3
             break

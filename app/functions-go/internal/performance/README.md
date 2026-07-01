@@ -24,8 +24,13 @@
 
 - `targetPoints` の値
 - イベント種別ごとの加点テーブル(`UserPerformance` の switch)
-- `IssuesEvent` の payload 判定は文字列との厳密等価のみ(GitHub実データの
-  オブジェクトpayloadとは一致しない、既存Node版の挙動をそのまま踏襲)
+- `IssuesEvent` の加点は `payload.action`("opened"→intelligence+3 /
+  "closed"→defence+5)で判定する。GitHub Events API の payload はオブジェクトで
+  action フィールドに開閉種別が入るため(公式ドキュメント/実データで確認済み)。
+  ※移植前のNode版は `payload`(オブジェクト)を文字列 "opened"/"closed" と
+  直接比較しており、GitHub実データのオブジェクトpayloadとは決して一致しない
+  ため Issue のオープン/クローズが一切加点されないバグがあった。移植に合わせて
+  両実装で修正済み。
 - agility/hp の時間差バケット境界値
 
 ## テスト

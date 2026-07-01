@@ -92,17 +92,21 @@ func TestUserPerformance_UnsupportedEvent(t *testing.T) {
 }
 
 func TestUserPerformance_IssuesEventPayload(t *testing.T) {
-	// 文字列 payload の場合のみ switch にマッチする(既存仕様)
-	if r := UserPerformance([]Activity{item("IssuesEvent", 1000, "opened")}, "u"); r.Intelligence != 3 {
+	// GitHub Events API の payload は {action:"opened"} 等のオブジェクトなので、
+	// payload.action を見て加点する(opened -> intelligence+3, closed -> defence+5)。
+	if r := UserPerformance([]Activity{item("IssuesEvent", 1000, map[string]any{"action": "opened"})}, "u"); r.Intelligence != 3 {
 		t.Errorf("opened intelligence = %d, want 3", r.Intelligence)
 	}
-	if r := UserPerformance([]Activity{item("IssuesEvent", 1000, "closed")}, "u"); r.Defence != 5 {
+	if r := UserPerformance([]Activity{item("IssuesEvent", 1000, map[string]any{"action": "closed"})}, "u"); r.Defence != 5 {
 		t.Errorf("closed defence = %d, want 5", r.Defence)
 	}
-	// GitHub API 実体のオブジェクトpayloadはマッチせず加点されない(既存挙動)
-	objR := UserPerformance([]Activity{item("IssuesEvent", 1000, map[string]any{"action": "opened"})}, "u")
-	if objR.Intelligence != 0 || objR.Defence != 0 {
-		t.Errorf("object payload intelligence=%d defence=%d, want 0,0", objR.Intelligence, objR.Defence)
+	// action が opened/closed 以外(reopened等)は加点されない。
+	if r := UserPerformance([]Activity{item("IssuesEvent", 1000, map[string]any{"action": "reopened"})}, "u"); r.Intelligence != 0 || r.Defence != 0 {
+		t.Errorf("reopened intelligence=%d defence=%d, want 0,0", r.Intelligence, r.Defence)
+	}
+	// payload がオブジェクトでない(文字列/nil)場合は action を取れず加点されない。
+	if r := UserPerformance([]Activity{item("IssuesEvent", 1000, "opened")}, "u"); r.Intelligence != 0 || r.Defence != 0 {
+		t.Errorf("string payload intelligence=%d defence=%d, want 0,0", r.Intelligence, r.Defence)
 	}
 }
 

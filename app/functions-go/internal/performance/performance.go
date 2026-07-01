@@ -52,18 +52,24 @@ func GetNextLevelExp(points int) NextLevelExp {
 }
 
 // Activity はGitHub Events APIの1イベント(Firestoreにキャッシュされた raw JSON)を表す。
-// Payload は文字列/オブジェクト/nullのいずれもあり得るため any として保持し、
-// PayloadEquals で型を厳密に比較する(Node版の switch(item.payload){case "opened":...} の
-// 厳密等価(===)と同じ挙動: GitHub実データのオブジェクトpayloadは文字列と決して一致しない)。
+// Payload は IssuesEvent の開閉種別など任意のオブジェクトであり得るため any として保持し、
+// payloadAction で payload.action(GitHub Events APIの action フィールド)を取り出す。
 type Activity struct {
 	Type      string `json:"type"`
 	CreatedAt string `json:"created_at"`
 	Payload   any    `json:"payload"`
 }
 
-func payloadEquals(payload any, s string) bool {
-	str, ok := payload.(string)
-	return ok && str == s
+// payloadAction は payload オブジェクトから action フィールド("opened"/"closed"等)を取り出す。
+// GitHub Events API の IssuesEvent 等の payload は JSON オブジェクトで、開閉種別は
+// payload.action に入る。payload がオブジェクトでない/action が無い場合は空文字を返す。
+func payloadAction(payload any) string {
+	m, ok := payload.(map[string]any)
+	if !ok {
+		return ""
+	}
+	action, _ := m["action"].(string)
+	return action
 }
 
 func parseCreatedAt(createdAt string) time.Time {
@@ -133,9 +139,10 @@ func UserPerformance(items []Activity, username string) RawUserData {
 		case "PullRequestEvent":
 			data.Power += 3
 		case "IssuesEvent":
-			if payloadEquals(item.Payload, "opened") {
+			switch payloadAction(item.Payload) {
+			case "opened":
 				data.Intelligence += 3
-			} else if payloadEquals(item.Payload, "closed") {
+			case "closed":
 				data.Defence += 5
 			}
 		case "IssueCommentEvent":
@@ -302,9 +309,10 @@ func ComputePerformanceIncrement(baseUserData RawUserData, newItems []Activity, 
 		case "PullRequestEvent":
 			data.Power += 3
 		case "IssuesEvent":
-			if payloadEquals(item.Payload, "opened") {
+			switch payloadAction(item.Payload) {
+			case "opened":
 				data.Intelligence += 3
-			} else if payloadEquals(item.Payload, "closed") {
+			case "closed":
 				data.Defence += 5
 			}
 		case "IssueCommentEvent":
