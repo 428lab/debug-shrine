@@ -325,7 +325,11 @@ exports.status = functions.https.onRequest(async (request, response) => {
     let return_Data
     if (userData.status) {
       return_Data = userData.status
-      return_Data.last_sanpai = moment(userData.last_sanpai.toDate()).format('YYYY年MM月DD日 HH:mm');
+      // last_sanpai が未設定(未参拝でプロフィールを2回以上表示した場合など)だと
+      // undefined.toDate() で例外になるため、未参拝時は下のフル計算パスと同じ文言を返す。
+      return_Data.last_sanpai = userData.last_sanpai
+        ? moment(userData.last_sanpai.toDate()).format('YYYY年MM月DD日 HH:mm')
+        : "参拝していないようです";
     } else {
       const raw_activities_list = await get_activity_list(userRef)
       const user_data = user_performance(raw_activities_list, request.query.user)

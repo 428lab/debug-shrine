@@ -284,15 +284,14 @@ func loadActivities(ctx context.Context, userRef *firestore.DocumentRef) ([]perf
 // formatLastSanpai は Node版の moment(...).format('YYYY年MM月DD日 HH:mm') と同一の文字列を返す。
 // Cloud Functions の実行環境はデフォルトタイムゾーンがUTCであるため、UTCとして整形する。
 //
-// 注意(既知のNode側の挙動との差異): last_sanpai(トップレベル)が存在しない状態で
-// status キャッシュだけが存在するユーザー(一度もsanpaiせずプロフィールを2回以上
-// 見ると発生し得る)に対して、Node版はここで `undefined.toDate()` を呼び出して
-// 例外になる(未検証の既存バグ、本移植の対象外につき修正しない)。
-// Goでは time.Time のゼロ値を安全に扱えるため、この場合は空文字を返す
-// (クラッシュしないという意味で安全側だが、意図的な仕様変更ではない)。
+// last_sanpai(トップレベル)が存在しない状態で status キャッシュだけが存在するユーザー
+// (一度もsanpaiせずプロフィールを2回以上見ると発生し得る)に対しては、status未保存時の
+// フル計算パスと同じく「参拝していないようです」を返す(未参拝ユーザーの正しい表示)。
+// ※移植前のNode版はこの場合 `undefined.toDate()` を呼び出して例外になるバグがあった。
+// 本移植に合わせてNode版も同じく修正済み。
 func formatLastSanpai(t time.Time) string {
 	if t.IsZero() {
-		return ""
+		return "参拝していないようです"
 	}
 	return t.UTC().Format("2006年01月02日 15:04")
 }
