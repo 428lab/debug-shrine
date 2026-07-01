@@ -69,9 +69,11 @@ const (
 	chartLabelDist = 225.0
 	labelFontSize  = 25.0
 
-	gridLineWidth  = 3.0
-	dataStrokeW    = 2.0
-	radarGridSteps = 15 // max(150)/stepSize(10)
+	gridLineWidth = 3.0
+	dataStrokeW   = 2.0
+	// グリッド(同心リング)の分割数。Chart.js の stepSize=10 相当は15本だが、
+	// 蜘蛛の巣状で見づらいため約半分の8本に減らしている。
+	radarGridSteps = 8
 
 	// 最終出力サイズ(OGP標準)。クロップ後にこのサイズへ一度だけ縮小する。
 	outputWidth  = 1200
