@@ -78,3 +78,246 @@ jobs:
         run: |
           firebase deploy --project d-shrine-dev --force
         working-directory: ./app
+
+      - name: setup go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: go build & test (functions-go)
+        run: |
+          go build ./...
+          go vet ./...
+        working-directory: ./app/functions-go
+
+      # Firestoreエミュレータの実行にはJDK 21以上が必要(firebase-toolsの要件)。
+      # ubuntu-22.04ランナーのデフォルトJavaはこれを満たさないため明示的にセットアップする。
+      - name: setup java (for Firestore emulator)
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      # sanpai/ranking/register/statusCacheBackfill等のFirestore統合テストは
+      # FIRESTORE_EMULATOR_HOST未設定時は自動スキップされる設計(README参照)。
+      # CIでも実際に検証されるよう、Firestoreエミュレータを起動した状態で
+      # go test を実行する(firebase emulators:exec が終了時に自動でエミュレータを
+      # 落とすため、後続ステップに影響しない)。
+      - name: go test (functions-go, with Firestore emulator)
+        run: |
+          firebase emulators:exec --project d-shrine-dev --only firestore \
+            'cd functions-go && go test ./...'
+        working-directory: ./app
+
+      # OGP画像生成(userOGPGo)のQC。サンプルOGPをPNG/WebPでレンダリングして
+      # アーティファクト化し、生成物を目視確認できるようにする(描画の破綻を
+      # デプロイ前に検知する目的も兼ねる)。
+      - name: generate OGP sample for QC
+        run: |
+          go test ./internal/ogpimage/ -run TestWriteQCArtifacts -count=1 -v
+        working-directory: ./app/functions-go
+        env:
+          OGP_QC_OUT: ${{ github.workspace }}/ogp-qc
+
+      - name: upload OGP sample artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ogp-sample
+          path: ${{ github.workspace }}/ogp-qc/
+          if-no-files-found: error
+
+      # ここから Go版 Cloud Run functions のデプロイ。
+      # Gen2(Cloud Run)関数のデプロイは内部でCloud Buildのコンテナビルドを伴い
+      # 1本あたり数分かかる。関数間に依存が無いため、以前のように1本ずつ直列で
+      # deployすると全体で15〜30分規模になっていた。そこで前提処理(サービス有効化・
+      # Pub/Subトピック作成・認証情報取得・ロケーション解決)を先に済ませてから、
+      # 全関数のdeployをバックグラウンドで同時に起動して一括waitする
+      # (体感で最も遅い1本分の時間に短縮)。
+
+      # HTTP関数とスケジュール関数(Pub/Subトリガー)の両方に必要なGCPサービスを一括有効化。
+      - name: enable required GCP services
+        run: |
+          gcloud services enable \
+            cloudfunctions.googleapis.com \
+            run.googleapis.com \
+            cloudbuild.googleapis.com \
+            artifactregistry.googleapis.com \
+            pubsub.googleapis.com \
+            cloudscheduler.googleapis.com \
+            eventarc.googleapis.com \
+            --project=d-shrine-dev
+
+      # gen2(Cloud Run)関数のイメージ格納先であるArtifact Registryリポジトリ
+      # (デフォルト名 gcf-artifacts)を事前に作成しておく(冪等)。
+      # gcloudは通常このリポジトリを遅延自動解決するが、複数のdeployを並列実行すると
+      # その解決が競合し、一部が
+      # `gcloud crashed (AttributeError): 'NoneType' object has no attribute 'dockerRepository'`
+      # でクラッシュする(並列時のみ・ランダムな一部で発生する非決定的な競合)。
+      # 事前作成し、各deployで --docker-repository を明示指定することで自動解決の競合を無くす。
+      - name: ensure Artifact Registry repo for gen2 functions
+        run: |
+          gcloud artifacts repositories describe gcf-artifacts \
+            --location=us-central1 --project=d-shrine-dev \
+            || gcloud artifacts repositories create gcf-artifacts \
+              --location=us-central1 --repository-format=docker --project=d-shrine-dev
+
+      # Cloud Functions(Gen2)の --trigger-topic は Gen1と異なりPub/Subトピックを
+      # 自動作成しない(存在しないトピックを指定すると
+      # `Validation failed for trigger ...: Resource not found` で即失敗する)。
+      # そのため各スケジュール関数用トピックを事前に作成しておく
+      # (既に存在すれば describe が成功するのでスキップする、冪等な実装)。
+      - name: create Pub/Sub topics for scheduled Go functions
+        run: |
+          for TOPIC in ranking-update-go ranking-cache-go status-cache-backfill-go scheduled-ogp-delete-go; do
+            gcloud pubsub topics describe "$TOPIC" --project=d-shrine-dev \
+              || gcloud pubsub topics create "$TOPIC" --project=d-shrine-dev
+          done
+
+      # GitHub OAuth Appのclient_id/client_secretは、Node版が使う
+      # `firebase functions:config:get` (既にGCP側に設定済みの値)からそのまま取得し、
+      # 新規のGitHub Secretsは増やさない。ログに値が出ないよう ::add-mask:: で
+      # マスクしてから $GITHUB_ENV に渡す(sanpaiGoで使用)。
+      - name: fetch GitHub OAuth credentials for sanpaiGo
+        run: |
+          set -eo pipefail
+          CONFIG_JSON=$(firebase functions:config:get github --project d-shrine-dev)
+          CLIENT_ID=$(echo "$CONFIG_JSON" | jq -r '.client_id')
+          CLIENT_SECRET=$(echo "$CONFIG_JSON" | jq -r '.client_secret')
+          echo "::add-mask::$CLIENT_ID"
+          echo "::add-mask::$CLIENT_SECRET"
+          echo "SANPAI_GH_CLIENT_ID=$CLIENT_ID" >> "$GITHUB_ENV"
+          echo "SANPAI_GH_CLIENT_SECRET=$CLIENT_SECRET" >> "$GITHUB_ENV"
+        working-directory: ./app
+
+      # FUNC_BASE_URLはNode版が functions.config().func.base_url から読む値と同じもので、
+      # sanpaiGoのGitHub資格情報と同様に既存のFirebase Functions Configから取得する
+      # (ogpRewriteGoで使用)。
+      - name: fetch base_url for ogpRewriteGo
+        run: |
+          set -eo pipefail
+          CONFIG_JSON=$(firebase functions:config:get func --project d-shrine-dev)
+          BASE_URL=$(echo "$CONFIG_JSON" | jq -r '.base_url')
+          echo "OGP_FUNC_BASE_URL=$BASE_URL" >> "$GITHUB_ENV"
+        working-directory: ./app
+
+      # Cloud SchedulerジョブのlocationはプロジェクトのApp Engineアプリと
+      # 同一でなければならない(App Engineが存在するプロジェクトでは、それ以外の
+      # リージョンを指定すると `Location must equal <app-engine-location>` エラーになる)。
+      # `gcloud app describe` が返す locationId はレガシーなApp Engine表記
+      # (例: "us-central")の場合があり、Cloud Scheduler/Cloud Functions等の
+      # 通常のCloudリージョン表記(例: "us-central1")とは異なることがあるため、
+      # 既知の対応表で変換する。
+      - name: resolve App Engine location for Cloud Scheduler
+        run: |
+          set -eo pipefail
+          RAW_LOCATION=$(gcloud app describe --project=d-shrine-dev --format='value(locationId)')
+          case "$RAW_LOCATION" in
+            us-central) LOCATION=us-central1 ;;
+            europe-west) LOCATION=europe-west1 ;;
+            *) LOCATION="$RAW_LOCATION" ;;
+          esac
+          echo "resolved App Engine location: $RAW_LOCATION -> $LOCATION"
+          echo "APP_ENGINE_LOCATION=$LOCATION" >> "$GITHUB_ENV"
+
+      # 全Go関数のデプロイをバックグラウンドで同時起動し、まとめてwaitする。
+      # 依存関係(トピック/認証情報/ロケーション)は上の先行ステップで解決済み。
+      # timeout: HTTP関数は30s、スケジュール関数は全ユーザースキャン等で長くなり得るため
+      # 安全側に300sを明示。ログは関数ごとにファイルへ退避し、最後に順番に出力する
+      # (並行実行でログが混ざるのを防ぐ)。1本でも失敗したらステップを失敗させる。
+      - name: deploy all Go Cloud Run functions in parallel
+        working-directory: ./app/functions-go
+        run: |
+          set -uo pipefail
+          # 事前作成済みのAR docker リポジトリを明示指定し、並列deploy時の自動解決競合を防ぐ。
+          DOCKER_REPO="projects/d-shrine-dev/locations/us-central1/repositories/gcf-artifacts"
+          declare -a PIDS NAMES
+          deploy() {
+            local name="$1"; shift
+            local entry="$1"; shift
+            echo "start deploy: $name"
+            ( gcloud functions deploy "$name" \
+                --project=d-shrine-dev \
+                --gen2 \
+                --runtime=go125 \
+                --region=us-central1 \
+                --docker-repository="$DOCKER_REPO" \
+                --source=. \
+                --entry-point="$entry" \
+                "$@" ) > "/tmp/deploy-$name.log" 2>&1 &
+            PIDS+=("$!")
+            NAMES+=("$name")
+          }
+
+          # HTTPトリガー関数
+          deploy statusGo StatusGo \
+            --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s
+          deploy sanpaiGo SanpaiGo \
+            --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s \
+            --set-env-vars="GITHUB_CLIENT_ID=$SANPAI_GH_CLIENT_ID,GITHUB_CLIENT_SECRET=$SANPAI_GH_CLIENT_SECRET,SANPAI_NEXT_TIME_SECONDS=60"
+          deploy registerGo RegisterGo \
+            --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s
+          deploy rankingGo RankingGo \
+            --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s
+          deploy ogpRewriteGo OgpRewriteGo \
+            --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s \
+            --set-env-vars="FUNC_BASE_URL=$OGP_FUNC_BASE_URL,OGP_PROJECT_ID=d-shrine-dev"
+          # userOGPGoは画像合成(base同梱)+WebPエンコード+アバター取得+GCSアップロードを
+          # 行うため、他HTTP関数より余裕を持たせる(512Mi/60s)。
+          deploy userOGPGo UserOGPGo \
+            --trigger-http --allow-unauthenticated --memory=512Mi --timeout=60s \
+            --set-env-vars="STORAGE_BUCKET_NAME=d-shrine-dev.appspot.com"
+
+          # Pub/Subトリガー(スケジュール)関数
+          deploy rankingUpdateGo RankingUpdateGo \
+            --trigger-topic=ranking-update-go --memory=256Mi --timeout=300s
+          deploy rankingCacheGo RankingCacheGo \
+            --trigger-topic=ranking-cache-go --memory=256Mi --timeout=300s
+          deploy statusCacheBackfillGo StatusCacheBackfillGo \
+            --trigger-topic=status-cache-backfill-go --memory=512Mi --timeout=300s
+          deploy scheduledOgpDeleteGo ScheduledOgpDeleteGo \
+            --trigger-topic=scheduled-ogp-delete-go --memory=256Mi --timeout=300s \
+            --set-env-vars="STORAGE_BUCKET_NAME=d-shrine-dev.appspot.com"
+
+          fail=0
+          for idx in "${!NAMES[@]}"; do
+            name="${NAMES[$idx]}"
+            if wait "${PIDS[$idx]}"; then
+              status=OK
+            else
+              status=FAILED
+              fail=1
+            fi
+            echo "::group::deploy $status: $name"
+            cat "/tmp/deploy-$name.log"
+            echo "::endgroup::"
+          done
+          if [ "$fail" -ne 0 ]; then
+            echo "one or more Go function deployments failed" >&2
+          fi
+          exit "$fail"
+
+      # スケジュール関数用のCloud Schedulerジョブを作成/更新する(冪等)。
+      # ジョブはトピックにメッセージを流すだけなので関数デプロイ完了後に一括で行う。
+      # update が存在しないジョブに対して失敗したら create にフォールバックする。
+      - name: create/update Cloud Scheduler jobs for scheduled Go functions
+        run: |
+          set -uo pipefail
+          upsert_job() {
+            local job="$1" schedule="$2" topic="$3"
+            gcloud scheduler jobs update pubsub "$job" \
+              --project=d-shrine-dev --location="$APP_ENGINE_LOCATION" \
+              --schedule="$schedule" \
+              --topic="$topic" \
+              --message-body="{}" \
+              --time-zone=Etc/UTC \
+            || gcloud scheduler jobs create pubsub "$job" \
+              --project=d-shrine-dev --location="$APP_ENGINE_LOCATION" \
+              --schedule="$schedule" \
+              --topic="$topic" \
+              --message-body="{}" \
+              --time-zone=Etc/UTC
+          }
+          upsert_job ranking-update-go        "0 * * * *"    ranking-update-go
+          upsert_job ranking-cache-go         "0 */2 * * *"  ranking-cache-go
+          upsert_job status-cache-backfill-go "*/30 * * * *" status-cache-backfill-go
+          upsert_job scheduled-ogp-delete-go  "0 */1 * * *"  scheduled-ogp-delete-go
