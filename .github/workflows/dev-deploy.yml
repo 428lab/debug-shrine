@@ -241,8 +241,6 @@ jobs:
       # 安定稼働を確認してからNode版を止める(詳細は docs/backend.md
       # 「スケジュール関数のGo移植」を参照)。
       #
-      # --trigger-topic に指定したPub/SubトピックはCloud Functions側が
-      # 存在しなければ自動作成するため、事前のトピック作成手順は不要。
       # Cloud SchedulerジョブはApp Engineのロケーションに紐づくため、
       # 既存プロジェクトの設定値を動的に取得して使う。
       - name: enable required GCP services for scheduled Go functions
@@ -252,6 +250,18 @@ jobs:
             cloudscheduler.googleapis.com \
             eventarc.googleapis.com \
             --project=d-shrine-dev
+
+      # Cloud Functions(Gen2)の --trigger-topic は Gen1と異なりPub/Subトピックを
+      # 自動作成しない(存在しないトピックを指定すると
+      # `Validation failed for trigger ...: Resource not found` で即失敗する)。
+      # そのため各スケジュール関数用トピックを事前に作成しておく
+      # (既に存在すれば describe が成功するのでスキップする、冪等な実装)。
+      - name: create Pub/Sub topics for scheduled Go functions
+        run: |
+          for TOPIC in ranking-update-go ranking-cache-go status-cache-backfill-go scheduled-ogp-delete-go; do
+            gcloud pubsub topics describe "$TOPIC" --project=d-shrine-dev \
+              || gcloud pubsub topics create "$TOPIC" --project=d-shrine-dev
+          done
 
       # Cloud SchedulerジョブのlocationはプロジェクトのApp Engineアプリと
       # 同一でなければならない(App Engineが存在するプロジェクトでは、それ以外の
