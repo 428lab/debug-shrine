@@ -15,7 +15,6 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 
@@ -37,13 +36,14 @@ var (
 )
 
 // getFirestoreClient はコールドスタート時に1回だけ初期化し、以降のリクエストで再利用する。
+//
+// Cloud Run functions(2nd gen)の環境では GOOGLE_CLOUD_PROJECT 等の環境変数が
+// 常に設定される保証がないため、firestore.DetectProjectID を使ってADC(Application
+// Default Credentials)経由でプロジェクトIDを自動検出する
+// (GOOGLE_CLOUD_PROJECT envvar -> ADCのcreds.ProjectID の順に試行される)。
 func getFirestoreClient(ctx context.Context) (*firestore.Client, error) {
 	firestoreClientOnce.Do(func() {
-		projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
-		if projectID == "" {
-			projectID = os.Getenv("GCP_PROJECT")
-		}
-		firestoreClient, firestoreClientErr = firestore.NewClient(ctx, projectID)
+		firestoreClient, firestoreClientErr = firestore.NewClient(ctx, firestore.DetectProjectID)
 	})
 	return firestoreClient, firestoreClientErr
 }
