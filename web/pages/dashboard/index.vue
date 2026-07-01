@@ -138,8 +138,10 @@ export default {
     };
   },
   async mounted() {
+    // Go版(statusGo)はコールドスタートが短くマイページ表示が速くなるため使用する
+    // (Node版のstatusとレスポンス形式は同一。docs/backend.md参照)
     let response = await this.$axios.get(
-      `status?user=${this.user.screen_name}`
+      `statusGo?user=${this.user.screen_name}`
     );
     // 登録してなかったらエラーが出るのでエラー対応よろ
     let userChart = [];
