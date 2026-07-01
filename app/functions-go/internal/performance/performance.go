@@ -12,6 +12,19 @@ import (
 	"time"
 )
 
+// StatusLogicVersion は能力解析(performance)の計算ロジックのバージョン。
+// 計算式(加点テーブルや判定条件など、同一アクティビティに対する算出結果)を変えたら
+// 必ずインクリメントすること。users/{id}.status_version に保存され、キャッシュ済み
+// status がこのバージョン未満なら再計算対象になる(status/sanpai/statusCacheBackfill)。
+//
+// 履歴:
+//
+//	1: IssuesEvent を payload.action で加点するよう修正(それ以前は常に未加点だった)。
+//	   未設定(フィールドが存在しない旧キャッシュ)は 0 として扱われ再計算される。
+//
+// Node版 (app/functions/performance.js) の STATUS_LOGIC_VERSION と必ず一致させること。
+const StatusLogicVersion int64 = 1
+
 // レベルアップに必要な累計ポイントの閾値テーブル。Node版 target_points と同一の値。
 var targetPoints = []int{
 	0, 5, 11, 19, 30, 45, 65, 91, 124, 166, 218, 281, 357, 447, 553, 676, 818, 981,
@@ -52,18 +65,24 @@ func GetNextLevelExp(points int) NextLevelExp {
 }
 
 // Activity はGitHub Events APIの1イベント(Firestoreにキャッシュされた raw JSON)を表す。
-// Payload は文字列/オブジェクト/nullのいずれもあり得るため any として保持し、
-// PayloadEquals で型を厳密に比較する(Node版の switch(item.payload){case "opened":...} の
-// 厳密等価(===)と同じ挙動: GitHub実データのオブジェクトpayloadは文字列と決して一致しない)。
+// Payload は IssuesEvent の開閉種別など任意のオブジェクトであり得るため any として保持し、
+// payloadAction で payload.action(GitHub Events APIの action フィールド)を取り出す。
 type Activity struct {
 	Type      string `json:"type"`
 	CreatedAt string `json:"created_at"`
 	Payload   any    `json:"payload"`
 }
 
-func payloadEquals(payload any, s string) bool {
-	str, ok := payload.(string)
-	return ok && str == s
+// payloadAction は payload オブジェクトから action フィールド("opened"/"closed"等)を取り出す。
+// GitHub Events API の IssuesEvent 等の payload は JSON オブジェクトで、開閉種別は
+// payload.action に入る。payload がオブジェクトでない/action が無い場合は空文字を返す。
+func payloadAction(payload any) string {
+	m, ok := payload.(map[string]any)
+	if !ok {
+		return ""
+	}
+	action, _ := m["action"].(string)
+	return action
 }
 
 func parseCreatedAt(createdAt string) time.Time {
@@ -133,9 +152,10 @@ func UserPerformance(items []Activity, username string) RawUserData {
 		case "PullRequestEvent":
 			data.Power += 3
 		case "IssuesEvent":
-			if payloadEquals(item.Payload, "opened") {
+			switch payloadAction(item.Payload) {
+			case "opened":
 				data.Intelligence += 3
-			} else if payloadEquals(item.Payload, "closed") {
+			case "closed":
 				data.Defence += 5
 			}
 		case "IssueCommentEvent":
@@ -302,9 +322,10 @@ func ComputePerformanceIncrement(baseUserData RawUserData, newItems []Activity, 
 		case "PullRequestEvent":
 			data.Power += 3
 		case "IssuesEvent":
-			if payloadEquals(item.Payload, "opened") {
+			switch payloadAction(item.Payload) {
+			case "opened":
 				data.Intelligence += 3
-			} else if payloadEquals(item.Payload, "closed") {
+			case "closed":
 				data.Defence += 5
 			}
 		case "IssueCommentEvent":

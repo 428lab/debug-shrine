@@ -20,12 +20,27 @@
   `statusCacheBackfill`)で `append_data.user` は必ず設定されているため、
   この単純化は挙動を変えない)。
 
+## 解析ロジックのバージョン (`StatusLogicVersion`)
+
+`StatusLogicVersion`(Node版 `STATUS_LOGIC_VERSION` と必ず一致)は、この計算ロジックの
+バージョンを表す。**計算式(加点テーブルや判定条件など、同一アクティビティに対する
+算出結果)を変えたら必ずインクリメントする。** 呼び出し側(`status`/`sanpai`/
+`statusCacheBackfill`)はこの値をユーザードキュメントの `status_version` に刻み、
+古いバージョンで計算されたキャッシュを再計算して自己修復する(詳細は
+`docs/backend.md`「解析ロジックのバージョン管理と自己修復キャッシュ」を参照)。
+
 ## Node版と同一に保つべき点(変更する場合は両実装を同時に更新すること)
 
+- `StatusLogicVersion` / `STATUS_LOGIC_VERSION` の値(計算式変更時は両方インクリメント)
 - `targetPoints` の値
 - イベント種別ごとの加点テーブル(`UserPerformance` の switch)
-- `IssuesEvent` の payload 判定は文字列との厳密等価のみ(GitHub実データの
-  オブジェクトpayloadとは一致しない、既存Node版の挙動をそのまま踏襲)
+- `IssuesEvent` の加点は `payload.action`("opened"→intelligence+3 /
+  "closed"→defence+5)で判定する。GitHub Events API の payload はオブジェクトで
+  action フィールドに開閉種別が入るため(公式ドキュメント/実データで確認済み)。
+  ※移植前のNode版は `payload`(オブジェクト)を文字列 "opened"/"closed" と
+  直接比較しており、GitHub実データのオブジェクトpayloadとは決して一致しない
+  ため Issue のオープン/クローズが一切加点されないバグがあった。移植に合わせて
+  両実装で修正済み。
 - agility/hp の時間差バケット境界値
 
 ## テスト
