@@ -34,24 +34,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-node-
 
-      - name: nuxt setup
-        run: echo "${{ secrets.PROD_ENV }}" > .env
-        working-directory: ./web
-
-      - name: nuxt generate
-        run: |
-          set -ex
-          yarn
-          yarn generate
-        working-directory: ./web
-
-      - name: copy files
-        run: |
-          set -ex
-          rm -rf app/dist
-          cp -r web/dist app
-        working-directory: ./
-
+      # firebase-tools は Go関数デプロイの前提処理(functions:config:get)と
+      # 最後の firebase deploy の両方で使う。Node関数の依存もここで入れる。
       - name: firebase setup
         run: |
           set -ex
@@ -76,10 +60,11 @@ jobs:
           install_components: ''
           project_id: 'd-shrine'
 
-      - name: firebase deploy
-        run: |
-          firebase deploy --project d-shrine --force
-        working-directory: ./app
+      # ====================================================================
+      # 1) バックエンド(Go関数)を先にデプロイする。
+      #    hosting rewrite (/u/* -> ogpRewriteGo) や フロントからのGo関数呼び出しが
+      #    あるため、フロント(firebase deploy)より先にGo関数を出す必要がある。
+      # ====================================================================
 
       - name: setup go
         uses: actions/setup-go@v5
@@ -121,10 +106,6 @@ jobs:
           name: ogp-sample
           path: ${{ github.workspace }}/ogp-qc/
           if-no-files-found: error
-
-      # ここから Go版 Cloud Run functions のデプロイ(dev-deploy.ymlと同等、本番設定)。
-      # 前提処理(サービス有効化・Pub/Subトピック作成・認証情報取得・ロケーション解決)を
-      # 先に済ませてから、全関数のdeployをバックグラウンドで同時起動して一括waitする。
 
       - name: enable required GCP services
         run: |
@@ -274,3 +255,31 @@ jobs:
           upsert_job ranking-cache-go         "0 */2 * * *"  ranking-cache-go
           upsert_job status-cache-backfill-go "*/30 * * * *" status-cache-backfill-go
           upsert_job scheduled-ogp-delete-go  "0 */1 * * *"  scheduled-ogp-delete-go
+
+      # ====================================================================
+      # 2) Go関数のデプロイ完了後にフロント(+Node関数)をデプロイする。
+      #    これにより hosting rewrite が指すGo関数が既に存在する状態で公開される。
+      # ====================================================================
+
+      - name: nuxt setup
+        run: echo "${{ secrets.PROD_ENV }}" > .env
+        working-directory: ./web
+
+      - name: nuxt generate
+        run: |
+          set -ex
+          yarn
+          yarn generate
+        working-directory: ./web
+
+      - name: copy files
+        run: |
+          set -ex
+          rm -rf app/dist
+          cp -r web/dist app
+        working-directory: ./
+
+      - name: firebase deploy
+        run: |
+          firebase deploy --project d-shrine --force
+        working-directory: ./app
