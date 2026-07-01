@@ -348,7 +348,12 @@ exports.status = functions.https.onRequest(async (request, response) => {
       const raw_activities_list = await get_activity_list(userRef)
       const user_data = user_performance(raw_activities_list, request.query.user)
       return_Data = user_formatted_performance(user_data, appendData)
-      return_Data.last_sanpai = "参拝していないようです"
+      // last_sanpai はキャッシュ有無に関わらず last_sanpai(Timestamp)から生成する。
+      // status_version 導入によりキャッシュ未計算の既存ユーザーは初回に必ずこのパスを
+      // 通るため、ここで固定文字列にすると参拝済みでも未参拝表示になってしまう。
+      return_Data.last_sanpai = userData.last_sanpai
+        ? moment(userData.last_sanpai.toDate()).format('YYYY年MM月DD日 HH:mm')
+        : "参拝していないようです"
       await userRef.update({
         status: return_Data,
         status_version: STATUS_LOGIC_VERSION
