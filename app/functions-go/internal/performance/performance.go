@@ -12,6 +12,19 @@ import (
 	"time"
 )
 
+// StatusLogicVersion は能力解析(performance)の計算ロジックのバージョン。
+// 計算式(加点テーブルや判定条件など、同一アクティビティに対する算出結果)を変えたら
+// 必ずインクリメントすること。users/{id}.status_version に保存され、キャッシュ済み
+// status がこのバージョン未満なら再計算対象になる(status/sanpai/statusCacheBackfill)。
+//
+// 履歴:
+//
+//	1: IssuesEvent を payload.action で加点するよう修正(それ以前は常に未加点だった)。
+//	   未設定(フィールドが存在しない旧キャッシュ)は 0 として扱われ再計算される。
+//
+// Node版 (app/functions/performance.js) の STATUS_LOGIC_VERSION と必ず一致させること。
+const StatusLogicVersion int64 = 1
+
 // レベルアップに必要な累計ポイントの閾値テーブル。Node版 target_points と同一の値。
 var targetPoints = []int{
 	0, 5, 11, 19, 30, 45, 65, 91, 124, 166, 218, 281, 357, 447, 553, 676, 818, 981,

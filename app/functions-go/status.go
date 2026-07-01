@@ -51,12 +51,21 @@ func getFirestoreClient(ctx context.Context) (*firestore.Client, error) {
 
 // userDocument は users/{id} ドキュメントのうち status エンドポイントが参照するフィールド。
 type userDocument struct {
-	DisplayName string           `firestore:"display_name"`
-	ScreenName  string           `firestore:"screen_name"`
-	ImagePath   string           `firestore:"image_path"`
-	Exp         int64            `firestore:"exp"`
-	LastSanpai  time.Time        `firestore:"last_sanpai"`
-	Status      *firestoreStatus `firestore:"status"`
+	DisplayName   string           `firestore:"display_name"`
+	ScreenName    string           `firestore:"screen_name"`
+	ImagePath     string           `firestore:"image_path"`
+	Exp           int64            `firestore:"exp"`
+	LastSanpai    time.Time        `firestore:"last_sanpai"`
+	Status        *firestoreStatus `firestore:"status"`
+	StatusVersion int64            `firestore:"status_version"`
+}
+
+// statusCacheIsCurrent は保存済み status キャッシュが現行の計算ロジックで作られたものか判定する。
+// status が無い、または status_version が現行(performance.StatusLogicVersion)より古い場合は
+// false(＝再計算が必要)。旧キャッシュには status_version フィールドが無く 0 として読まれるため
+// 自動的に再計算対象になる。
+func statusCacheIsCurrent(status *firestoreStatus, statusVersion int64) bool {
+	return status != nil && statusVersion >= performance.StatusLogicVersion
 }
 
 // firestoreStatus は users/{id}.status の形状(Node版 user_formatted_performance の
@@ -200,7 +209,7 @@ func statusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if userData.Status != nil {
+	if statusCacheIsCurrent(userData.Status, userData.StatusVersion) {
 		resp := fromFirestoreStatus(*userData.Status)
 		resp.LastSanpai = formatLastSanpai(userData.LastSanpai)
 		writeJSON(w, http.StatusOK, resp)
@@ -227,6 +236,7 @@ func statusHandler(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := userDoc.Ref.Update(ctx, []firestore.Update{
 		{Path: "status", Value: toFirestoreStatus(formatted, resp.LastSanpai)},
+		{Path: "status_version", Value: performance.StatusLogicVersion},
 	}); err != nil {
 		log.Printf("status: cache write-back error: %v", err)
 		writeError(w, http.StatusInternalServerError, "internal error")

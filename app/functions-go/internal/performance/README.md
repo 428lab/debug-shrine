@@ -20,8 +20,18 @@
   `statusCacheBackfill`)で `append_data.user` は必ず設定されているため、
   この単純化は挙動を変えない)。
 
+## 解析ロジックのバージョン (`StatusLogicVersion`)
+
+`StatusLogicVersion`(Node版 `STATUS_LOGIC_VERSION` と必ず一致)は、この計算ロジックの
+バージョンを表す。**計算式(加点テーブルや判定条件など、同一アクティビティに対する
+算出結果)を変えたら必ずインクリメントする。** 呼び出し側(`status`/`sanpai`/
+`statusCacheBackfill`)はこの値をユーザードキュメントの `status_version` に刻み、
+古いバージョンで計算されたキャッシュを再計算して自己修復する(詳細は
+`docs/backend.md`「解析ロジックのバージョン管理と自己修復キャッシュ」を参照)。
+
 ## Node版と同一に保つべき点(変更する場合は両実装を同時に更新すること)
 
+- `StatusLogicVersion` / `STATUS_LOGIC_VERSION` の値(計算式変更時は両方インクリメント)
 - `targetPoints` の値
 - イベント種別ごとの加点テーブル(`UserPerformance` の switch)
 - `IssuesEvent` の加点は `payload.action`("opened"→intelligence+3 /

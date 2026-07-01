@@ -38,11 +38,12 @@ func statusCacheBackfillHandler(ctx context.Context, _ cloudevents.Event) error 
 }
 
 type backfillUserDoc struct {
-	DisplayName string           `firestore:"display_name"`
-	ScreenName  string           `firestore:"screen_name"`
-	ImagePath   string           `firestore:"image_path"`
-	Exp         int64            `firestore:"exp"`
-	Status      *firestoreStatus `firestore:"status"`
+	DisplayName   string           `firestore:"display_name"`
+	ScreenName    string           `firestore:"screen_name"`
+	ImagePath     string           `firestore:"image_path"`
+	Exp           int64            `firestore:"exp"`
+	Status        *firestoreStatus `firestore:"status"`
+	StatusVersion int64            `firestore:"status_version"`
 }
 
 func runStatusCacheBackfill(ctx context.Context, client *firestore.Client, now time.Time) error {
@@ -74,7 +75,9 @@ func runStatusCacheBackfill(ctx context.Context, client *firestore.Client, now t
 		if err := doc.DataTo(&u); err != nil {
 			return err
 		}
-		if u.Status != nil {
+		// status が未計算、または status_version が古い(旧ロジックで計算された)
+		// キャッシュを再計算対象にする。現行バージョンのキャッシュはスキップ。
+		if statusCacheIsCurrent(u.Status, u.StatusVersion) {
 			continue
 		}
 
@@ -100,6 +103,7 @@ func runStatusCacheBackfill(ctx context.Context, client *firestore.Client, now t
 		// 上書きするため、観測できる挙動に差は無い。
 		if _, err := doc.Ref.Update(ctx, []firestore.Update{
 			{Path: "status", Value: toFirestoreStatus(formatted, "")},
+			{Path: "status_version", Value: performance.StatusLogicVersion},
 			{Path: "last_activity_created_at", Value: lastActivityCreatedAt},
 		}); err != nil {
 			return err

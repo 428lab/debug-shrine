@@ -11,6 +11,7 @@ const cors = require("cors")({
   origin: true
 })
 const {
+  STATUS_LOGIC_VERSION,
   get_level,
   user_performance,
   user_formatted_performance,
@@ -18,6 +19,14 @@ const {
   latest_activity_created_at,
   compute_performance_increment
 } = require("./performance")
+
+// status_cache_is_current は保存済み status キャッシュが現行の計算ロジックで作られたものか判定する。
+// status が無い、または status_version が現行(STATUS_LOGIC_VERSION)より古い場合は
+// false(＝再計算が必要)。旧キャッシュには status_version フィールドが無く undefined として
+// 読まれるため自動的に再計算対象になる。Go版 statusCacheIsCurrent と同一のロジック。
+function status_cache_is_current(userData) {
+  return !!(userData && userData.status) && userData.status_version >= STATUS_LOGIC_VERSION
+}
 
 const projectID = process.env.GCLOUD_PROJECT
 const buggetName = `${projectID}.appspot.com`
@@ -263,7 +272,9 @@ exports.statusCacheBackfill = functions.runWith({
   for (const userDoc of snapshot.docs) {
     if (processed >= MAX_PER_RUN) break
     const userData = userDoc.data()
-    if (userData.status) continue
+    // status が未計算、または status_version が古い(旧ロジックで計算された)
+    // キャッシュを再計算対象にする。現行バージョンのキャッシュはスキップ。
+    if (status_cache_is_current(userData)) continue
 
     const userRef = userDoc.ref
     const raw_activities_list = await get_activity_list(userRef)
@@ -280,6 +291,7 @@ exports.statusCacheBackfill = functions.runWith({
     const status = user_formatted_performance(user_data, appendData)
     await userRef.update({
       status: status,
+      status_version: STATUS_LOGIC_VERSION,
       last_activity_created_at: latest_activity_created_at(raw_activities_list)
     })
     processed++
@@ -323,7 +335,9 @@ exports.status = functions.https.onRequest(async (request, response) => {
 
     const userRef = await get_user_ref(db, userData.github_id, request.query.user)
     let return_Data
-    if (userData.status) {
+    // status_version が現行のキャッシュのみ即返却する。未計算または旧ロジックの
+    // キャッシュは下でフル再計算し、現行バージョンを刻んで書き戻す。
+    if (status_cache_is_current(userData)) {
       return_Data = userData.status
       // last_sanpai が未設定(未参拝でプロフィールを2回以上表示した場合など)だと
       // undefined.toDate() で例外になるため、未参拝時は下のフル計算パスと同じ文言を返す。
@@ -336,7 +350,8 @@ exports.status = functions.https.onRequest(async (request, response) => {
       return_Data = user_formatted_performance(user_data, appendData)
       return_Data.last_sanpai = "参拝していないようです"
       await userRef.update({
-        status: return_Data
+        status: return_Data,
+        status_version: STATUS_LOGIC_VERSION
       })
     }
 
@@ -465,13 +480,16 @@ async function createOgp(username, request, response) {
 
   const userRef = await get_user_ref(db, userData.id, username)
   let userFeedData
-  if (userData.status) {
+  // status_version が現行のキャッシュのみ再利用する。未計算または旧ロジックの
+  // キャッシュはフル再計算し、現行バージョンを刻んで書き戻す。
+  if (status_cache_is_current(userData)) {
     return_Data = userData.status
   } else {
     const raw_activities_list = await get_activity_list(userRef)
     userFeedData = user_formatted_performance(user_performance(raw_activities_list, username), appendData)
     await userRef.update({
-      status: userFeedData
+      status: userFeedData,
+      status_version: STATUS_LOGIC_VERSION
     })
   }
 
@@ -919,11 +937,15 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
 
       let raw_user_data
       let last_activity_created_at
-      if (userData.status && userData.last_activity_created_at) {
+      if (status_cache_is_current(userData) && userData.last_activity_created_at) {
         // 保存済みステータスに新着分だけを加算(全件再集計しない)。
         // splited_items は「created_at > last_sanpai」で抽出した未集計イベントのみ、
         // last_activity_created_at は累積済みイベントの最大時刻であり、
         // compute_performance_increment の不変条件(新着は累積分より後)を満たす。
+        //
+        // status_version が古いキャッシュ(旧ロジックで計算)を基準に増分すると
+        // 過去分の誤りを現行バージョンとして固定化してしまうため、その場合は
+        // この分岐に入らず下の全件再計算パスに落として基準ごと作り直す。
         const base_user_data = raw_user_data_from_status(userData.status, userData.screen_name)
         const increment = compute_performance_increment(base_user_data, splited_items, userData.last_activity_created_at)
         raw_user_data = increment.user_data
@@ -941,6 +963,7 @@ exports.sanpai = functions.https.onRequest(async(request, response) => {
         last_sanpai: FieldValue.serverTimestamp(),
         exp: FieldValue.increment(add_exp),
         status: userStatusData,
+        status_version: STATUS_LOGIC_VERSION,
         last_activity_created_at: last_activity_created_at
       })
 
