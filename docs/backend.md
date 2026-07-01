@@ -56,3 +56,30 @@ GitHubのアクティビティを取得して更新
   `status` と `last_activity_created_at` を追記更新する(既存データは削除しない)
 - 冪等。全レガシーユーザーの埋め込み完了後はスキップのみで何もしない
 
+## `status` エンドポイントのGo移植 (`statusGo`)
+
+マイページ表示のレイテンシーをさらに削減するため、`status` エンドポイントを
+Go(Cloud Run functions)で再実装し、`statusGo` という別関数名でデプロイしている
+(実装は `app/functions-go/`、設計の詳細は同ディレクトリの README を参照)。
+
+- Go は Node.js よりコールドスタートが大幅に短い(目安: Go 100〜300ms
+  vs Node.js 300〜800ms)。解析キャッシュ導入でウォーム時のレイテンシーは
+  既に改善済みだが、コールドスタート自体はランタイム由来のオーバーヘッドが
+  残るため、まずこの `status` エンドポイントから移植した。
+- `firebase-functions` SDK自体はGoを未サポートのため、Firebase Functionsとは
+  別に `gcloud functions deploy --gen2 --runtime=go125` で同一GCPプロジェクトに
+  直接デプロイしている(CI: `.github/workflows/dev-deploy.yml`)。
+- 既存の `status`(Node)とは意図的に別関数として共存させ、フロントエンドの
+  呼び出し先切替タイミングを制御できるようにしている(切替・Node側削除は
+  別途提案のうえ実施)。
+- Node版との入出力の等価性は、Firestoreエミュレータに同一データを投入し、
+  両ハンドラの応答を比較して確認済み。
+
+### 既知の挙動差異(Node側の未修正バグに起因)
+
+`status` キャッシュ(`userData.status`)は存在するが `last_sanpai`(トップレベル)が
+存在しないユーザー(一度も参拝せずプロフィールを2回以上表示した場合に発生し得る)に
+対して、Node版は `undefined.toDate()` を呼び出して例外になる既存バグがある
+(本移植の対象外につき、Node側は修正していない)。Go版はこの場合 `last_sanpai` を
+空文字として返す(クラッシュしない)。
+
