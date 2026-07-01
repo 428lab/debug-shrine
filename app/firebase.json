@@ -13,7 +13,7 @@
     "rewrites": [
       {
         "source": "/u/*",
-        "function": "ogpRewrite"
+        "function": "ogpRewriteGo"
       },
       {
         "source": "**",

@@ -178,7 +178,10 @@ export default {
               .currentUser.getIdToken()
               .then((token) => {
                 this.$store.commit("setToken", token);
-                this.$axios.post("register", userData, {
+                // Go版(registerGo)はコールドスタートが短くログイン直後の登録が
+                // 速くなるため使用する(Node版のregisterとレスポンス形式は同一。
+                // docs/backend.md参照)
+                this.$axios.post("registerGo", userData, {
                   headers: {
                     Authorization: `Bearer ${token}`,
                   },

@@ -192,7 +192,9 @@ export default {
       github_id: this.user.github_id,
       screen_name: this.user.screen_name,
     };
-    let response = await this.$axios.post("sanpai",
+    // Go版(sanpaiGo)はコールドスタートが短く参拝処理が速くなるため使用する
+    // (Node版のsanpaiとレスポンス形式は同一。docs/backend.md参照)
+    let response = await this.$axios.post("sanpaiGo",
       payload,
       {
         headers: {
