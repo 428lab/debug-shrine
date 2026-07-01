@@ -90,6 +90,14 @@ jobs:
           go vet ./...
         working-directory: ./app/functions-go
 
+      # Firestoreエミュレータの実行にはJDK 21以上が必要(firebase-toolsの要件)。
+      # ubuntu-22.04ランナーのデフォルトJavaはこれを満たさないため明示的にセットアップする。
+      - name: setup java (for Firestore emulator)
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
       # sanpai/ranking/register/statusCacheBackfill等のFirestore統合テストは
       # FIRESTORE_EMULATOR_HOST未設定時は自動スキップされる設計(README参照)。
       # CIでも実際に検証されるよう、Firestoreエミュレータを起動した状態で
