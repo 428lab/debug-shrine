@@ -32,6 +32,12 @@ functions-go/
   status.go              # statusGo エンドポイント(モジュールルートパッケージ)
   sanpai.go              # sanpaiGo エンドポイント(モジュールルートパッケージ)
   sanpai_test.go         # sanpaiGoのFirestoreエミュレータ統合テスト
+  ranking.go             # rankingGo エンドポイント
+  ranking_test.go
+  register.go            # registerGo エンドポイント
+  register_test.go
+  ogp_rewrite.go         # ogpRewriteGo エンドポイント
+  ogp_rewrite_test.go
   cmd/
     main.go               # ローカル動作確認専用(デプロイでは使わない)
   internal/
@@ -39,6 +45,10 @@ functions-go/
       performance.go      # app/functions/performance.js の対象範囲のGoポート
       performance_test.go # performance.test.js と同一の入出力を検証
 ```
+
+`userOGP`(OGP画像生成)とPub/Subスケジュール関数(`rankingUpdate`/
+`rankingCache`/`statusCacheBackfill`/`scheduledOgpDelete`)は対象外
+(理由は `docs/backend.md`「Go移植を見送った機能」を参照)。
 
 ## 関数の命名規則(既存Node関数との共存)
 
@@ -108,8 +118,10 @@ gcloud functions deploy statusGo \
   `projectID == 'd-shrine' ? 300 : 60` とプロジェクトIDで分岐しているが、Go版は
   デプロイ時に明示的な値を渡す(dev: `60`。prod移植時は `300` を指定する)。
 
-将来 `ranking`/`register` を移植する場合も、モジュールルートに新しいファイル
-(例: `ranking.go`)を追加し、別の `--entry-point`/関数名でデプロイを追加する想定。
+`rankingGo`/`registerGo`/`ogpRewriteGo` も同様のパターンでデプロイしている。
+`ogpRewriteGo` は追加で `FUNC_BASE_URL`(Node版の
+`functions.config().func.base_url` 相当)と `OGP_PROJECT_ID` を
+`--set-env-vars` で渡す必要がある。
 
 ## Node版との等価性の確認方法
 
