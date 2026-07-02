@@ -60,11 +60,15 @@ func TestStatusCacheBackfill_BackfillsRecentlyActiveUsersWithoutStatus(t *testin
 	if err := targetDoc.DataTo(&targetData); err != nil {
 		t.Fatalf("DataTo: %v", err)
 	}
-	if targetData.Status == nil {
+	targetStatus, err := decodeCurrentStatusCache(targetDoc, targetData.StatusVersion)
+	if err != nil {
+		t.Fatalf("decodeCurrentStatusCache: %v", err)
+	}
+	if targetStatus == nil {
 		t.Fatal("target user should have status cached after backfill")
 	}
-	if targetData.Status.User.ScreenName != "backfill_target" {
-		t.Errorf("cached status.user.screen_name = %q, want backfill_target", targetData.Status.User.ScreenName)
+	if targetStatus.User.ScreenName != "backfill_target" {
+		t.Errorf("cached status.user.screen_name = %q, want backfill_target", targetStatus.User.ScreenName)
 	}
 
 	cachedDoc, err := client.Collection("users").Doc(alreadyCachedID).Get(ctx)
@@ -75,20 +79,20 @@ func TestStatusCacheBackfill_BackfillsRecentlyActiveUsersWithoutStatus(t *testin
 	if err := cachedDoc.DataTo(&cachedData); err != nil {
 		t.Fatalf("DataTo: %v", err)
 	}
-	if cachedData.Status == nil || cachedData.Status.Total != 1 {
-		t.Errorf("already-cached user's status should be untouched, got %+v", cachedData.Status)
+	cachedStatus, err := decodeCurrentStatusCache(cachedDoc, cachedData.StatusVersion)
+	if err != nil {
+		t.Fatalf("decodeCurrentStatusCache: %v", err)
+	}
+	if cachedStatus == nil || cachedStatus.Total != 1 {
+		t.Errorf("already-cached user's status should be untouched, got %+v", cachedStatus)
 	}
 
 	dormantDoc, err := client.Collection("users").Doc(dormantID).Get(ctx)
 	if err != nil {
 		t.Fatalf("failed to read dormant user: %v", err)
 	}
-	var dormantData backfillUserDoc
-	if err := dormantDoc.DataTo(&dormantData); err != nil {
-		t.Fatalf("DataTo: %v", err)
-	}
-	if dormantData.Status != nil {
-		t.Errorf("dormant user (last_sanpai > 6 months ago) should not be backfilled, got status=%+v", dormantData.Status)
+	if dormantDoc.Data()["status"] != nil {
+		t.Errorf("dormant user (last_sanpai > 6 months ago) should not be backfilled, got status=%+v", dormantDoc.Data()["status"])
 	}
 }
 
@@ -119,7 +123,7 @@ func TestStatusCacheBackfill_RecomputesOldVersionStatus(t *testing.T) {
 		t.Fatalf("failed to seed activity: %v", err)
 	}
 
-	readOldVersion := func() backfillUserDoc {
+	readOldVersion := func() (int64, *firestoreStatus) {
 		doc, err := client.Collection("users").Doc(oldVersionID).Get(ctx)
 		if err != nil {
 			t.Fatalf("failed to read old-version user: %v", err)
@@ -128,7 +132,11 @@ func TestStatusCacheBackfill_RecomputesOldVersionStatus(t *testing.T) {
 		if err := doc.DataTo(&data); err != nil {
 			t.Fatalf("DataTo: %v", err)
 		}
-		return data
+		status, err := decodeCurrentStatusCache(doc, data.StatusVersion)
+		if err != nil {
+			t.Fatalf("decodeCurrentStatusCache: %v", err)
+		}
+		return data.StatusVersion, status
 	}
 
 	// バックフィルは1回あたり最大10件しか処理しないため、共有エミュレータに
@@ -137,7 +145,10 @@ func TestStatusCacheBackfill_RecomputesOldVersionStatus(t *testing.T) {
 	// 無限ループ防止に十分大きな上限を設ける(実際は数回で収束する)。
 	const maxRuns = 100
 	i := 0
-	for ; i < maxRuns && readOldVersion().StatusVersion < performance.StatusLogicVersion; i++ {
+	for ; i < maxRuns; i++ {
+		if ver, _ := readOldVersion(); ver >= performance.StatusLogicVersion {
+			break
+		}
 		if err := runStatusCacheBackfill(ctx, client, now); err != nil {
 			t.Fatalf("runStatusCacheBackfill: %v", err)
 		}
@@ -146,19 +157,19 @@ func TestStatusCacheBackfill_RecomputesOldVersionStatus(t *testing.T) {
 		t.Fatalf("old-version user was not recomputed within %d backfill runs", maxRuns)
 	}
 
-	got := readOldVersion()
-	if got.StatusVersion != performance.StatusLogicVersion {
-		t.Fatalf("old-version user status_version = %d, want %d (再計算されていない)", got.StatusVersion, performance.StatusLogicVersion)
+	gotVer, gotStatus := readOldVersion()
+	if gotVer != performance.StatusLogicVersion {
+		t.Fatalf("old-version user status_version = %d, want %d (再計算されていない)", gotVer, performance.StatusLogicVersion)
 	}
-	if got.Status == nil {
+	if gotStatus == nil {
 		t.Fatal("old-version user should have recomputed status")
 	}
 	// stale 値(99999)が現行ロジックの再計算結果で上書きされていること。
-	if got.Status.Total == 99999 {
+	if gotStatus.Total == 99999 {
 		t.Error("old-version user's stale status.total was not recomputed")
 	}
-	if got.Status.User.ScreenName != "backfill_oldver" {
-		t.Errorf("recomputed status.user.screen_name = %q, want backfill_oldver", got.Status.User.ScreenName)
+	if gotStatus.User.ScreenName != "backfill_oldver" {
+		t.Errorf("recomputed status.user.screen_name = %q, want backfill_oldver", gotStatus.User.ScreenName)
 	}
 }
 
@@ -194,11 +205,7 @@ func TestStatusCacheBackfill_RespectsMaxPerRunLimit(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to read user %s: %v", id, err)
 			}
-			var data backfillUserDoc
-			if err := doc.DataTo(&data); err != nil {
-				t.Fatalf("DataTo: %v", err)
-			}
-			if data.Status != nil {
+			if doc.Data()["status"] != nil {
 				n++
 			}
 		}
