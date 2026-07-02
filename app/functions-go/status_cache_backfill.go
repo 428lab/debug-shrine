@@ -37,13 +37,21 @@ func statusCacheBackfillHandler(ctx context.Context, _ cloudevents.Event) error 
 	return runStatusCacheBackfill(ctx, client, time.Now())
 }
 
+// backfillUserDoc は users/{id} のうちバックフィルが参照するフィールド。
+//
+// status キャッシュ(status フィールド)は意図的にこの struct に含めない。旧バージョンの
+// キャッシュはフィールドの型が現行の firestoreStatus と一致しない場合があり
+// (詳細は decodeCurrentStatusCache 参照)、ドキュメント全体を一括デコードすると型不一致で
+// デコードが失敗する。バックフィルはまさにその旧キャッシュを再計算対象として走査するため、
+// ここで一括デコードすると最初の旧ユーザーでジョブ全体が中断し、以降のユーザーが永久に
+// 修復されなくなる。status は decodeCurrentStatusCache で個別に(現行バージョン時のみ)
+// デコードする。
 type backfillUserDoc struct {
-	DisplayName   string           `firestore:"display_name"`
-	ScreenName    string           `firestore:"screen_name"`
-	ImagePath     string           `firestore:"image_path"`
-	Exp           int64            `firestore:"exp"`
-	Status        *firestoreStatus `firestore:"status"`
-	StatusVersion int64            `firestore:"status_version"`
+	DisplayName   string `firestore:"display_name"`
+	ScreenName    string `firestore:"screen_name"`
+	ImagePath     string `firestore:"image_path"`
+	Exp           int64  `firestore:"exp"`
+	StatusVersion int64  `firestore:"status_version"`
 }
 
 func runStatusCacheBackfill(ctx context.Context, client *firestore.Client, now time.Time) error {
@@ -75,9 +83,13 @@ func runStatusCacheBackfill(ctx context.Context, client *firestore.Client, now t
 		if err := doc.DataTo(&u); err != nil {
 			return err
 		}
+		cachedStatus, err := decodeCurrentStatusCache(doc, u.StatusVersion)
+		if err != nil {
+			return err
+		}
 		// status が未計算、または status_version が古い(旧ロジックで計算された)
 		// キャッシュを再計算対象にする。現行バージョンのキャッシュはスキップ。
-		if statusCacheIsCurrent(u.Status, u.StatusVersion) {
+		if statusCacheIsCurrent(cachedStatus, u.StatusVersion) {
 			continue
 		}
 

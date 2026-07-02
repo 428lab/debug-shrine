@@ -50,14 +50,19 @@ func getFirestoreClient(ctx context.Context) (*firestore.Client, error) {
 }
 
 // userDocument は users/{id} ドキュメントのうち status エンドポイントが参照するフィールド。
+//
+// status キャッシュ(status フィールド)は意図的にこの struct に含めない。
+// 旧バージョンのキャッシュはフィールドの型が現行の firestoreStatus と一致しない場合があり
+// (詳細は decodeCurrentStatusCache 参照)、ドキュメント全体を一括デコードすると型不一致で
+// デコード全体が失敗するため、status は decodeCurrentStatusCache で個別に(現行バージョン時のみ)
+// デコードする。
 type userDocument struct {
-	DisplayName   string           `firestore:"display_name"`
-	ScreenName    string           `firestore:"screen_name"`
-	ImagePath     string           `firestore:"image_path"`
-	Exp           int64            `firestore:"exp"`
-	LastSanpai    time.Time        `firestore:"last_sanpai"`
-	Status        *firestoreStatus `firestore:"status"`
-	StatusVersion int64            `firestore:"status_version"`
+	DisplayName   string    `firestore:"display_name"`
+	ScreenName    string    `firestore:"screen_name"`
+	ImagePath     string    `firestore:"image_path"`
+	Exp           int64     `firestore:"exp"`
+	LastSanpai    time.Time `firestore:"last_sanpai"`
+	StatusVersion int64     `firestore:"status_version"`
 }
 
 // statusCacheIsCurrent は保存済み status キャッシュが現行の計算ロジックで作られたものか判定する。
@@ -66,6 +71,47 @@ type userDocument struct {
 // 自動的に再計算対象になる。
 func statusCacheIsCurrent(status *firestoreStatus, statusVersion int64) bool {
 	return status != nil && statusVersion >= performance.StatusLogicVersion
+}
+
+// decodeCurrentStatusCache は保存済み status キャッシュを、現行バージョン
+// (status_version が performance.StatusLogicVersion 以上、＝Goが書いた現行フォーマット)の
+// ときだけ厳密にデコードして返す。
+//
+// 旧バージョンのキャッシュ(Node版や旧ロジックが書いたもの)は firestoreStatus とフィールドの
+// 型が一致しない場合がある(例: 旧 status.user は文字列だが現行は user オブジェクト)。
+// ドキュメント全体を一括で DataTo すると、その型不一致でデコード全体が失敗し、status を
+// 参照しない再計算経路まで巻き添えで失敗してしまう(参拝が "missing server error" になる等)。
+// 旧キャッシュは必ず再計算経路で現行フォーマットに作り直すため、ここではデコードせず nil を
+// 返す(呼び出し側は nil を「有効なキャッシュ無し」とみなして再計算する)。
+func decodeCurrentStatusCache(snap *firestore.DocumentSnapshot, statusVersion int64) (*firestoreStatus, error) {
+	if statusVersion < performance.StatusLogicVersion {
+		return nil, nil
+	}
+	var holder struct {
+		Status *firestoreStatus `firestore:"status"`
+	}
+	if err := snap.DataTo(&holder); err != nil {
+		return nil, err
+	}
+	return holder.Status, nil
+}
+
+// statusTotalFromSnapshot は保存済み status.total(戦闘力)だけを型に寛容に読み取る。
+// 参拝結果の before/after 表示のために、厳密デコードできない旧フォーマットのキャッシュからも
+// 参拝前の戦闘力を取得できるようにする(Node版 power_before と同じ「status.total があれば使う、
+// 無ければ 0」の扱い)。
+func statusTotalFromSnapshot(snap *firestore.DocumentSnapshot) int {
+	status, ok := snap.Data()["status"].(map[string]interface{})
+	if !ok {
+		return 0
+	}
+	switch v := status["total"].(type) {
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	}
+	return 0
 }
 
 // firestoreStatus は users/{id}.status の形状(Node版 user_formatted_performance の
@@ -209,8 +255,14 @@ func statusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if statusCacheIsCurrent(userData.Status, userData.StatusVersion) {
-		resp := fromFirestoreStatus(*userData.Status)
+	cachedStatus, err := decodeCurrentStatusCache(userDoc, userData.StatusVersion)
+	if err != nil {
+		log.Printf("status: status cache decode error: %v", err)
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+	if statusCacheIsCurrent(cachedStatus, userData.StatusVersion) {
+		resp := fromFirestoreStatus(*cachedStatus)
 		resp.LastSanpai = formatLastSanpai(userData.LastSanpai)
 		writeJSON(w, http.StatusOK, resp)
 		return
