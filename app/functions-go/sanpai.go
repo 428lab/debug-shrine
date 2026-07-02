@@ -216,26 +216,14 @@ func sanpaiHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// [一時診断] ?__diag=1 のとき、認証周りの原因切り分け情報を返す(通常運用では
-	// フロントは付与しないため無害)。原因確定後に除去する。
-	diag := r.URL.Query().Get("__diag") == "1"
-
 	authClient, err := getFirebaseAuthClient(ctx)
 	if err != nil {
 		log.Printf("sanpai: getFirebaseAuthClient error: %v", err)
-		if diag {
-			writeJSON(w, http.StatusOK, map[string]string{"status": "diag getFirebaseAuthClient: " + err.Error()})
-			return
-		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "missing server error."})
 		return
 	}
 	if _, err := authClient.VerifyIDToken(ctx, token); err != nil {
 		log.Printf("sanpai: VerifyIDToken error: %v", err)
-		if diag {
-			writeJSON(w, http.StatusForbidden, map[string]string{"status": "diag VerifyIDToken: " + err.Error()})
-			return
-		}
 		writeJSON(w, http.StatusForbidden, map[string]string{"status": "authorization missing."})
 		return
 	}
@@ -271,15 +259,20 @@ func extractBearerToken(r *http.Request) (string, bool) {
 }
 
 // sanpaiUserDocument は users/{id} ドキュメントのうち sanpai が参照するフィールド。
+//
+// status キャッシュ(status フィールド)は意図的にこの struct に含めない。
+// 旧バージョンのキャッシュはフィールドの型が現行の firestoreStatus と一致しない場合があり
+// (詳細は decodeCurrentStatusCache 参照)、ドキュメント全体を一括デコードすると型不一致で
+// デコード全体が失敗して参拝処理全体が中断してしまう。status は decodeCurrentStatusCache で
+// 個別に(現行バージョン時のみ)デコードする。
 type sanpaiUserDocument struct {
-	DisplayName           string           `firestore:"display_name"`
-	ScreenName            string           `firestore:"screen_name"`
-	ImagePath             string           `firestore:"image_path"`
-	Exp                   int64            `firestore:"exp"`
-	LastSanpai            time.Time        `firestore:"last_sanpai"`
-	LastActivityCreatedAt string           `firestore:"last_activity_created_at"`
-	Status                *firestoreStatus `firestore:"status"`
-	StatusVersion         int64            `firestore:"status_version"`
+	DisplayName           string    `firestore:"display_name"`
+	ScreenName            string    `firestore:"screen_name"`
+	ImagePath             string    `firestore:"image_path"`
+	Exp                   int64     `firestore:"exp"`
+	LastSanpai            time.Time `firestore:"last_sanpai"`
+	LastActivityCreatedAt string    `firestore:"last_activity_created_at"`
+	StatusVersion         int64     `firestore:"status_version"`
 }
 
 // runSanpai は参拝処理の本体。エラーを返した場合は呼び出し元で
@@ -300,6 +293,13 @@ func runSanpai(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 
 	var userData sanpaiUserDocument
 	if err := userSnap.DataTo(&userData); err != nil {
+		return err
+	}
+
+	// status キャッシュは現行バージョンのときだけ厳密デコードする(旧フォーマットは
+	// 触らず下の全件再計算で作り直す。詳細は decodeCurrentStatusCache 参照)。
+	cachedStatus, err := decodeCurrentStatusCache(userSnap, userData.StatusVersion)
+	if err != nil {
 		return err
 	}
 
@@ -398,7 +398,7 @@ func runSanpai(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 
 	var rawUserData performance.RawUserData
 	var lastActivityCreatedAt string
-	if statusCacheIsCurrent(userData.Status, userData.StatusVersion) && userData.LastActivityCreatedAt != "" {
+	if statusCacheIsCurrent(cachedStatus, userData.StatusVersion) && userData.LastActivityCreatedAt != "" {
 		// 保存済みステータスに新着分だけを加算(全件再集計しない)。
 		// splited は「created_at > last_sanpai」で抽出した未集計イベントのみ、
 		// last_activity_created_at は累積済みイベントの最大時刻であり、
@@ -407,7 +407,7 @@ func runSanpai(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 		// status_version が古いキャッシュ(旧ロジックで計算)を基準に増分すると
 		// 過去分の誤りを現行バージョンとして固定化してしまうため、その場合は
 		// この分岐に入らず下の全件再計算パスに落として基準ごと作り直す。
-		baseUserData := performance.RawUserDataFromStatus(fromFirestoreStatus(*userData.Status).FormattedPerformance, userData.ScreenName)
+		baseUserData := performance.RawUserDataFromStatus(fromFirestoreStatus(*cachedStatus).FormattedPerformance, userData.ScreenName)
 		inc := performance.ComputePerformanceIncrement(baseUserData, activities, userData.LastActivityCreatedAt)
 		rawUserData = inc.UserData
 		lastActivityCreatedAt = inc.LastCreatedAt
@@ -440,11 +440,10 @@ func runSanpai(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 		return err
 	}
 
-	// 参拝による変化(before/after)を算出してフロントの変化表示に渡す
-	powerBefore := 0
-	if userData.Status != nil {
-		powerBefore = int(userData.Status.Total)
-	}
+	// 参拝による変化(before/after)を算出してフロントの変化表示に渡す。
+	// 参拝前の戦闘力は、旧フォーマットのキャッシュからも取得できるよう status.total を
+	// 型に寛容に読み取る(Node版 power_before と同じ扱い)。
+	powerBefore := statusTotalFromSnapshot(userSnap)
 	pointsBefore := int(userData.Exp)
 	levelBefore := performance.GetLevel(powerBefore)
 

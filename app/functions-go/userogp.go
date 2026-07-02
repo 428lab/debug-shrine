@@ -180,8 +180,12 @@ func generateAndUploadOGP(ctx context.Context, bucket *storage.BucketHandle, obj
 // 現行バージョンのキャッシュがあれば再利用し、無い/旧版なら再計算して書き戻す
 // (status エンドポイントおよびNode版 userOGP と同一のキャッシュ運用)。
 func resolveUserStatus(ctx context.Context, userDoc *firestore.DocumentSnapshot, userData userDocument, screenName string) (performance.FormattedPerformance, error) {
-	if statusCacheIsCurrent(userData.Status, userData.StatusVersion) {
-		return fromFirestoreStatus(*userData.Status).FormattedPerformance, nil
+	cachedStatus, err := decodeCurrentStatusCache(userDoc, userData.StatusVersion)
+	if err != nil {
+		return performance.FormattedPerformance{}, err
+	}
+	if statusCacheIsCurrent(cachedStatus, userData.StatusVersion) {
+		return fromFirestoreStatus(*cachedStatus).FormattedPerformance, nil
 	}
 
 	activities, err := loadActivities(ctx, userDoc.Ref)

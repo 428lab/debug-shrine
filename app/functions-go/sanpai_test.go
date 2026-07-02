@@ -141,7 +141,11 @@ func TestSanpai_FirstTime_FullCalculation(t *testing.T) {
 	if updated.Exp != 12 {
 		t.Errorf("stored exp = %d, want 12", updated.Exp)
 	}
-	if updated.Status == nil {
+	cached, err := decodeCurrentStatusCache(snap, updated.StatusVersion)
+	if err != nil {
+		t.Fatalf("decodeCurrentStatusCache: %v", err)
+	}
+	if cached == nil {
 		t.Fatalf("expected status cache to be written")
 	}
 	if updated.LastActivityCreatedAt != "2024-01-01T00:20:00Z" {
