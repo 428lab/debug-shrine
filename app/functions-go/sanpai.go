@@ -216,14 +216,26 @@ func sanpaiHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// [一時診断] ?__diag=1 のとき、認証周りの原因切り分け情報を返す(通常運用では
+	// フロントは付与しないため無害)。原因確定後に除去する。
+	diag := r.URL.Query().Get("__diag") == "1"
+
 	authClient, err := getFirebaseAuthClient(ctx)
 	if err != nil {
 		log.Printf("sanpai: getFirebaseAuthClient error: %v", err)
+		if diag {
+			writeJSON(w, http.StatusOK, map[string]string{"status": "diag getFirebaseAuthClient: " + err.Error()})
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "missing server error."})
 		return
 	}
 	if _, err := authClient.VerifyIDToken(ctx, token); err != nil {
 		log.Printf("sanpai: VerifyIDToken error: %v", err)
+		if diag {
+			writeJSON(w, http.StatusForbidden, map[string]string{"status": "diag VerifyIDToken: " + err.Error()})
+			return
+		}
 		writeJSON(w, http.StatusForbidden, map[string]string{"status": "authorization missing."})
 		return
 	}
