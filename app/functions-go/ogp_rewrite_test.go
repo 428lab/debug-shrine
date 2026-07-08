@@ -3,6 +3,7 @@ package gofunctions
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -120,6 +121,70 @@ func TestOgpRewrite_OgDescriptionWithoutPropertyAttribute(t *testing.T) {
 	ogDescTag := extractMetaTag(rec.Body.String(), "og:description")
 	if !strings.Contains(ogDescTag, "octocatの でばっぐのうりょくだ！") {
 		t.Errorf("og:description (no property attr) not rewritten: %q", ogDescTag)
+	}
+}
+
+// 共有リンクに付くトラッキングパラメータ(?fbclid=... 等)がユーザー名に
+// 混入しないこと(パス部分のみからユーザー名を取り出すこと)を確認する。
+func TestOgpRewrite_IgnoresQueryString(t *testing.T) {
+	var baseURL string
+	baseSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte(sampleIndexHTML(baseURL)))
+	}))
+	defer baseSrv.Close()
+
+	baseURL = baseSrv.URL + "/"
+	t.Setenv("FUNC_BASE_URL", baseURL)
+	t.Setenv("OGP_PROJECT_ID", "d-shrine-dev")
+
+	req := httptest.NewRequest(http.MethodGet, "/u/octocat?fbclid=abc123", nil)
+	rec := httptest.NewRecorder()
+	ogpRewriteHandler(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body=%s)", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "userOGPGo?user=octocat&") {
+		t.Errorf("og:image user param should be octocat without query string; body=%s", body)
+	}
+	if strings.Contains(body, "fbclid") {
+		t.Errorf("query string leaked into rewritten HTML; body=%s", body)
+	}
+	if !strings.Contains(body, "octocatの でばっぐのうりょくだ！") {
+		t.Errorf("description not rewritten with clean username; body=%s", body)
+	}
+}
+
+// パス由来のユーザー名がHTML属性・URLへエスケープされずに埋め込まれて
+// HTML注入(XSS)にならないことを確認する。
+func TestOgpRewrite_EscapesUsername(t *testing.T) {
+	var baseURL string
+	baseSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte(sampleIndexHTML(baseURL)))
+	}))
+	defer baseSrv.Close()
+
+	baseURL = baseSrv.URL + "/"
+	t.Setenv("FUNC_BASE_URL", baseURL)
+	t.Setenv("OGP_PROJECT_ID", "d-shrine-dev")
+
+	evil := `x"><script>alert(1)</script>`
+	req := httptest.NewRequest(http.MethodGet, "/u/"+url.PathEscape(evil), nil)
+	rec := httptest.NewRecorder()
+	ogpRewriteHandler(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body=%s)", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, "<script>") {
+		t.Errorf("unescaped username injected script tag; body=%s", body)
+	}
+	if !strings.Contains(body, "user="+url.QueryEscape(evil)) {
+		t.Errorf("og:image user param should be query-escaped; body=%s", body)
 	}
 }
 

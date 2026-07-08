@@ -9,11 +9,19 @@ export default () => {
 
   // プラグイン起動時点で既に SW に制御されているか。
   // 初回インストール(制御なし→あり)ではリロード不要なため区別する。
-  const hadController = !!navigator.serviceWorker.controller;
+  // 初回インストール後は制御下に入るので true に更新する(固定のままだと、
+  // 初回訪問のタブでは以降の新デプロイでも一切リロードされなくなる)。
+  let hasController = !!navigator.serviceWorker.controller;
 
   let reloading = false;
   navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (reloading || !hadController) return;
+    if (!hasController) {
+      // 初回インストールによる制御開始。リロードは不要だが、次回以降の
+      // controllerchange は新デプロイによる切替なのでリロード対象にする。
+      hasController = true;
+      return;
+    }
+    if (reloading) return;
     reloading = true;
     window.location.reload();
   });
