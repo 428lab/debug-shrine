@@ -136,8 +136,8 @@ func fetchGitHubFeed(ctx context.Context, username string) ([]feedItem, error) {
 	clientSecret := os.Getenv("GITHUB_CLIENT_SECRET")
 
 	reqURL := fmt.Sprintf(
-		"%s/users/%s/events/public?per_page=100&client_id=%s&client_secret=%s",
-		githubAPIBaseURL, url.PathEscape(username), url.QueryEscape(clientID), url.QueryEscape(clientSecret),
+		"%s/users/%s/events/public?per_page=100",
+		githubAPIBaseURL, url.PathEscape(username),
 	)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
@@ -145,6 +145,14 @@ func fetchGitHubFeed(ctx context.Context, username string) ([]feedItem, error) {
 	}
 	// GitHub API は User-Agent ヘッダーが無いリクエストを拒否するため必須。
 	req.Header.Set("User-Agent", "debug-shrine-sanpaiGo")
+	// OAuth Appの資格情報はBasic認証ヘッダーで送る。旧来のクエリパラメータ認証
+	// (?client_id=...&client_secret=...)は2021-05-05にGitHub APIから撤廃されており、
+	// 付けても単に無視されて未認証(IPごと60req/h)として扱われるため、
+	// 認証済みのレート制限(5000req/h)を得るにはヘッダーで送る必要がある。
+	// https://docs.github.com/en/rest/overview/authenticating-to-the-rest-api
+	if clientID != "" && clientSecret != "" {
+		req.SetBasicAuth(clientID, clientSecret)
+	}
 
 	resp, err := githubHTTPClient.Do(req)
 	if err != nil {
