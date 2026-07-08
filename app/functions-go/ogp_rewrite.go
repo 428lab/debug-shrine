@@ -13,9 +13,11 @@ package gofunctions
 import (
 	"context"
 	"fmt"
+	"html"
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -34,9 +36,12 @@ var userPathPattern = regexp.MustCompile(`/u/(.+)`)
 var ogpHTTPClient = &http.Client{}
 
 func ogpRewriteHandler(w http.ResponseWriter, r *http.Request) {
-	reqPath := r.URL.RequestURI()
-	log.Printf("ogpRewrite: request url: %s", reqPath)
+	log.Printf("ogpRewrite: request url: %s", r.URL.RequestURI())
 
+	// ユーザー名はパス部分のみから取り出す。RequestURI(パス+クエリ)に対して
+	// マッチさせると、共有リンク等に付くトラッキングパラメータ(?fbclid=... 等)まで
+	// ユーザー名に含まれてしまい、og:image のユーザー参照や説明文が壊れる。
+	reqPath := r.URL.Path
 	m := userPathPattern.FindStringSubmatch(reqPath)
 	if m == nil {
 		// Node版は Firebase Hosting の `/u/*` リライト経由でのみ呼ばれる前提のため
@@ -62,10 +67,13 @@ func runOgpRewrite(ctx context.Context, w http.ResponseWriter, username string) 
 	projectID := os.Getenv("OGP_PROJECT_ID")
 
 	nowUnix := time.Now().Unix()
+	// username はリクエストパス由来の外部入力なので、URLクエリ・HTML属性値の
+	// 各文脈に応じてエスケープしてから埋め込む(生のまま埋め込むと `"` や `<` で
+	// meta タグの属性を破壊してHTMLを注入できてしまう)。
 	// og:image は Go版OGP生成関数(userOGPGo)を指す。userOGPGoはWebP(1200x630)を返す。
-	ogpURL := fmt.Sprintf("https://us-central1-%s.cloudfunctions.net/userOGPGo?user=%s&t=%d", projectID, username, nowUnix)
-	description := fmt.Sprintf("これが%sの でばっぐのうりょくだ！", username)
-	title := fmt.Sprintf("%sの でばっぐのうりょく - でばっぐ神社", username)
+	ogpURL := fmt.Sprintf("https://us-central1-%s.cloudfunctions.net/userOGPGo?user=%s&t=%d", projectID, url.QueryEscape(username), nowUnix)
+	description := html.EscapeString(fmt.Sprintf("これが%sの でばっぐのうりょくだ！", username))
+	title := html.EscapeString(fmt.Sprintf("%sの でばっぐのうりょく - でばっぐ神社", username))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL, nil)
 	if err != nil {

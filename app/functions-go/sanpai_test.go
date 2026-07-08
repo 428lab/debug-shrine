@@ -81,6 +81,52 @@ func setupTestUser(t *testing.T, ctx context.Context, client *firestore.Client, 
 	}
 }
 
+// GitHub OAuth Appの資格情報がBasic認証ヘッダーで送られること
+// (廃止済みのクエリパラメータ認証を使っていないこと)を確認する。
+// Firestoreエミュレータ不要の純粋なHTTPテスト。
+func TestFetchGitHubFeed_SendsBasicAuthHeader(t *testing.T) {
+	t.Setenv("GITHUB_CLIENT_ID", "test-client-id")
+	t.Setenv("GITHUB_CLIENT_SECRET", "test-client-secret")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != "test-client-id" || pass != "test-client-secret" {
+			t.Errorf("expected Basic auth with OAuth app credentials, got ok=%v user=%q", ok, user)
+		}
+		if r.URL.Query().Get("client_id") != "" || r.URL.Query().Get("client_secret") != "" {
+			t.Errorf("credentials must not be sent as query parameters (removed by GitHub API): %s", r.URL.RawQuery)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("[]"))
+	}))
+	defer srv.Close()
+	withMockGitHub(t, srv)
+
+	if _, err := fetchGitHubFeed(context.Background(), "octocat"); err != nil {
+		t.Fatalf("fetchGitHubFeed: %v", err)
+	}
+}
+
+// 資格情報が未設定(空)のときは Authorization ヘッダーを付けないことを確認する。
+func TestFetchGitHubFeed_NoCredentials(t *testing.T) {
+	t.Setenv("GITHUB_CLIENT_ID", "")
+	t.Setenv("GITHUB_CLIENT_SECRET", "")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "" {
+			t.Errorf("Authorization header must be empty when credentials are not configured, got %q", r.Header.Get("Authorization"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("[]"))
+	}))
+	defer srv.Close()
+	withMockGitHub(t, srv)
+
+	if _, err := fetchGitHubFeed(context.Background(), "octocat"); err != nil {
+		t.Fatalf("fetchGitHubFeed: %v", err)
+	}
+}
+
 func TestSanpai_NotRegistered(t *testing.T) {
 	client := emulatorClient(t)
 	ctx := context.Background()
