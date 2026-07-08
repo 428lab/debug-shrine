@@ -131,7 +131,7 @@ export default {
         {
           hid: "og:image",
           property: "og:image",
-          content: `${this.$config.apiUrl}userOGP?user=${this.$route.params.userName}`,
+          content: `${this.$config.apiUrl}userOGPGo?user=${this.$route.params.userName}`,
         },
         { hid: "og:title", name: "og:title", content: "でばっぐ神社" },
       ],
