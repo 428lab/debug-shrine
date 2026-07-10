@@ -71,8 +71,14 @@ export default {
       params.screen_name = this.user.screen_name;
     }
     // Go版(rankingGo)はコールドスタートが短くランキング表示が速くなるため
-    // 使用する(Node版のrankingとレスポンス形式は同一。docs/backend.md参照)
-    let response = await this.$axios.get("/rankingGo", { params: params });
+    // 使用する(Node版のrankingとレスポンス形式は同一。docs/backend.md参照)。
+    // 取得先は rankingBaseUrl(Hosting CDN オリジン)を優先し、ランキング
+    // レスポンスをエッジでキャッシュさせて関数・Firestoreへの到達を減らす。
+    // 未設定なら従来どおり apiUrl 経由(関数直叩き)にフォールバックする。
+    let response = await this.$axios.get("/rankingGo", {
+      baseURL: this.$config.rankingBaseUrl || this.$config.apiUrl,
+      params: params,
+    });
     this.ranking = response.data.ranking;
     this.myRanking = response.data.my_rank;
     this.latestUpdate = response.data.latest_update;

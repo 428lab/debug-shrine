@@ -8,6 +8,13 @@ export default {
   publicRuntimeConfig: {
     baseUrl: process.env.BASE_URL || 'http://localhost:3000',
     apiUrl: process.env.API_URL,
+    // ランキング取得をエッジキャッシュ(Firebase Hosting CDN)経由にするための
+    // 取得先ベースURL。RANKING_BASE_URL に Hosting のオリジン(例: 本番の
+    // https://d-shrine.jp)を設定すると、ランキング取得だけがそのオリジン経由
+    // (firebase.json の /rankingGo rewrite → rankingGo 関数)になり、CDN が
+    // Cache-Control に従ってエッジでキャッシュする。未設定時は apiUrl に
+    // フォールバックし従来どおり関数を直叩きする(dev/emulator を壊さない)。
+    rankingBaseUrl: process.env.RANKING_BASE_URL || process.env.API_URL,
     appEnv: process.env.APP_ENV,
     authEmulatorUrl: process.env.FIREBASE_AUTH_EMULATOR_URL
   },
