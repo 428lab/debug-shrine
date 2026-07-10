@@ -267,6 +267,16 @@ func runOmikuji(ctx context.Context, w http.ResponseWriter, client *firestore.Cl
 		return err
 	}
 
+	// 統計・称号用の履歴(読み手: profileStatsGo)。sanpai_logs と同じ流儀で
+	// 1回の抽選ごとに1ドキュメント残す。導入以前の抽選は遡れない。
+	if _, _, err := userRef.Collection("omikuji_logs").Add(ctx, map[string]interface{}{
+		"entry_id":  entry.ID,
+		"tier":      entry.Tier,
+		"timestamp": firestore.ServerTimestamp,
+	}); err != nil {
+		return err
+	}
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status":            "success",
 		"remaining_seconds": cooldown,

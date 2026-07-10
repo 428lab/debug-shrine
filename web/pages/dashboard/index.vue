@@ -100,7 +100,12 @@
           <RadarChart :chartData="chartData" />
         </div>
       </div>
-      <!-- 参拝の草 -->
+      <!-- 参拝の記録(累計・ストリーク・称号)と草 -->
+      <ProfileStats
+        v-if="user && user.screen_name"
+        class="mt-4"
+        :screen-name="user.screen_name"
+      />
       <SanpaiGrass
         v-if="user && user.screen_name"
         class="mt-4"
