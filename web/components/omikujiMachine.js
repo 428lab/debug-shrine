@@ -1,21 +1,31 @@
 // おみくじ演出のからくり装置(matter-js)の構築モジュール。
 //
 // 描画(Render)を含まない構築部分だけを切り出し、Node でもヘッドレスに
-// 「玉が全ギミックを通って狐(センサー)に届くか」を検証できるようにする。
+// 「連鎖が最後(狐のセンサー)まで完走するか」を検証できるようにする。
 //
-// 演出の流れ(すべてこの装置の上で起きる):
-//   鈴の緒を振る → 鈴が鳴り御神玉が落ちる
-//   → 斜面Aを右へ転がり、吊るされた絵馬をカランカランと揺らしながら駆け抜ける
-//   → 玉も水車に落ち、玉の重みで水車が回る(触れると動く仕掛け)
-//   → 斜面Bを左へ転がり、バンパーでポーンと上へ跳ねて折り返す
-//   → 斜面Cを右へ転がり、右下で寝ている狐のおしりに直撃
-//   → 狐が目を覚まし、ビンの上を飛び移る(狐は DOM スプライト側)
+// 演出の流れ(装置 v3):
+//   鈴の緒を振る → 鈴が鳴り玉1が落下
+//   → 斜面Aを右へ疾走、吊り絵馬をカランカランと揺らす
+//   → 右壁のディフレクタで水車のポケットへ確実に落ちる(必通過)
+//   → 玉の重みで水車が回り、玉1を下へ運んで放す
+//   → 斜面Bを左へ長く転がり、左端から飛び出して
+//     「ドミノ階段の最下段」の上半身に直撃
+//   → ドミノが階段を左上へ上りながら連鎖(上方向の動き)
+//   → 天辺のドミノが、左壁ぎわの台で待機中の玉2を突き落とす(リレー)
+//   → 玉2は壁沿いの溝を落下 → 左下のウェッジで右向きに転向
+//   → 浮き板の階段の下をくぐり、斜面Cを右端まで転がって
+//   → 寝ている狐のおしりに直撃 → 狐が起きてビンを飛び移る(DOM側)
 //
 // 設計の要:
-// - 最終段は「玉が狐に直撃」。全初期条件で玉の飛行経路が同じ帯を通ることを
-//   Node で検証済みで、当たり判定をその帯に置くので連鎖の完走が安定する。
-// - 中段の仕掛けは「吊り絵馬(振り子)」。玉に押されて揺れるだけで道を塞がず、
-//   立ちドミノのように倒れて玉を止めることがない。
+// - 水車はディフレクタ経由で必ずポケットに玉が乗る(掠めるだけだった v2 の反省)。
+// - ドミノ階段は鏡像(右が低く左へ上る)。玉1は左向きに飛ぶので、そのまま
+//   最下段の「上半身」に直撃できる(根元に当てると倒れず滑る)。ドミノは
+//   density 0.005 / friction 0.05 が伝播の当たりパラメータ(単体スイープで
+//   弱・中・強の突きすべてで5枚完走を確認済み)。
+// - 玉1は最初の1枚を倒すだけのリレー構造。倒れた札が玉を止める v2 の問題は
+//   構造的に発生しない。
+// - 玉2は固定位置から静止スタートするため、以降(溝→ウェッジ→斜面C→狐)は
+//   毎回ほぼ同一軌道で決定的。
 // - 抽選の正しさはこの装置に依存しない(狐の最終着地は omikujiFox.js で制御)。
 //   装置が万一詰まってもタイムボックスで先に進む。
 
@@ -33,41 +43,55 @@ const GEO = {
   BELL: { x: 240, y: 36, r: 17 },
   ROPE: { segs: 7, segW: 7, segH: 16, tasselR: 13 },
 
-  BALL: { spawnX: 243, spawnY: 72, r: 11, density: 0.005, restitution: 0.2, friction: 0.01, frictionAir: 0.002 },
+  BALL: { spawnX: 243, spawnY: 72, r: 11, density: 0.005, restitution: 0.2, friction: 0.01, frictionAir: 0.0008 },
 
-  // 斜面A(1本の長い坂)。玉はここで加速しながら吊り絵馬をなぎ払う。
-  RAMP_A: { x: 270, y: 265, w: 380, h: 12, angle: 0.24 },
-  // 吊り絵馬(振り子)。玉が通るとカランカランと揺れる。立ちドミノと違い
-  // 倒れて道を塞ぐことがないため、連鎖が詰まらない。
-  EMA: { xs: [330, 385, 440], w: 10, h: 36, hang: 58, density: 0.001 },
+  // 斜面A(右下がりの長い坂)。玉1はここで加速しながら吊り絵馬をなぎ払う。
+  RAMP_A: { x: 220, y: 262, w: 320, h: 12, angle: 0.24 },
+  EMA: { xs: [270, 320, 370], w: 10, h: 36, hang: 58, density: 0.001 },
 
-  // 水車(自由回転)。レッジの端から落ちる玉・ドミノで回る。
-  // 腕が右壁からはみ出さない大きさにし、玉の落下点の左に置いてトルクを得る。
-  WHEEL: { x: 420, y: 392, arm: 100, thick: 14, density: 0.0018, frictionAir: 0.02 },
+  // 回転バー。斜面Aから飛んだ玉1の落下経路上に水平で静止しており、
+  // 玉が必ず当たって回す(静止角は決定論なので必中を座標で保証できる)。
+  // 十字のポケット形は玉を抱えて止まることがあるため1本バーにしてある。
+  WHEEL: { x: 430, y: 360, arm: 80, thick: 14, density: 0.0018, frictionAir: 0.008 },
 
-  // 斜面B(左下がり)。水車から落ちた玉を受けて左へ運ぶ。
-  RAMP_B: { x: 345, y: 482, w: 270, h: 12, angle: -0.13 },
+  // 斜面B(左下がり)。玉1を左へ長く運び、左端から飛び出して
+  // 階段最下段のドミノの上半身に直撃させる。
+  RAMP_B: { x: 315, y: 485, w: 310, h: 12, angle: -0.22 },
 
-  // バンパー(よく弾む)。斜面Bを下ってきた玉をポーンと上へ跳ね上げ、
-  // 「下るだけ」の単調さを打破しつつ、折り返しの谷で玉が失速するのを防ぐ。
-  BUMPER: { x: 195, y: 532, r: 13, restitution: 1.05 },
-  // 斜面C(右下がり)。バンパーで跳ねた玉を受けて右へ折り返す。
-  RAMP_C: { x: 170, y: 575, w: 280, h: 12, angle: 0.2 },
+  // ドミノ階段(鏡像・浮き板)。右端(x0)が最下段で、左へ上る。
+  // 板を浮かせるのは、下の空間をリレー後の玉2の通り道にするため。
+  STAIRS: { count: 5, x0: 152, runW: -22, topY0: 545, rise: 5, plateW: 22, plateH: 8 },
+  DOMINO: { w: 7, h: 36, density: 0.005, friction: 0.05 },
 
-  // 狐の寝床(右下の台)。斜面Cから飛び出した玉が、寝ている狐のおしりに直撃。
-  FOX_PLATFORM: { x: 365, y: 625, w: 110, h: 10 },
-  FOX_LIP: { x: 415, y: 606, w: 8, h: 24 }, // 玉が右へ抜けないための縁
-  FOX_SENSOR: { x: 340, y: 603, w: 60, h: 38 },
+  // リレーの玉2が待つ台(左壁ぎわ・水平)。スリープ(enableSleeping)により
+  // 静止中の玉2はジッターで動かず、天辺のドミノに押されて目覚めた時だけ
+  // 左端から壁沿いの溝へ転がり落ちる。
+  RELAY_PERCH: { x: 38, y: 521, w: 24, h: 10, angle: 0 },
+  BALL2: { x: 30, y: 505 },
+
+  // 玉1の受け皿。最下段のドミノを倒し終えた玉1をキャッチして舞台に残す
+  // (玉1が下へ抜けて先に狐へ届いてしまうとリレーの意味が無くなる)。
+  CATCH: { x: 170, y: 566, w: 44, h: 8, lipH: 16 },
+
+  // 左下のウェッジ。溝を落ちてきた玉2を右向きへ転向して斜面Cへ送る。
+  CORNER: { x: 16, y: 580, w: 36, h: 10, angle: 0.55 },
+  // 斜面C(右下がりの長い坂)。玉2を右端の狐まで運ぶ。
+  RAMP_C: { x: 237, y: 614, w: 430, h: 12, angle: 0.1 },
+
+  // 狐の寝床(斜面Cの終端)。玉2が寝ている狐のおしりに直撃する。
+  FOX_PLATFORM: { x: 452, y: 644, w: 56, h: 10 },
+  FOX_SENSOR: { x: 443, y: 614, w: 64, h: 44 },
 
   BIN_TOP: 648,
   FLOOR_Y: 744,
 };
 
 // 装置一式を組む。Matter を引数に取るのは Node(require)とブラウザ(webpack
-// import)の両対応のため。
+// import)の両対応のため。返り値の relayBall(玉2)はシーン側のフォールバック
+// (詰まった時にそっと突く)に使う。
 function buildMachineWorld(Matter) {
   const { Engine, World, Bodies, Body, Composites, Composite, Constraint } = Matter;
-  const engine = Engine.create();
+  const engine = Engine.create({ enableSleeping: true });
   engine.gravity.scale = 0.001;
   const world = engine.world;
   const add = (b) => World.add(world, b);
@@ -81,7 +105,7 @@ function buildMachineWorld(Matter) {
     Bodies.rectangle(GEO.W / 2, GEO.FLOOR_Y + 8, GEO.W, 16, { isStatic: true, render: { fillStyle: "#3a3230" } }),
   ]);
 
-  // 鈴(飾り。玉はここから落ちる)
+  // 鈴(飾り。玉1はここから落ちる)
   add(Bodies.circle(GEO.BELL.x, GEO.BELL.y, GEO.BELL.r, { isStatic: true, label: "bell", render: { fillStyle: "#e8c86a" } }));
   add(Bodies.rectangle(GEO.BELL.x, GEO.BELL.y + 10, 10, 6, { isStatic: true, render: { fillStyle: "#8a6a2a" } }));
 
@@ -106,7 +130,6 @@ function buildMachineWorld(Matter) {
       render: { strokeStyle: "#b23a48", lineWidth: 3 },
     })
   );
-  // 先端の房(掴む対象。大きめにして掴みやすく)
   const tassel = Bodies.circle(GEO.BELL.x, ropeTopY + GEO.ROPE.segs * GEO.ROPE.segH + GEO.ROPE.tasselR, GEO.ROPE.tasselR, {
     collisionFilter: ropeFilter,
     density: 0.004,
@@ -127,11 +150,10 @@ function buildMachineWorld(Matter) {
   );
   add(rope);
 
-  // 斜面A(右下がり)
+  // 斜面A
   add(Bodies.rectangle(GEO.RAMP_A.x, GEO.RAMP_A.y, GEO.RAMP_A.w, GEO.RAMP_A.h, { isStatic: true, angle: GEO.RAMP_A.angle, chamfer: { radius: 5 }, render: wood }));
 
-  // 吊り絵馬(振り子)。斜面Aの上に吊るす。下端は路面から数px浮かせ、
-  // 玉(r11)が必ず当たって揺らしていくようにする。
+  // 吊り絵馬(振り子)。玉1が通るとカランカランと揺れる。
   const rampSurfY = (x) => GEO.RAMP_A.y + Math.tan(GEO.RAMP_A.angle) * (x - GEO.RAMP_A.x) - GEO.RAMP_A.h / 2;
   for (const x of GEO.EMA.xs) {
     const bottomY = rampSurfY(x) - 4;
@@ -155,35 +177,82 @@ function buildMachineWorld(Matter) {
     }));
   }
 
-  // 水車(自由回転。玉やドミノの重みで回る)
+  // 回転翼(自由回転の1本バー)。玉1が当たると回って玉を下へ流す。
+  // 十字(ポケットあり)は玉を抱えたまま釣り合って止まることがあるため、
+  // ポケットを持たない1本バーにして「必ず当たり、必ず通す」を両立する。
+  const wx = GEO.WHEEL.x;
+  const wy = GEO.WHEEL.y;
+  // 横長バー+短い縦スタブの浅い十字。縦方向の迎え面を広げつつ、
+  // ポケットが浅いので玉を抱え込めない(深い十字は抱えて止まる)。
   const wheel = Body.create({
     parts: [
-      Bodies.rectangle(0, 0, GEO.WHEEL.arm, GEO.WHEEL.thick, { render: { fillStyle: "#d9542e" } }),
-      Bodies.rectangle(0, 0, GEO.WHEEL.thick, GEO.WHEEL.arm, { render: { fillStyle: "#d9542e" } }),
+      Bodies.rectangle(wx, wy, GEO.WHEEL.arm, GEO.WHEEL.thick, { chamfer: { radius: 6 }, render: { fillStyle: "#d9542e" } }),
+      Bodies.rectangle(wx, wy, GEO.WHEEL.thick, 38, { chamfer: { radius: 6 }, render: { fillStyle: "#d9542e" } }),
     ],
     density: GEO.WHEEL.density,
     frictionAir: GEO.WHEEL.frictionAir,
     label: "wheel",
-    render: { fillStyle: "#d9542e" },
   });
-  Body.setPosition(wheel, { x: GEO.WHEEL.x, y: GEO.WHEEL.y });
-  Body.setAngle(wheel, Math.PI / 4);
+  wheel.sleepThreshold = Infinity; // 眠って止まらないように(静止角は水平のまま)
   add(wheel);
-  add(Constraint.create({ pointA: { x: GEO.WHEEL.x, y: GEO.WHEEL.y }, bodyB: wheel, pointB: { x: 0, y: 0 }, length: 0, stiffness: 0.9, render: { visible: false } }));
-  add(Bodies.circle(GEO.WHEEL.x, GEO.WHEEL.y, 6, { isStatic: true, render: { fillStyle: "#7a2a12" } }));
+  add(Constraint.create({ pointA: { x: wx, y: wy }, bodyB: wheel, pointB: { x: 0, y: 0 }, length: 0, stiffness: 0.9, render: { visible: false } }));
+  add(Bodies.circle(wx, wy, 6, { isStatic: true, render: { fillStyle: "#7a2a12" } }));
 
-  // 斜面B(左下がり)
+  // 斜面B
   add(Bodies.rectangle(GEO.RAMP_B.x, GEO.RAMP_B.y, GEO.RAMP_B.w, GEO.RAMP_B.h, { isStatic: true, angle: GEO.RAMP_B.angle, chamfer: { radius: 5 }, render: wood }));
 
-  // バンパー(弾む)
-  add(Bodies.circle(GEO.BUMPER.x, GEO.BUMPER.y, GEO.BUMPER.r, { isStatic: true, restitution: GEO.BUMPER.restitution, label: "bumper", render: { fillStyle: "#4ecdc4" } }));
-  // 斜面C(右下がり・折り返し)
+  // ドミノ階段(鏡像・浮き板)。右端が最下段で、左へ上る。
+  // 各ドミノは倒れる方向(左)へ 0.15rad 予め傾けて置き、スリープで凍結する。
+  // 触られるまで完全静止(儀式中の自壊・ずり落ちゼロ)、起こされた瞬間には
+  // 転倒閾値(atan(w/h)≈0.19)の8割まで傾いているため、弱い伝播でも連鎖が
+  // 完走する(垂直立てだと matter の接触減衰で3枚前後で止まる)。
+  const st = GEO.STAIRS;
+  const LEAN = -0.17;
+  for (let i = 0; i < st.count; i++) {
+    const cx = st.x0 + i * st.runW;
+    const topY = st.topY0 - i * st.rise;
+    add(Bodies.rectangle(cx, topY + st.plateH / 2, st.plateW, st.plateH, { isStatic: true, chamfer: { radius: 2 }, render: { fillStyle: i % 2 ? "#7a5230" : "#8a5a34" } }));
+    const d = Bodies.rectangle(
+      cx - (GEO.DOMINO.h / 2) * Math.sin(0.17),
+      topY - (GEO.DOMINO.h / 2) * Math.cos(0.17) - 1,
+      GEO.DOMINO.w,
+      GEO.DOMINO.h,
+      {
+        angle: LEAN,
+        density: GEO.DOMINO.density,
+        friction: GEO.DOMINO.friction,
+        restitution: 0,
+        label: "domino",
+        render: { fillStyle: "#e8ddc8" },
+      }
+    );
+    Matter.Sleeping.set(d, true);
+    add(d);
+  }
+
+  // リレーの玉2が待つ台(水平)
+  add(Bodies.rectangle(GEO.RELAY_PERCH.x, GEO.RELAY_PERCH.y, GEO.RELAY_PERCH.w, GEO.RELAY_PERCH.h, { isStatic: true, angle: GEO.RELAY_PERCH.angle, chamfer: { radius: 3 }, render: wood }));
+  const relayBall = Bodies.circle(GEO.BALL2.x, GEO.BALL2.y, GEO.BALL.r, {
+    density: GEO.BALL.density,
+    restitution: GEO.BALL.restitution,
+    friction: GEO.BALL.friction,
+    frictionAir: GEO.BALL.frictionAir,
+    label: "ball",
+    render: { fillStyle: "#f2c14e" },
+  });
+  add(relayBall);
+
+  // 玉1の受け皿(基部+左右の縁)
+  add(Bodies.rectangle(GEO.CATCH.x, GEO.CATCH.y, GEO.CATCH.w, GEO.CATCH.h, { isStatic: true, chamfer: { radius: 3 }, render: wood }));
+  add(Bodies.rectangle(GEO.CATCH.x - GEO.CATCH.w / 2 + 3, GEO.CATCH.y - GEO.CATCH.lipH / 2 - GEO.CATCH.h / 2, 6, GEO.CATCH.lipH, { isStatic: true, chamfer: { radius: 2 }, render: wood }));
+  add(Bodies.rectangle(GEO.CATCH.x + GEO.CATCH.w / 2 - 3, GEO.CATCH.y - GEO.CATCH.lipH / 2 - GEO.CATCH.h / 2, 6, GEO.CATCH.lipH, { isStatic: true, chamfer: { radius: 2 }, render: wood }));
+
+  // 左下のウェッジと斜面C
+  add(Bodies.rectangle(GEO.CORNER.x, GEO.CORNER.y, GEO.CORNER.w, GEO.CORNER.h, { isStatic: true, angle: GEO.CORNER.angle, chamfer: { radius: 4 }, render: wood }));
   add(Bodies.rectangle(GEO.RAMP_C.x, GEO.RAMP_C.y, GEO.RAMP_C.w, GEO.RAMP_C.h, { isStatic: true, angle: GEO.RAMP_C.angle, chamfer: { radius: 5 }, render: wood }));
 
-  // 狐の寝床(台)と縁
+  // 狐の寝床(台)と、おしりの当たり判定(玉2が直撃したら wake)
   add(Bodies.rectangle(GEO.FOX_PLATFORM.x, GEO.FOX_PLATFORM.y, GEO.FOX_PLATFORM.w, GEO.FOX_PLATFORM.h, { isStatic: true, chamfer: { radius: 4 }, render: wood }));
-  add(Bodies.rectangle(GEO.FOX_LIP.x, GEO.FOX_LIP.y, GEO.FOX_LIP.w, GEO.FOX_LIP.h, { isStatic: true, chamfer: { radius: 3 }, render: wood }));
-  // 狐のおしりの当たり判定(玉が直撃したら wake)
   add(Bodies.rectangle(GEO.FOX_SENSOR.x, GEO.FOX_SENSOR.y, GEO.FOX_SENSOR.w, GEO.FOX_SENSOR.h, {
     isStatic: true,
     isSensor: true,
@@ -197,10 +266,10 @@ function buildMachineWorld(Matter) {
     add(Bodies.rectangle(i * bw, (GEO.BIN_TOP + GEO.FLOOR_Y) / 2, 6, GEO.FLOOR_Y - GEO.BIN_TOP, { isStatic: true, chamfer: { radius: 2 }, render: { fillStyle: "#8a6a3a" } }));
   }
 
-  return { engine, world, rope, tassel };
+  return { engine, world, rope, tassel, relayBall };
 }
 
-// 御神玉を生成して投入する(鈴が鳴った時に呼ぶ)。
+// 御神玉(玉1)を生成して投入する(鈴が鳴った時に呼ぶ)。
 function spawnBall(Matter, world, vx) {
   const b = Matter.Bodies.circle(GEO.BALL.spawnX, GEO.BALL.spawnY, GEO.BALL.r, {
     density: GEO.BALL.density,
@@ -210,7 +279,8 @@ function spawnBall(Matter, world, vx) {
     label: "ball",
     render: { fillStyle: "#f2c14e" },
   });
-  Matter.Body.setVelocity(b, { x: typeof vx === "number" ? vx : 0.4, y: 0 });
+  b.sleepThreshold = Infinity; // 道中で眠って止まらないように(玉2はスリープ可)
+  Matter.Body.setVelocity(b, { x: typeof vx === "number" ? vx : 0.2, y: 0 });
   Matter.World.add(world, b);
   return b;
 }

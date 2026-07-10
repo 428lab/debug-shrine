@@ -66,9 +66,9 @@ const ALL_TIERS = Object.keys(TIER_KEYS);
 
 // 狐の座標(シーン内%)。物理の論理座標から換算した定数。
 const FOX = {
-  // 寝床(FOX_PLATFORM 上。右向きに寝て、おしりが左=玉の飛来方向)
-  sleepLeft: (372 / GEO.W) * 100,
-  sleepBottom: ((GEO.H - 620) / GEO.H) * 100,
+  // 寝床(FOX_PLATFORM 上。右向きに寝て、おしりが左=玉2の飛来方向)
+  sleepLeft: (443 / GEO.W) * 100,
+  sleepBottom: ((GEO.H - 639) / GEO.H) * 100,
   // ビンの中に立つときの足元
   binBottom: ((GEO.H - 744) / GEO.H) * 100,
   widthPct: 17,
@@ -186,9 +186,10 @@ export default {
     // ---- 物理シーン(からくり装置+鈴の緒) ----
     initScene() {
       if (this.destroyed || !this.$refs.canvasWrap) return;
-      const { engine, world, tassel } = machine.buildMachineWorld(Matter);
+      const { engine, world, tassel, relayBall } = machine.buildMachineWorld(Matter);
       this.engine = engine;
       this.tassel = tassel;
+      this.relayBall = relayBall;
 
       this.render = Matter.Render.create({
         element: this.$refs.canvasWrap,
@@ -273,12 +274,20 @@ export default {
       }
       // 鈴から御神玉を放つ
       this.later(300, () => {
-        if (this.engine) machine.spawnBall(Matter, this.engine.world, 0.2);
+        if (this.engine) machine.spawnBall(Matter, this.engine.world, 0.35);
       });
-      // タイムボックス:装置が万一詰まっても狐は起きる(通常は約12秒で直撃)
-      this.later(15000, () => this.wakeFox());
-      // 全体フェイルセーフ
-      this.later(30000, () => this.finish());
+      // フォールバック階段(通常は約11.5秒で狐に直撃して不要):
+      // 1) 連鎖が途中で詰まったら、リレーの玉2をそっと押して旅を続けさせる
+      this.later(16000, () => {
+        if (this.phase === "cascade" && this.relayBall && this.engine) {
+          Matter.Sleeping.set(this.relayBall, false);
+          Matter.Body.setVelocity(this.relayBall, { x: -1.2, y: -0.4 });
+        }
+      });
+      // 2) それでも届かなければ狐を起こす
+      this.later(20000, () => this.wakeFox());
+      // 3) 全体フェイルセーフ
+      this.later(32000, () => this.finish());
     },
     waitTargetThen(cb) {
       if (this.targetTier) return cb();
@@ -397,6 +406,7 @@ export default {
       }
       this.mouseConstraint = null;
       this.tassel = null;
+      this.relayBall = null;
     },
   },
 };
