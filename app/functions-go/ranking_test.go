@@ -3,10 +3,32 @@ package gofunctions
 import (
 	"context"
 	"encoding/json"
+	"net/http/httptest"
 	"strconv"
 	"testing"
 	"time"
 )
+
+func TestRanking_CacheHeaders(t *testing.T) {
+	// screen_name 無し(全員共通のグローバル応答)は共有キャッシュ可能にする。
+	globalRec := httptest.NewRecorder()
+	setRankingCacheHeaders(globalRec, "")
+	got := globalRec.Header().Get("Cache-Control")
+	want := "public, max-age=60, s-maxage=300, stale-while-revalidate=600"
+	if got != want {
+		t.Errorf("global Cache-Control = %q, want %q", got, want)
+	}
+
+	// screen_name 付き(my_rank を含む個人化応答)は共有キャッシュに載せない。
+	// 他人に別人の順位が返る事故を防ぐため no-store であることを保証する。
+	personalRec := httptest.NewRecorder()
+	setRankingCacheHeaders(personalRec, "user50")
+	got = personalRec.Header().Get("Cache-Control")
+	want = "private, no-store"
+	if got != want {
+		t.Errorf("personalized Cache-Control = %q, want %q", got, want)
+	}
+}
 
 func TestRanking_TopListAndMyRank(t *testing.T) {
 	client := emulatorClient(t)

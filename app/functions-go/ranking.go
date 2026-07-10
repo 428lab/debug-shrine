@@ -87,7 +87,35 @@ func rankingHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	setRankingCacheHeaders(w, screenName)
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// setRankingCacheHeaders はランキング応答のキャッシュ方針を設定する。
+//
+// ランキングの元データ(cache_data/ranking_cache)はスケジュール関数
+// rankingUpdate が毎時(0 * * * *)更新するだけで、それ以外では変化しない。
+// にもかかわらず現状は表示の度に関数実行 → Firestore読み取りが走るため、
+// CDN(Firebase Hosting 等)のエッジでキャッシュさせて関数・Firestoreへの
+// 到達自体を減らす。
+//
+// ただし screen_name 付きの応答は my_rank(その利用者自身の順位)を含む
+// 個人化データなので、共有キャッシュに載せると他人に別人の順位が返る事故に
+// なる。個人化応答はキャッシュさせず(no-store)、全員共通のグローバル応答
+// (screen_name 無し・トップ画面や未ログイン閲覧で叩かれる最多経路)だけを
+// 共有キャッシュ可能にする。
+//
+// グローバル応答の値: max-age=60(ブラウザは最大1分)、s-maxage=300(CDN
+// エッジは最大5分)。元データは最短でも毎時更新なので5分の陳腐化は問題なく、
+// stale-while-revalidate=600 で TTL 失効時も古い値を返しつつ裏で更新して
+// 待ち時間を出さない。
+func setRankingCacheHeaders(w http.ResponseWriter, screenName string) {
+	if screenName != "" {
+		// 個人化応答はどの階層にも保存させない。
+		w.Header().Set("Cache-Control", "private, no-store")
+		return
+	}
+	w.Header().Set("Cache-Control", "public, max-age=60, s-maxage=300, stale-while-revalidate=600")
 }
 
 func buildRankingResponse(ctx context.Context, client *firestore.Client, screenName string) (rankingResponse, error) {
