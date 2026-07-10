@@ -24,6 +24,10 @@
         "function": "sanpaiHistoryGo"
       },
       {
+        "source": "/profileStatsGo",
+        "function": "profileStatsGo"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

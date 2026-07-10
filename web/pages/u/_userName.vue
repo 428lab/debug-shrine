@@ -89,7 +89,8 @@
           </div>
         </div>
       </div>
-      <!-- 参拝の草(公開データ。ポートフォリオとして参拝の継続を見せる) -->
+      <!-- 参拝の記録(累計・ストリーク・称号)と草。ポートフォリオの中核 -->
+      <ProfileStats class="mt-4" :screen-name="$route.params.userName" />
       <SanpaiGrass class="mt-4" :screen-name="$route.params.userName" />
     </div>
     <div v-if="!isLogin" class="text-center">

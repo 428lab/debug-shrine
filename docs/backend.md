@@ -498,3 +498,21 @@ Node版との差分(意図的な改善):
   チャートライブラリ不使用のCSSグリッド)。
 - `web/components/SanpaiGrass.vue` … 取得と状態管理。直近1年+「全期間を解析する」
   ボタンで年ごとの草を縦に並べる。設置場所は `/u/{userName}`(公開)と `/dashboard`。
+
+## プロフィール統計(ストリーク・称号)エンドポイント profileStatsGo
+
+ポートフォリオ第二弾。`GET profileStatsGo?user={screen_name}` が
+sanpai_logs / omikuji_logs を集計して返す(表示: `web/components/ProfileStats.vue`、
+設置は `/u/{userName}` と `/dashboard`)。
+
+- **参拝統計**: 累計回数・累計ポイント・初参拝日・連続参拝ストリーク(現在/最長)。
+  ストリークは草と同じ日別集計(JST)から `computeStreaks`(純関数)で算出。
+  「今日まだ参拝していない」場合は昨日までの連続を継続中として数える。
+- **おみくじ統計**: 抽選成功時に `users/{id}/omikuji_logs`(`entry_id`, `tier`,
+  `timestamp`)を書くようにした(#156〜)。導入以前の抽選は遡れない。
+- **称号(バッジ)**: 参拝回数・ストリーク・レベル・おみくじ結果から導出する17種
+  (`badgeDefs`)。達成/未達成の全件を返し、フロントで未達成をグレー表示する。
+  レベルは status キャッシュ(`status.level`)から読む。
+- キャッシュ: 草のデフォルトと同じ
+  `public, max-age=60, s-maxage=300, stale-while-revalidate=600`
+  (`/profileStatsGo` の Hosting rewrite 経由)。
