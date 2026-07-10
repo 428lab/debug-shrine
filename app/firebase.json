@@ -20,6 +20,22 @@
         "function": "rankingGo"
       },
       {
+        "source": "/sanpaiHistoryGo",
+        "function": "sanpaiHistoryGo"
+      },
+      {
+        "source": "/profileStatsGo",
+        "function": "profileStatsGo"
+      },
+      {
+        "source": "/githubStatsGo",
+        "function": "githubStatsGo"
+      },
+      {
+        "source": "/badgeGo",
+        "function": "badgeGo"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

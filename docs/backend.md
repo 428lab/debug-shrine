@@ -455,3 +455,124 @@ Node版との差分(意図的な改善):
 
 - `omikujiGo` は HTTP 関数として dev/prod 両ワークフローでデプロイ(`sanpaiGo` と同型。
   GitHub認証情報は不要)。POST のため Hosting rewrite は付けず、フロントは関数を直叩きする。
+
+## 参拝履歴(草グラフ)エンドポイント sanpaiHistoryGo
+
+ユーザーページをポートフォリオとして使えるようにする取り組みの第一弾。
+参拝履歴を GitHub のコントリビューショングラフ風のヒートマップ(草)で表示する。
+
+### データ源と集計
+
+- 参拝成功時に書かれる `users/{github_id}/sanpai_logs`(`add_point`, `timestamp`)を
+  読み取り専用で集計する(**新規の書き込みは追加していない**。過去分の履歴が
+  そのまま草になる)。expire/noaction の参拝はログが無いため草にならない
+  (=実りのある参拝だけが生える)。
+- 日付は **JST固定** で切る(`app/functions-go/sanpai_history.go` の
+  `aggregateSanpaiDays`。純関数でユニットテスト済み)。
+- レスポンスは日別集計(`{date, count, points}` の昇順配列)のみで、
+  全期間でも高々1800日分程度と小さい。
+
+### API
+
+- `GET sanpaiHistoryGo?user={screen_name}` … 直近371日(53週)。
+  `timestamp >= 開始日` の範囲クエリのみで読む量を抑える。
+- `GET sanpaiHistoryGo?user={screen_name}&all=1` … 全期間(最古のログから)。
+  履歴全量の読み取りが走るため、フロントは**明示的な「全期間を解析する」
+  ボタンでのみ**呼ぶ(2021/12/31リリースから約5年分の履歴がある)。
+
+### キャッシュ(ranking と同じ方針)
+
+- 公開データで URL が `user`/`all` でキー分離されるため CDN の共有キャッシュに載せる。
+  `app/firebase.json` に `/sanpaiHistoryGo` の Hosting rewrite を追加し、フロントは
+  `rankingBaseUrl || apiUrl` 経由で取得(ranking.vue と同型)。
+- デフォルト: `public, max-age=60, s-maxage=300, stale-while-revalidate=600`
+  (参拝直後に草が生えるのが見えるよう短め)。
+- 全期間: `public, max-age=300, s-maxage=3600, stale-while-revalidate=86400`
+  (過去分はほぼ不変・重い読み取りの再実行を抑える)。
+
+### フロント
+
+- `web/components/sanpaiGrass.js` … 週折り返し・月ラベル・年分割の純関数
+  (Node で決定論的に検証。omikujiFox.js と同じ流儀)。
+- `web/components/GrassGrid.vue` … 1期間分のグリッド描画(直近1年と年別表示で共用。
+  チャートライブラリ不使用のCSSグリッド)。
+- `web/components/SanpaiGrass.vue` … 取得と状態管理。直近1年+「全期間を解析する」
+  ボタンで年ごとの草を縦に並べる。設置場所は `/u/{userName}`(公開)と `/dashboard`。
+
+## プロフィール統計(ストリーク・称号)エンドポイント profileStatsGo
+
+ポートフォリオ第二弾。`GET profileStatsGo?user={screen_name}` が
+sanpai_logs / omikuji_logs を集計して返す(表示: `web/components/ProfileStats.vue`、
+設置は `/u/{userName}` と `/dashboard`)。
+
+- **参拝統計**: 累計回数・累計ポイント・初参拝日・連続参拝ストリーク(現在/最長)。
+  ストリークは草と同じ日別集計(JST)から `computeStreaks`(純関数)で算出。
+  「今日まだ参拝していない」場合は昨日までの連続を継続中として数える。
+- **おみくじ統計**: 抽選成功時に `users/{id}/omikuji_logs`(`entry_id`, `tier`,
+  `timestamp`)を書くようにした(#156〜)。導入以前の抽選は遡れない。
+- **称号(バッジ)**: 参拝回数・ストリーク・レベル・おみくじ結果から導出する17種
+  (`badgeDefs`)。達成/未達成の全件を返し、フロントで未達成をグレー表示する。
+  レベルは status キャッシュ(`status.level`)から読む。
+- キャッシュ: 草のデフォルトと同じ
+  `public, max-age=60, s-maxage=300, stale-while-revalidate=600`
+  (`/profileStatsGo` の Hosting rewrite 経由)。
+
+## GitHub実績統計エンドポイント githubStatsGo
+
+ポートフォリオ第三弾。`GET githubStatsGo?user={screen_name}` がGitHub公開APIから
+公開リポジトリ・スター・フォロワー等を取得・集計して返す
+(表示: `web/components/GithubStats.vue`)。
+
+- 取得: `GET /users/{login}`(followers/public_repos/created_at)+
+  `GET /users/{login}/repos?per_page=100&type=owner`(最大3ページ=300件)。
+  認証は sanpaiGo と同じOAuth App資格情報のBasic認証(5000req/h)。
+- 集計(`aggregateGithubRepos`、純関数): スター/フォーク合計・言語割合
+  (主要言語のリポジトリ数)・スター上位4件の代表リポジトリ。
+  **フォークはリポジトリ数内訳のみに数え、スター・言語・代表からは除外**
+  (本人の実績ではないため)。
+- キャッシュ2段構え:
+  - Firestore: ユーザードキュメントの `github_stats` + `github_stats_fetched_at` に
+    **6時間**キャッシュ。GitHub障害時は期限切れでもstaleを返す(可用性優先)。
+  - CDN: `public, max-age=300, s-maxage=3600, stale-while-revalidate=86400`
+    (`/githubStatsGo` の Hosting rewrite 経由)。
+
+## READMEバッジエンドポイント badgeGo
+
+ポートフォリオ第四弾。`GET badgeGo?user={screen_name}` が shields.io 風の
+フラットバッジ(SVG)を返す。GitHubのプロフィールREADMEに
+
+```
+[![でばっぐ神社](https://d-shrine.jp/badgeGo?user=X)](https://d-shrine.jp/u/X)
+```
+
+と貼ると「⛩(鳥居アイコン) でばっぐ神社 | Lv.42 戦闘力 9999」が表示される
+(マイページにコピー用スニペットUIあり)。
+
+- 値は status キャッシュ(`status.level`/`status.total`)から読むだけで、
+  重い集計はしない。キャッシュ未計算は「参拝求ム」。
+- **未登録ユーザーにも200で「未登録」バッジを返す**(README内の画像は
+  非200だと壊れた画像アイコンになるため)。
+- テキスト幅は ASCII≈7px・全角≈12px の近似で算出(shields実測値の代替)。
+  鳥居アイコンは絵文字でなくSVGパスで描く(閲覧環境のフォント差の影響を受けない)。
+- キャッシュ: `public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400`
+  (未登録バッジのみ5分)。`/badgeGo` の Hosting rewrite 経由。
+
+## レーダーチャート(でばっぐのうりょく)の割合表示
+
+能力値は参拝で単調増加するため、絶対値の固定スケール(0-150)ではベテランが
+全軸振り切った五角形になりバランスの形が見えなかった。そこで表示を
+**「最も高い能力に対する割合(%)」** に正規化した(#159で合計比を導入、
+#160で最大能力比に変更)。
+
+- 割合 = round(能力値 / 最大能力値 × 100)。全て0(未参拝)は全軸0。
+- 最強能力が100%=外周になり、**全能力が同値なら満点の五角形**になる。
+  苦手分野だけが凹むので直感的(合計比だとバランス型が各軸20%の
+  小さな五角形にしかならないため不採用)。スケールは0〜100%・グリッド20%刻み。
+- 正規化は**描画側のみ**で行い、APIレスポンス・`status` キャッシュの `chart` は
+  絶対値のまま(status_version のバンプ不要・後方互換)。
+  - Web: `web/pages/dashboard/index.vue` / `web/pages/u/_userName.vue` で正規化、
+    `web/components/charts/powerChart.vue` の max=100
+  - OGPカード: `internal/ogpimage` の `chartPercentages`(純関数)+ `radarMaxPercent`
+- OGP画像はGCSにキャッシュされるため、オブジェクト名を世代付き
+  (`ogps/{user}_v3.webp`、`userogp.go` の `ogpObjectName`)にして旧カードを無効化。
+  描画内容を変えるときはこの世代を上げること(旧世代は scheduled_ogp_delete が掃除)。

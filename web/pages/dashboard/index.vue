@@ -100,6 +100,32 @@
           <RadarChart :chartData="chartData" />
         </div>
       </div>
+      <!-- ポートフォリオ: 参拝の記録(累計・ストリーク・称号)/GitHub実績/草 -->
+      <ProfileStats
+        v-if="user && user.screen_name"
+        class="mt-4"
+        :screen-name="user.screen_name"
+      />
+      <GithubStats
+        v-if="user && user.screen_name"
+        class="mt-4"
+        :screen-name="user.screen_name"
+      />
+      <SanpaiGrass
+        v-if="user && user.screen_name"
+        class="mt-4"
+        :screen-name="user.screen_name"
+      />
+      <!-- README埋め込みバッジ(自分のプロフィールへの導線をGitHubに貼れる) -->
+      <div v-if="user && user.screen_name" class="badge-section p-3 rounded mt-4">
+        <div class="fw-bold mb-2">🔖 READMEに貼れるバッジ</div>
+        <p class="badge-note mb-2">
+          GitHubのプロフィールREADMEに貼ると、レベルと戦闘力のバッジから
+          公開プロフィールへ飛べます。
+        </p>
+        <img :src="badgeUrl" alt="でばっぐ神社バッジ" height="20" class="mb-3" />
+        <ShareText title="" :text="badgeMarkdown"></ShareText>
+      </div>
     </div>
     <Loading v-if="isLoading" message="ヨミコミチュウ..."></Loading>
   </main>
@@ -144,13 +170,14 @@ export default {
       `statusGo?user=${this.user.screen_name}`
     );
     // 登録してなかったらエラーが出るのでエラー対応よろ
-    let userChart = [];
-    userChart.push(response.data.chart.hp);
-    userChart.push(response.data.chart.power);
-    userChart.push(response.data.chart.intelligence);
-    userChart.push(response.data.chart.defence);
-    userChart.push(response.data.chart.agility);
-    this.chartData.datasets[0].data = userChart;
+    // レーダーは絶対値でなく「最も高い能力に対する割合(%)」で描く。
+    // 最強能力=100%=外周で、全能力同値なら満点の五角形になる
+    // (powerChart.vue のスケール0〜100%・OGPカードと同じ正規化)。
+    const chart = response.data.chart;
+    const raw = [chart.hp, chart.power, chart.intelligence, chart.defence, chart.agility];
+    const chartMax = Math.max(...raw);
+    this.chartData.datasets[0].data =
+      chartMax > 0 ? raw.map((v) => Math.round((v / chartMax) * 100)) : raw;
 
     this.profile.total = response.data.total;
     this.profile.exp = response.data.total;
@@ -180,6 +207,13 @@ export default {
     shareMessage() {
       return "これが" + this.user.display_name + "の でばっぐのうりょくだ！";
     },
+    // README用バッジ。画像はbadgeGo(SVG)、リンク先は公開プロフィール。
+    badgeUrl() {
+      return this.$config.baseUrl + "badgeGo?user=" + this.user.screen_name;
+    },
+    badgeMarkdown() {
+      return `[![でばっぐ神社](${this.badgeUrl})](${this.shareUrl})`;
+    },
     progressWidth() {
       return this.profile.exp.total / this.profile.next;
     },
@@ -191,6 +225,15 @@ export default {
 .profile-outline {
   background-color: #000;
   border-radius: 15px;
+}
+
+.badge-section {
+  background: #0d1117;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.badge-note {
+  color: #9a9a9a;
+  font-size: 0.85rem;
 }
 
 .debug-title {

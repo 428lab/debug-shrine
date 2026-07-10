@@ -89,6 +89,10 @@
           </div>
         </div>
       </div>
+      <!-- ポートフォリオ: 参拝の記録(累計・ストリーク・称号)/GitHub実績/草 -->
+      <ProfileStats class="mt-4" :screen-name="$route.params.userName" />
+      <GithubStats class="mt-4" :screen-name="$route.params.userName" />
+      <SanpaiGrass class="mt-4" :screen-name="$route.params.userName" />
     </div>
     <div v-if="!isLogin" class="text-center">
       <nuxt-link
@@ -172,13 +176,14 @@ export default {
     // Go版(statusGo)はコールドスタートが短く表示が速くなるため使用する
     // (Node版のstatusとレスポンス形式は同一。docs/backend.md参照)
     let response = await this.$axios.get("statusGo?user=" + this.$route.params.userName);
-    let userChart = [];
-    userChart.push(response.data.chart.hp);
-    userChart.push(response.data.chart.power);
-    userChart.push(response.data.chart.intelligence);
-    userChart.push(response.data.chart.defence);
-    userChart.push(response.data.chart.agility);
-    this.chartData.datasets[0].data = userChart;
+    // レーダーは絶対値でなく「最も高い能力に対する割合(%)」で描く。
+    // 最強能力=100%=外周で、全能力同値なら満点の五角形になる
+    // (powerChart.vue のスケール0〜100%・OGPカードと同じ正規化)。
+    const chart = response.data.chart;
+    const raw = [chart.hp, chart.power, chart.intelligence, chart.defence, chart.agility];
+    const chartMax = Math.max(...raw);
+    this.chartData.datasets[0].data =
+      chartMax > 0 ? raw.map((v) => Math.round((v / chartMax) * 100)) : raw;
 
     this.profile.nickName = response.data.user.display_name;
     this.profile.screenName = response.data.user.screen_name;

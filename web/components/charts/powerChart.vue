@@ -20,7 +20,10 @@ export default {
           ticks: {
             display: false,
             min: 0,
-            max: 150,
+            // 値は絶対値ではなく「最も高い能力に対する割合(%)」(呼び出し側で正規化)。
+            // 最強能力=100%=外周、全能力同値なら満点の五角形になる。
+            // OGPカード(ogpimage の radarMaxPercent)と同じ値にすること。
+            max: 100,
           },
           gridLines: { color: "rgba(255, 255, 255, 0.7)" },
           angleLines: { color: "rgba(255, 255, 255, 0.7)" },
