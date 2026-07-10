@@ -34,7 +34,7 @@
 
         <!-- 巡回するメッセージ -->
         <transition name="msg" mode="out-in">
-          <div class="fs-2 mt-4 loading-message" :key="currentMessage">
+          <div class="mt-4 loading-message" :key="currentMessage">
             {{ currentMessage }}<span class="loading-dots"></span>
           </div>
         </transition>
@@ -215,7 +215,17 @@ export default {
 .loading-message {
   color: #fff;
   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
-  min-height: 2.2em;
+  /* 文字量に依存しない固定の表示領域にする。メッセージが何文字でも
+     高さが変わらないため、上に並ぶ鳥居(神社)の位置がずれない。 */
+  height: 2.4em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 短い文言なので改行させない(中途半端な位置で折り返さない)。
+     画面幅が狭くても1行がはみ出さないよう font-size を可変にする。 */
+  white-space: nowrap;
+  font-size: clamp(1.1rem, 4.8vw, 2rem);
+  line-height: 1.2;
 }
 .loading-dots::after {
   content: "";
