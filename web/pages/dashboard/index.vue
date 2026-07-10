@@ -100,6 +100,12 @@
           <RadarChart :chartData="chartData" />
         </div>
       </div>
+      <!-- 参拝の草 -->
+      <SanpaiGrass
+        v-if="user && user.screen_name"
+        class="mt-4"
+        :screen-name="user.screen_name"
+      />
     </div>
     <Loading v-if="isLoading" message="ヨミコミチュウ..."></Loading>
   </main>

@@ -455,3 +455,46 @@ Node版との差分(意図的な改善):
 
 - `omikujiGo` は HTTP 関数として dev/prod 両ワークフローでデプロイ(`sanpaiGo` と同型。
   GitHub認証情報は不要)。POST のため Hosting rewrite は付けず、フロントは関数を直叩きする。
+
+## 参拝履歴(草グラフ)エンドポイント sanpaiHistoryGo
+
+ユーザーページをポートフォリオとして使えるようにする取り組みの第一弾。
+参拝履歴を GitHub のコントリビューショングラフ風のヒートマップ(草)で表示する。
+
+### データ源と集計
+
+- 参拝成功時に書かれる `users/{github_id}/sanpai_logs`(`add_point`, `timestamp`)を
+  読み取り専用で集計する(**新規の書き込みは追加していない**。過去分の履歴が
+  そのまま草になる)。expire/noaction の参拝はログが無いため草にならない
+  (=実りのある参拝だけが生える)。
+- 日付は **JST固定** で切る(`app/functions-go/sanpai_history.go` の
+  `aggregateSanpaiDays`。純関数でユニットテスト済み)。
+- レスポンスは日別集計(`{date, count, points}` の昇順配列)のみで、
+  全期間でも高々1800日分程度と小さい。
+
+### API
+
+- `GET sanpaiHistoryGo?user={screen_name}` … 直近371日(53週)。
+  `timestamp >= 開始日` の範囲クエリのみで読む量を抑える。
+- `GET sanpaiHistoryGo?user={screen_name}&all=1` … 全期間(最古のログから)。
+  履歴全量の読み取りが走るため、フロントは**明示的な「全期間を解析する」
+  ボタンでのみ**呼ぶ(2021/12/31リリースから約5年分の履歴がある)。
+
+### キャッシュ(ranking と同じ方針)
+
+- 公開データで URL が `user`/`all` でキー分離されるため CDN の共有キャッシュに載せる。
+  `app/firebase.json` に `/sanpaiHistoryGo` の Hosting rewrite を追加し、フロントは
+  `rankingBaseUrl || apiUrl` 経由で取得(ranking.vue と同型)。
+- デフォルト: `public, max-age=60, s-maxage=300, stale-while-revalidate=600`
+  (参拝直後に草が生えるのが見えるよう短め)。
+- 全期間: `public, max-age=300, s-maxage=3600, stale-while-revalidate=86400`
+  (過去分はほぼ不変・重い読み取りの再実行を抑える)。
+
+### フロント
+
+- `web/components/sanpaiGrass.js` … 週折り返し・月ラベル・年分割の純関数
+  (Node で決定論的に検証。omikujiFox.js と同じ流儀)。
+- `web/components/GrassGrid.vue` … 1期間分のグリッド描画(直近1年と年別表示で共用。
+  チャートライブラリ不使用のCSSグリッド)。
+- `web/components/SanpaiGrass.vue` … 取得と状態管理。直近1年+「全期間を解析する」
+  ボタンで年ごとの草を縦に並べる。設置場所は `/u/{userName}`(公開)と `/dashboard`。
