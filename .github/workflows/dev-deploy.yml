@@ -35,7 +35,14 @@ jobs:
             ${{ runner.os }}-node-
 
       - name: nuxt setup
-        run: echo "${{ secrets.DEV_ENV }}" > .env
+        run: |
+          echo "${{ secrets.DEV_ENV }}" > .env
+          # ランキング取得のエッジキャッシュ用オリジン(公開URLなので Secret では
+          # なく Variable で管理する)。環境ごとにオリジンが異なるため
+          # ステージングは DEV_RANKING_BASE_URL を使う。未設定なら空行となり、
+          # フロントは process.env.RANKING_BASE_URL || process.env.API_URL の
+          # フォールバックで従来どおり関数直叩きになるため無害。
+          echo "RANKING_BASE_URL=${{ vars.DEV_RANKING_BASE_URL }}" >> .env
         working-directory: ./web
 
       - name: nuxt generate

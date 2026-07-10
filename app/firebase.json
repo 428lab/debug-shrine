@@ -16,6 +16,10 @@
         "function": "ogpRewriteGo"
       },
       {
+        "source": "/rankingGo",
+        "function": "rankingGo"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
