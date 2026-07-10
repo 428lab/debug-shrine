@@ -15,8 +15,9 @@ function foxHopSequence(targetBin, binCount, rnd) {
   rnd = rnd || Math.random;
   if (binCount <= 1) return [targetBin];
 
-  // おとりの回数(2〜4)。ビンが少なければ抑える。
-  const maxDecoys = Math.min(4, binCount - 1);
+  // おとりの回数(2〜3)。1ホップに溜め・着地・間を含めて約2秒かけるため、
+  // 多すぎると尺が延びる。ビンが少なければさらに抑える。
+  const maxDecoys = Math.min(3, binCount - 1);
   const minDecoys = Math.min(2, maxDecoys);
   const decoys = minDecoys + Math.floor(rnd() * (maxDecoys - minDecoys + 1));
 
