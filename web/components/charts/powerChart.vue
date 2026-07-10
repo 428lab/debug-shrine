@@ -20,10 +20,10 @@ export default {
           ticks: {
             display: false,
             min: 0,
-            // 値は絶対値ではなく「5能力合計に占める割合(%)」(呼び出し側で正規化)。
-            // バランス型は各軸20%の五角形、1能力が合計の半分を超える超特化は
-            // 頂点に張り付く。OGPカード(ogpimage の radarMaxPercent)と同じ値にすること。
-            max: 50,
+            // 値は絶対値ではなく「最も高い能力に対する割合(%)」(呼び出し側で正規化)。
+            // 最強能力=100%=外周、全能力同値なら満点の五角形になる。
+            // OGPカード(ogpimage の radarMaxPercent)と同じ値にすること。
+            max: 100,
           },
           gridLines: { color: "rgba(255, 255, 255, 0.7)" },
           angleLines: { color: "rgba(255, 255, 255, 0.7)" },

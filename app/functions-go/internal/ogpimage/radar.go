@@ -3,7 +3,7 @@
 //
 // Chart.js の radar 設定(app/functions/index.js の chartconfig)に対応:
 //   - 5軸(たいりょく/ちから/かしこさ/しゅびりょく/すばやさ)
-//   - 値は合計比の割合(%)、min=0, max=50%, グリッドは10%刻み
+//   - 値は最大能力比の割合(%)、min=0, max=100%, グリッドは20%刻み
 //     (絶対値0-150から変更。ogpimage.go の radarMaxPercent 参照)
 //   - グリッド/軸線/ラベル色 rgb(242,242,242)
 //   - データ塗り rgba(0,168,228,0.6) / 枠線 rgb(0,117,159)
@@ -34,21 +34,24 @@ type radarParams struct {
 	labelFace  font.Face
 }
 
-// chartPercentages は5能力の絶対値を「合計に占める割合(%)」へ正規化する(純関数)。
-// 合計0(未参拝)は全軸0のまま。Web側(dashboard / u/_userName)の割合化と
-// 同じ式にすること(round(v/total*100))。
+// chartPercentages は5能力の絶対値を「最も高い能力に対する割合(%)」へ正規化する
+// (純関数)。最強の能力が100%=外周になり、全能力が同値なら満点の五角形になる。
+// 全て0(未参拝)は全軸0のまま。Web側(dashboard / u/_userName)の割合化と
+// 同じ式にすること(round(v/max*100))。
 func chartPercentages(hp, power, intelligence, defence, agility int) [5]float64 {
 	raw := [5]float64{float64(hp), float64(power), float64(intelligence), float64(defence), float64(agility)}
-	total := 0.0
+	max := 0.0
 	for _, v := range raw {
-		total += v
+		if v > max {
+			max = v
+		}
 	}
-	if total <= 0 {
+	if max <= 0 {
 		return [5]float64{}
 	}
 	var pct [5]float64
 	for i, v := range raw {
-		pct[i] = math.Round(v / total * 100)
+		pct[i] = math.Round(v / max * 100)
 	}
 	return pct
 }

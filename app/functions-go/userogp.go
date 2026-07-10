@@ -246,8 +246,9 @@ func uploadObject(ctx context.Context, bucket *storage.BucketHandle, name, conte
 
 // ogpObjectVersion はOGP画像キャッシュの世代。カードの描画内容を変えたら上げて
 // 旧キャッシュを無効化する(旧世代のオブジェクトは scheduled_ogp_delete が掃除する)。
-// v2: レーダーチャートを絶対値(0-150)から割合(合計比%・0-50%)表示に変更。
-const ogpObjectVersion = "_v2"
+// v2: レーダーチャートを絶対値(0-150)から割合(合計比%)表示に変更。
+// v3: 割合の基準を合計比から最大能力比(最強=100%)に変更。
+const ogpObjectVersion = "_v3"
 
 // ogpObjectName はGCS上のOGP画像ファイル名(パス除く)を返す。
 // 保存側(userOGP)とURL生成側(ogpImageURL)で必ず同じ名前になるよう共通化している。
