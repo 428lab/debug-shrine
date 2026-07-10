@@ -556,3 +556,21 @@ sanpai_logs / omikuji_logs を集計して返す(表示: `web/components/Profile
   鳥居アイコンは絵文字でなくSVGパスで描く(閲覧環境のフォント差の影響を受けない)。
 - キャッシュ: `public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400`
   (未登録バッジのみ5分)。`/badgeGo` の Hosting rewrite 経由。
+
+## レーダーチャート(でばっぐのうりょく)の割合表示
+
+能力値は参拝で単調増加するため、絶対値の固定スケール(0-150)ではベテランが
+全軸振り切った五角形になりバランスの形が見えなかった。そこで表示を
+**「5能力合計に占める割合(%)」** に正規化した(#159)。
+
+- 割合 = round(能力値 / 5能力合計 × 100)。合計0(未参拝)は全軸0。
+- スケールは **0〜50%固定**(グリッド10%刻み)・50%超はクランプ。
+  固定スケールなのでユーザー間で形を比較できる。
+- 正規化は**描画側のみ**で行い、APIレスポンス・`status` キャッシュの `chart` は
+  絶対値のまま(status_version のバンプ不要・後方互換)。
+  - Web: `web/pages/dashboard/index.vue` / `web/pages/u/_userName.vue` で正規化、
+    `web/components/charts/powerChart.vue` の max=50
+  - OGPカード: `internal/ogpimage` の `chartPercentages`(純関数)+ `radarMaxPercent`
+- OGP画像はGCSにキャッシュされるため、オブジェクト名を世代付き
+  (`ogps/{user}_v2.webp`、`userogp.go` の `ogpObjectName`)にして旧カードを無効化。
+  描画内容を変えるときはこの世代を上げること(旧世代は scheduled_ogp_delete が掃除)。
