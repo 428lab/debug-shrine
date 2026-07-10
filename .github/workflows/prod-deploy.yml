@@ -282,10 +282,11 @@ jobs:
         run: |
           echo "${{ secrets.PROD_ENV }}" > .env
           # ランキング取得のエッジキャッシュ用オリジン(公開URLなので Secret では
-          # なく Variable で管理する)。未設定なら空行となり、フロントは
+          # なく Variable で管理する)。環境ごとにオリジンが異なるため本番は
+          # PROD_RANKING_BASE_URL を使う。未設定なら空行となり、フロントは
           # process.env.RANKING_BASE_URL || process.env.API_URL のフォールバックで
           # 従来どおり関数直叩きになるため無害。
-          echo "RANKING_BASE_URL=${{ vars.RANKING_BASE_URL }}" >> .env
+          echo "RANKING_BASE_URL=${{ vars.PROD_RANKING_BASE_URL }}" >> .env
         working-directory: ./web
 
       - name: nuxt generate
