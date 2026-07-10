@@ -516,3 +516,22 @@ sanpai_logs / omikuji_logs を集計して返す(表示: `web/components/Profile
 - キャッシュ: 草のデフォルトと同じ
   `public, max-age=60, s-maxage=300, stale-while-revalidate=600`
   (`/profileStatsGo` の Hosting rewrite 経由)。
+
+## GitHub実績統計エンドポイント githubStatsGo
+
+ポートフォリオ第三弾。`GET githubStatsGo?user={screen_name}` がGitHub公開APIから
+公開リポジトリ・スター・フォロワー等を取得・集計して返す
+(表示: `web/components/GithubStats.vue`)。
+
+- 取得: `GET /users/{login}`(followers/public_repos/created_at)+
+  `GET /users/{login}/repos?per_page=100&type=owner`(最大3ページ=300件)。
+  認証は sanpaiGo と同じOAuth App資格情報のBasic認証(5000req/h)。
+- 集計(`aggregateGithubRepos`、純関数): スター/フォーク合計・言語割合
+  (主要言語のリポジトリ数)・スター上位4件の代表リポジトリ。
+  **フォークはリポジトリ数内訳のみに数え、スター・言語・代表からは除外**
+  (本人の実績ではないため)。
+- キャッシュ2段構え:
+  - Firestore: ユーザードキュメントの `github_stats` + `github_stats_fetched_at` に
+    **6時間**キャッシュ。GitHub障害時は期限切れでもstaleを返す(可用性優先)。
+  - CDN: `public, max-age=300, s-maxage=3600, stale-while-revalidate=86400`
+    (`/githubStatsGo` の Hosting rewrite 経由)。
