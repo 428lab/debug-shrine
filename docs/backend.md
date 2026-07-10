@@ -498,3 +498,61 @@ Node版との差分(意図的な改善):
   チャートライブラリ不使用のCSSグリッド)。
 - `web/components/SanpaiGrass.vue` … 取得と状態管理。直近1年+「全期間を解析する」
   ボタンで年ごとの草を縦に並べる。設置場所は `/u/{userName}`(公開)と `/dashboard`。
+
+## プロフィール統計(ストリーク・称号)エンドポイント profileStatsGo
+
+ポートフォリオ第二弾。`GET profileStatsGo?user={screen_name}` が
+sanpai_logs / omikuji_logs を集計して返す(表示: `web/components/ProfileStats.vue`、
+設置は `/u/{userName}` と `/dashboard`)。
+
+- **参拝統計**: 累計回数・累計ポイント・初参拝日・連続参拝ストリーク(現在/最長)。
+  ストリークは草と同じ日別集計(JST)から `computeStreaks`(純関数)で算出。
+  「今日まだ参拝していない」場合は昨日までの連続を継続中として数える。
+- **おみくじ統計**: 抽選成功時に `users/{id}/omikuji_logs`(`entry_id`, `tier`,
+  `timestamp`)を書くようにした(#156〜)。導入以前の抽選は遡れない。
+- **称号(バッジ)**: 参拝回数・ストリーク・レベル・おみくじ結果から導出する17種
+  (`badgeDefs`)。達成/未達成の全件を返し、フロントで未達成をグレー表示する。
+  レベルは status キャッシュ(`status.level`)から読む。
+- キャッシュ: 草のデフォルトと同じ
+  `public, max-age=60, s-maxage=300, stale-while-revalidate=600`
+  (`/profileStatsGo` の Hosting rewrite 経由)。
+
+## GitHub実績統計エンドポイント githubStatsGo
+
+ポートフォリオ第三弾。`GET githubStatsGo?user={screen_name}` がGitHub公開APIから
+公開リポジトリ・スター・フォロワー等を取得・集計して返す
+(表示: `web/components/GithubStats.vue`)。
+
+- 取得: `GET /users/{login}`(followers/public_repos/created_at)+
+  `GET /users/{login}/repos?per_page=100&type=owner`(最大3ページ=300件)。
+  認証は sanpaiGo と同じOAuth App資格情報のBasic認証(5000req/h)。
+- 集計(`aggregateGithubRepos`、純関数): スター/フォーク合計・言語割合
+  (主要言語のリポジトリ数)・スター上位4件の代表リポジトリ。
+  **フォークはリポジトリ数内訳のみに数え、スター・言語・代表からは除外**
+  (本人の実績ではないため)。
+- キャッシュ2段構え:
+  - Firestore: ユーザードキュメントの `github_stats` + `github_stats_fetched_at` に
+    **6時間**キャッシュ。GitHub障害時は期限切れでもstaleを返す(可用性優先)。
+  - CDN: `public, max-age=300, s-maxage=3600, stale-while-revalidate=86400`
+    (`/githubStatsGo` の Hosting rewrite 経由)。
+
+## READMEバッジエンドポイント badgeGo
+
+ポートフォリオ第四弾。`GET badgeGo?user={screen_name}` が shields.io 風の
+フラットバッジ(SVG)を返す。GitHubのプロフィールREADMEに
+
+```
+[![でばっぐ神社](https://d-shrine.jp/badgeGo?user=X)](https://d-shrine.jp/u/X)
+```
+
+と貼ると「⛩(鳥居アイコン) でばっぐ神社 | Lv.42 戦闘力 9999」が表示される
+(マイページにコピー用スニペットUIあり)。
+
+- 値は status キャッシュ(`status.level`/`status.total`)から読むだけで、
+  重い集計はしない。キャッシュ未計算は「参拝求ム」。
+- **未登録ユーザーにも200で「未登録」バッジを返す**(README内の画像は
+  非200だと壊れた画像アイコンになるため)。
+- テキスト幅は ASCII≈7px・全角≈12px の近似で算出(shields実測値の代替)。
+  鳥居アイコンは絵文字でなくSVGパスで描く(閲覧環境のフォント差の影響を受けない)。
+- キャッシュ: `public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400`
+  (未登録バッジのみ5分)。`/badgeGo` の Hosting rewrite 経由。
