@@ -20,6 +20,10 @@
         "function": "rankingGo"
       },
       {
+        "source": "/sanpaiHistoryGo",
+        "function": "sanpaiHistoryGo"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
