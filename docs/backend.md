@@ -535,3 +535,24 @@ sanpai_logs / omikuji_logs を集計して返す(表示: `web/components/Profile
     **6時間**キャッシュ。GitHub障害時は期限切れでもstaleを返す(可用性優先)。
   - CDN: `public, max-age=300, s-maxage=3600, stale-while-revalidate=86400`
     (`/githubStatsGo` の Hosting rewrite 経由)。
+
+## READMEバッジエンドポイント badgeGo
+
+ポートフォリオ第四弾。`GET badgeGo?user={screen_name}` が shields.io 風の
+フラットバッジ(SVG)を返す。GitHubのプロフィールREADMEに
+
+```
+[![でばっぐ神社](https://d-shrine.jp/badgeGo?user=X)](https://d-shrine.jp/u/X)
+```
+
+と貼ると「⛩(鳥居アイコン) でばっぐ神社 | Lv.42 戦闘力 9999」が表示される
+(マイページにコピー用スニペットUIあり)。
+
+- 値は status キャッシュ(`status.level`/`status.total`)から読むだけで、
+  重い集計はしない。キャッシュ未計算は「参拝求ム」。
+- **未登録ユーザーにも200で「未登録」バッジを返す**(README内の画像は
+  非200だと壊れた画像アイコンになるため)。
+- テキスト幅は ASCII≈7px・全角≈12px の近似で算出(shields実測値の代替)。
+  鳥居アイコンは絵文字でなくSVGパスで描く(閲覧環境のフォント差の影響を受けない)。
+- キャッシュ: `public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400`
+  (未登録バッジのみ5分)。`/badgeGo` の Hosting rewrite 経由。

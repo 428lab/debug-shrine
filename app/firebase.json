@@ -32,6 +32,10 @@
         "function": "githubStatsGo"
       },
       {
+        "source": "/badgeGo",
+        "function": "badgeGo"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

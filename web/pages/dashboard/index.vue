@@ -116,6 +116,16 @@
         class="mt-4"
         :screen-name="user.screen_name"
       />
+      <!-- README埋め込みバッジ(自分のプロフィールへの導線をGitHubに貼れる) -->
+      <div v-if="user && user.screen_name" class="badge-section p-3 rounded mt-4">
+        <div class="fw-bold mb-2">🔖 READMEに貼れるバッジ</div>
+        <p class="badge-note mb-2">
+          GitHubのプロフィールREADMEに貼ると、レベルと戦闘力のバッジから
+          公開プロフィールへ飛べます。
+        </p>
+        <img :src="badgeUrl" alt="でばっぐ神社バッジ" height="20" class="mb-3" />
+        <ShareText title="" :text="badgeMarkdown"></ShareText>
+      </div>
     </div>
     <Loading v-if="isLoading" message="ヨミコミチュウ..."></Loading>
   </main>
@@ -196,6 +206,13 @@ export default {
     shareMessage() {
       return "これが" + this.user.display_name + "の でばっぐのうりょくだ！";
     },
+    // README用バッジ。画像はbadgeGo(SVG)、リンク先は公開プロフィール。
+    badgeUrl() {
+      return this.$config.baseUrl + "badgeGo?user=" + this.user.screen_name;
+    },
+    badgeMarkdown() {
+      return `[![でばっぐ神社](${this.badgeUrl})](${this.shareUrl})`;
+    },
     progressWidth() {
       return this.profile.exp.total / this.profile.next;
     },
@@ -207,6 +224,15 @@ export default {
 .profile-outline {
   background-color: #000;
   border-radius: 15px;
+}
+
+.badge-section {
+  background: #0d1117;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.badge-note {
+  color: #9a9a9a;
+  font-size: 0.85rem;
 }
 
 .debug-title {
