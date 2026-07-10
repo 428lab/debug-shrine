@@ -39,6 +39,11 @@
         次に引けるまで <span class="fw-bold">{{ remainingText }}</span>
       </div>
 
+      <!-- コピペ用テキスト(参拝結果と同じUI) -->
+      <div class="my-5 mx-auto" style="max-width: 600px">
+        <ShareText title="SNSで自慢しよう" :text="shareText"></ShareText>
+      </div>
+
       <div class="mt-4">
         <Share
           title="おみくじの結果をSNSで報告しよう"
@@ -218,6 +223,27 @@ export default {
     shareMessage() {
       if (!this.result) return "でばっぐ神社でおみくじを引いたよ。";
       return `でばっぐ神社のITおみくじは【${this.result.tier}】「${this.result.fortune}」でした。`;
+    },
+    // コピペ用の全文(参拝の shareText と同じ流儀)。項目ごとの文章まで含める。
+    shareText() {
+      if (!this.result) return "";
+      const emoji = {
+        超吉: "🌟",
+        大吉: "🎉",
+        中吉: "😊",
+        小吉: "🙂",
+        末吉: "😌",
+        凶: "😰",
+        大凶: "💀",
+      }[this.result.tier] || "🔮";
+      const lines = [
+        `⛩️でばっぐ神社のITおみくじは${emoji}【${this.result.tier}】でした`,
+        `「${this.result.fortune}」`,
+        ...(this.result.lines || []).map((l) => `・${l.category}: ${l.text}`),
+        "#でばっぐ神社",
+        this.shareUrl,
+      ];
+      return lines.join("\n");
     },
   },
 };
