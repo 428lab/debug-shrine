@@ -12,7 +12,7 @@
 //   - 表示名/アイコンは GitHub API ではなく Firestore の display_name / image_path を
 //     使用し、GitHub APIへの往復(レート制限リスク)を排除。
 //   - 出力を PNG から WebP(可逆VP8L)へ変更しファイルサイズを削減。
-//     キャッシュオブジェクトは ogps/{user}.webp。
+//     キャッシュオブジェクトは ogps/{user}{ogpObjectVersion}.webp(世代は ogpObjectName 参照)。
 package gofunctions
 
 import (
@@ -73,7 +73,7 @@ func userOGPHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	bucket := storageCli.Bucket(bucketName)
-	objectPath := fmt.Sprintf("ogps/%s.webp", username)
+	objectPath := "ogps/" + ogpObjectName(username)
 
 	// 既存キャッシュがあればそのURLへ。無ければ生成してからURLを得る。
 	exists, err := objectExists(ctx, bucket, objectPath)
@@ -244,9 +244,20 @@ func uploadObject(ctx context.Context, bucket *storage.BucketHandle, name, conte
 	return wc.Close()
 }
 
+// ogpObjectVersion はOGP画像キャッシュの世代。カードの描画内容を変えたら上げて
+// 旧キャッシュを無効化する(旧世代のオブジェクトは scheduled_ogp_delete が掃除する)。
+// v2: レーダーチャートを絶対値(0-150)から割合(合計比%・0-50%)表示に変更。
+const ogpObjectVersion = "_v2"
+
+// ogpObjectName はGCS上のOGP画像ファイル名(パス除く)を返す。
+// 保存側(userOGP)とURL生成側(ogpImageURL)で必ず同じ名前になるよう共通化している。
+func ogpObjectName(username string) string {
+	return username + ogpObjectVersion + ".webp"
+}
+
 // ogpImageURL は Firebase Storage のダウンロードURLを返す(Node版 getOgpUrl 相当、拡張子はwebp)。
 func ogpImageURL(bucketName, username string) string {
-	objectPath := "ogps%2F" + url.QueryEscape(username) + ".webp"
+	objectPath := "ogps%2F" + url.QueryEscape(ogpObjectName(username))
 	if host := os.Getenv("FIREBASE_STORAGE_EMULATOR_HOST"); host != "" && os.Getenv("FUNCTIONS_EMULATOR") != "" {
 		return fmt.Sprintf("http://%s/download/storage/v1/b/%s/o/%s?alt=media", host, bucketName, objectPath)
 	}

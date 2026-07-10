@@ -77,9 +77,12 @@ const (
 
 	gridLineWidth = 3.0
 	dataStrokeW   = 2.0
-	// グリッド(同心リング)の分割数。Chart.js の stepSize=10 相当は15本だが、
-	// 蜘蛛の巣状で見づらいため約半分の8本に減らしている。
-	radarGridSteps = 8
+	// レーダーは絶対値ではなく「5能力合計に占める割合(%)」で描く
+	// (能力値は参拝で単調増加するため、絶対値だとベテランは全軸振り切って
+	// バランスの形が見えない)。スケールは0〜50%固定・グリッドは10%刻み。
+	// Web側(web/components/charts/powerChart.vue)と同じ値にすること。
+	radarMaxPercent = 50
+	radarGridSteps  = 5
 
 	// 最終出力サイズ(OGP標準)。クロップ後にこのサイズへ一度だけ縮小する。
 	outputWidth  = 1200
@@ -197,14 +200,14 @@ func Render(p Params) (image.Image, error) {
 		drawTextTopScaled(dc, nameFace, line, statsX*scale, (statsY+lineHeight*float64(i))*scale, statsMaxWidth*scale)
 	}
 
-	// レーダーチャート
+	// レーダーチャート(Web側 powerChart.vue と同じく合計比の割合で描く)
 	drawRadar(dc, radarParams{
 		cx:         chartCenterX * scale,
 		cy:         chartCenterY * scale,
 		radius:     chartRadius * scale,
 		labelDist:  chartLabelDist * scale,
-		values:     [5]float64{float64(p.HP), float64(p.Power), float64(p.Intelligence), float64(p.Defence), float64(p.Agility)},
-		maxValue:   150,
+		values:     chartPercentages(p.HP, p.Power, p.Intelligence, p.Defence, p.Agility),
+		maxValue:   radarMaxPercent,
 		gridSteps:  radarGridSteps,
 		labels:     [5]string{"たいりょく", "ちから", "かしこさ", "しゅびりょく", "すばやさ"},
 		gridWidth:  gridLineWidth * scale,
