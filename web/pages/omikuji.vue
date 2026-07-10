@@ -22,12 +22,8 @@
     <!-- 引ける -->
     <div v-else-if="state === 'available'" class="my-5">
       <div class="omikuji-box mx-auto mb-4">⛩️</div>
-      <button
-        class="btn btn-lg btn-danger px-5"
-        :disabled="drawing"
-        @click="draw"
-      >
-        {{ drawing ? "抽選中..." : "おみくじを引く" }}
+      <button class="btn btn-lg btn-danger px-5" @click="startScene">
+        おみくじを引く
       </button>
       <div v-if="result" class="mt-3 text-muted small">
         （前回の結果は下に表示されています）
@@ -56,6 +52,14 @@
     <div v-else-if="state === 'cooldown'" class="my-5 text-muted">
       次に引けるまで <span class="fw-bold">{{ remainingText }}</span>
     </div>
+
+    <!-- 抽選演出(鈴の緒 → 連鎖 → 狐が選ぶ)。全画面オーバーレイ -->
+    <OmikujiScene
+      v-if="state === 'animating'"
+      :target-tier="pendingResult && pendingResult.tier"
+      @rang="onRang"
+      @landed="onLanded"
+    />
   </div>
 </template>
 
@@ -63,6 +67,7 @@
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { mapGetters } from "vuex";
 import ResultCard from "@/components/OmikujiResult";
+import OmikujiScene from "@/components/OmikujiScene";
 
 function resolveCurrentUser(auth) {
   return new Promise((resolve) => {
@@ -75,13 +80,13 @@ function resolveCurrentUser(auth) {
 
 export default {
   middleware: ["auth"],
-  components: { ResultCard },
+  components: { ResultCard, OmikujiScene },
   data() {
     return {
-      state: "loading", // loading | available | cooldown | error
+      state: "loading", // loading | available | animating | cooldown | error
       result: null,
+      pendingResult: null, // 演出中に保持(着地まで表示しない)
       remaining: 0, // 次に引けるまでの秒
-      drawing: false,
       timerId: null,
     };
   },
@@ -119,12 +124,18 @@ export default {
         this.state = "error";
       }
     },
-    async draw() {
-      if (this.drawing) return;
-      this.drawing = true;
+    // 「引く」→ 演出(鈴の緒儀式)を開始。実際の抽選は鈴が鳴った時(onRang)。
+    startScene() {
+      if (this.state === "animating") return;
+      this.pendingResult = null;
+      this._pendingRemaining = 0;
+      this.state = "animating";
+    },
+    // 鈴が鳴った → サーバーで抽選。成功なら結果を保持し、演出(狐)が着地してから表示。
+    async onRang() {
       const token = await this.getToken();
       if (!token) {
-        this.drawing = false;
+        this.state = "error";
         return;
       }
       try {
@@ -133,11 +144,29 @@ export default {
           { github_id: this.user.github_id },
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        this.applyResponse(res.data);
+        const d = res.data;
+        if (d.status === "success") {
+          this._pendingRemaining = d.remaining_seconds || 0;
+          this.pendingResult = d.result; // targetTier が埋まり、狐が本命へ走る
+        } else {
+          // cooldown / failed など:演出を畳んで通常表示へ
+          this.applyResponse(d);
+        }
       } catch (e) {
         this.state = "error";
-      } finally {
-        this.drawing = false;
+      }
+    },
+    // 狐が本命ビンに着地 → 結果を確定表示。
+    onLanded() {
+      if (this.pendingResult) {
+        this.result = this.pendingResult;
+        this.remaining = this._pendingRemaining || 0;
+        this.pendingResult = null;
+        this.state = "cooldown";
+        this.startTimer();
+      } else {
+        // 演出が結果より先に終わった(スキップ等)→ サーバー状態を取り直す
+        this.fetchStatus();
       }
     },
     applyResponse(d) {
