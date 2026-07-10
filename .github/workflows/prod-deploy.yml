@@ -213,6 +213,9 @@ jobs:
             --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s
           deploy rankingGo RankingGo \
             --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s
+          deploy omikujiGo OmikujiGo \
+            --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s \
+            --set-env-vars="OMIKUJI_COOLDOWN_SECONDS=28800"
           deploy ogpRewriteGo OgpRewriteGo \
             --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s \
             --set-env-vars="FUNC_BASE_URL=$OGP_FUNC_BASE_URL,OGP_PROJECT_ID=d-shrine"
