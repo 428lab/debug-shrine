@@ -22,11 +22,14 @@
             <div>
               <button
                 @click="sanpai"
-                class="btn btn-lg btn-primary"
+                class="btn btn-lg btn-primary me-2"
                 :disabled="false"
               >
                 参拝する
               </button>
+              <nuxt-link to="/omikuji" class="btn btn-lg btn-danger">
+                おみくじを引く
+              </nuxt-link>
             </div>
             <div class="mt-4 p-2 d-inline-block">
               <div class="rounded border p-2 w-100 mb-2" v-if="isLogin">
