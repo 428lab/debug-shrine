@@ -176,13 +176,17 @@ export default {
     // Go版(statusGo)はコールドスタートが短く表示が速くなるため使用する
     // (Node版のstatusとレスポンス形式は同一。docs/backend.md参照)
     let response = await this.$axios.get("statusGo?user=" + this.$route.params.userName);
-    let userChart = [];
-    userChart.push(response.data.chart.hp);
-    userChart.push(response.data.chart.power);
-    userChart.push(response.data.chart.intelligence);
-    userChart.push(response.data.chart.defence);
-    userChart.push(response.data.chart.agility);
-    this.chartData.datasets[0].data = userChart;
+    // レーダーは絶対値でなく「5能力合計に占める割合(%)」で描く
+    // (powerChart.vue のスケール0〜50%・OGPカードと同じ正規化)。
+    const chart = response.data.chart;
+    const raw = [chart.hp, chart.power, chart.intelligence, chart.defence, chart.agility];
+    const chartTotal = raw.reduce((sum, v) => sum + v, 0);
+    // Chart.js v2 は max を超える値をクランプせず枠外へ描くため、
+    // スケール上限(50%)で明示的に切る(OGP側 drawRadar のクランプと同じ挙動)。
+    this.chartData.datasets[0].data =
+      chartTotal > 0
+        ? raw.map((v) => Math.min(50, Math.round((v / chartTotal) * 100)))
+        : raw;
 
     this.profile.nickName = response.data.user.display_name;
     this.profile.screenName = response.data.user.screen_name;

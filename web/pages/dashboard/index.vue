@@ -170,13 +170,17 @@ export default {
       `statusGo?user=${this.user.screen_name}`
     );
     // 登録してなかったらエラーが出るのでエラー対応よろ
-    let userChart = [];
-    userChart.push(response.data.chart.hp);
-    userChart.push(response.data.chart.power);
-    userChart.push(response.data.chart.intelligence);
-    userChart.push(response.data.chart.defence);
-    userChart.push(response.data.chart.agility);
-    this.chartData.datasets[0].data = userChart;
+    // レーダーは絶対値でなく「5能力合計に占める割合(%)」で描く
+    // (powerChart.vue のスケール0〜50%・OGPカードと同じ正規化)。
+    const chart = response.data.chart;
+    const raw = [chart.hp, chart.power, chart.intelligence, chart.defence, chart.agility];
+    const chartTotal = raw.reduce((sum, v) => sum + v, 0);
+    // Chart.js v2 は max を超える値をクランプせず枠外へ描くため、
+    // スケール上限(50%)で明示的に切る(OGP側 drawRadar のクランプと同じ挙動)。
+    this.chartData.datasets[0].data =
+      chartTotal > 0
+        ? raw.map((v) => Math.min(50, Math.round((v / chartTotal) * 100)))
+        : raw;
 
     this.profile.total = response.data.total;
     this.profile.exp = response.data.total;
