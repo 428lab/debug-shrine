@@ -1,283 +1,236 @@
 <template>
-  <div class="text-center">
-    <div class="container py-5">
-      <h1>参拝ありがとう！</h1>
-      <h2>ポイントを獲得しました</h2>
-      <h2>＋20 exp</h2>
-      <p class="fs-5">RANK {{ 20 }}</p>
-      <div class="progress">
-        <div
-          class="progress-bar p-2"
-          role="progressbar"
-          style="width: 30%"
-          aria-valuenow="10"
-          aria-valuemin="0"
-          aria-valuemax="100"
-        >
-          {{ 20 }}exp
-        </div>
-      </div>
-      <p class="text-end w-100">NEXT 2234EXP</p>
+  <div class="text-center container py-5" style="max-width: 640px">
+    <h1 class="mb-2">おみくじ</h1>
+    <p class="text-muted">8時間に1回、ITの運勢を占えるぞ。</p>
+
+    <!-- 状態取得中 -->
+    <div v-if="state === 'loading'" class="my-5">
+      <div class="spinner-border" role="status"></div>
+      <div class="mt-3 text-muted">お伺いを立てています...</div>
     </div>
-    <!-- <button class="btn btn-lg btn-primary" @click="sanpai">
-      マイページを見る
-    </button> -->
-    <nuxt-link class="btn btn-lg btn-primary" to="/dashboard">
-      マイページを見る
-    </nuxt-link>
-    <!-- <div id="testLabel">Testing</div>
-    <div id="drawhere"></div> -->
-    <!-- debug:{{ JSON.stringify(debug) }} -->
+
+    <!-- エラー -->
+    <div v-else-if="state === 'error'" class="my-5">
+      <div class="alert alert-warning">
+        うまく引けませんでした。時間をおいて試してください。
+      </div>
+      <button class="btn btn-outline-secondary" @click="fetchStatus">
+        再読み込み
+      </button>
+    </div>
+
+    <!-- 引ける -->
+    <div v-else-if="state === 'available'" class="my-5">
+      <div class="omikuji-box mx-auto mb-4">⛩️</div>
+      <button class="btn btn-lg btn-danger px-5" @click="startScene">
+        おみくじを引く
+      </button>
+      <div v-if="result" class="mt-3 text-muted small">
+        （前回の結果は下に表示されています）
+      </div>
+      <ResultCard v-if="result" :result="result" class="mt-4" />
+    </div>
+
+    <!-- 結果表示(引いた直後 / クールダウン中の前回結果) -->
+    <div v-else-if="result" class="my-4">
+      <ResultCard :result="result" />
+
+      <div v-if="state === 'cooldown'" class="mt-4 text-muted">
+        次に引けるまで <span class="fw-bold">{{ remainingText }}</span>
+      </div>
+
+      <div class="mt-4">
+        <Share
+          title="おみくじの結果をSNSで報告しよう"
+          :url="shareUrl"
+          :message="shareMessage"
+        ></Share>
+      </div>
+    </div>
+
+    <!-- クールダウン中で前回結果が無い場合 -->
+    <div v-else-if="state === 'cooldown'" class="my-5 text-muted">
+      次に引けるまで <span class="fw-bold">{{ remainingText }}</span>
+    </div>
+
+    <!-- 抽選演出(鈴の緒 → 連鎖 → 狐が選ぶ)。全画面オーバーレイ -->
+    <OmikujiScene
+      v-if="state === 'animating'"
+      :target-tier="pendingResult && pendingResult.tier"
+      @rang="onRang"
+      @landed="onLanded"
+    />
   </div>
 </template>
 
 <script>
-import {
-  Engine,
-  Render,
-  World,
-  Bodies,
-  Body,
-  Events,
-  Composite,
-  Composites,
-  Constraint,
-  Vertices,
-  Mouse,
-  MouseConstraint,
-  Query,
-  Common,
-} from "matter-js";
-import decomp from "poly-decomp";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { mapGetters } from "vuex";
+import ResultCard from "@/components/OmikujiResult";
+import OmikujiScene from "@/components/OmikujiScene";
+
+function resolveCurrentUser(auth) {
+  return new Promise((resolve) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe();
+      resolve(user);
+    });
+  });
+}
+
 export default {
-  data: function () {
+  middleware: ["auth"],
+  components: { ResultCard, OmikujiScene },
+  data() {
     return {
-      debug: null,
-      canvasProp: {
-        wallWidth: 1,
-      },
+      state: "loading", // loading | available | animating | cooldown | error
+      result: null,
+      pendingResult: null, // 演出中に保持(着地まで表示しない)
+      remaining: 0, // 次に引けるまでの秒
+      timerId: null,
     };
   },
-  computed: {
-    myObjStyle(top, left) {
-      return `position:absolute;top:${top};left:${left}`;
-    },
+  async mounted() {
+    await this.fetchStatus();
   },
-  mounted() {
-    // if (process.client) {
-    //   window.decomp = decomp;
-    //   let width = window.innerWidth,
-    //     height = window.innerHeight - 55,
-    //     engineOptions = {
-    //       enableSleeping: true,
-    //       timing: {
-    //         //timestamp: 0.5,
-    //         timeScale: 0.5,
-    //       },
-    //     },
-    //     renderOptions = {
-    //       width,
-    //       height,
-    //       wireframes: false,
-    //       wireframeBackground: "transparent",
-    //       background: "transparent",
-    //       //background: "#ffffff99",
-    //       showSleeping: true,
-    //       showDebug: false,
-    //       showBroadphase: false,
-    //       showBounds: false,
-    //       showVelocity: false,
-    //       showCollisions: false,
-    //       showSeparations: false,
-    //       showAxes: false,
-    //       showPositions: false,
-    //       showAngleIndicator: false,
-    //       showIds: false,
-    //       showShadows: false,
-    //       showVertexNumbers: false,
-    //       showConvexHulls: false,
-    //       showInternalEdges: false,
-    //       showMousePosition: true,
-    //     };
-    //   // create an engine
-    //   let engine = Engine.create(engineOptions),
-    //     world = engine.world;
-    //   // create a renderer
-    //   var render = Render.create({
-    //     element: document.querySelector("#drawhere"),
-    //     engine,
-    //     options: renderOptions,
-    //   });
-    //   //Bootstrap Mouse Controls
-    //   // add mouse control
-    //   var mouse = Mouse.create(render.canvas),
-    //     mouseConstraint = MouseConstraint.create(engine, {
-    //       mouse: mouse,
-    //       constraint: {
-    //         stiffness: 0.5,
-    //         render: {
-    //           visible: true,
-    //         },
-    //       },
-    //     });
-    //   World.add(world, mouseConstraint);
-    //   // keep the mouse in sync with rendering
-    //   render.mouse = mouse;
-    //   // an example of using mouse events on a mouse
-    //   var fsa = [];
-    //   Events.on(mouseConstraint, "startdrag", function (event) {
-    //     fsa = event.body.parts.map((v) => v.render.fillStyle);
-    //     event.body.parts = event.body.parts.map((v) => {
-    //       v.render.fillStyle = "#FF0000";
-    //       return v;
-    //     });
-    //     //console.log("startdrag", fsa);
-    //   });
-    //   Events.on(mouseConstraint, "enddrag", function (event) {
-    //     event.body.parts.map(
-    //       (v, i) => (event.body.parts[i].render.fillStyle = fsa[i])
-    //     );
-    //     //console.log("enddrag", event.body.parts);
-    //   });
-    //   //Events.on(engine, "collisionStart", console.log);
-    //   //Add Walls
-    //   let leftWall = Bodies.rectangle(
-    //       this.canvasProp.wallWidth,
-    //       height / 2,
-    //       this.canvasProp.wallWidth,
-    //       height,
-    //       { isStatic: true }
-    //     ),
-    //     rightWall = Bodies.rectangle(
-    //       width - this.canvasProp.wallWidth,
-    //       height / 2,
-    //       this.canvasProp.wallWidth,
-    //       height,
-    //       { isStatic: true }
-    //     ),
-    //     topWall = Bodies.rectangle(
-    //       width / 2,
-    //       this.canvasProp.wallWidth,
-    //       width,
-    //       this.canvasProp.wallWidth,
-    //       { isStatic: true }
-    //     ),
-    //     bottomWall = Bodies.rectangle(
-    //       width / 2,
-    //       height - this.canvasProp.wallWidth,
-    //       width,
-    //       this.canvasProp.wallWidth,
-    //       { isStatic: true }
-    //     );
-    //   World.add(world, [leftWall, rightWall, topWall, bottomWall]);
-    //   // Moving Stick
-    //   var boxA = Bodies.rectangle(width / 2, height / 2, width / 4, 16, {
-    //     isStatic: false,
-    //   });
-    //   Body.setAngularVelocity(boxA, Math.PI / 18);
-    //   Body.setVelocity(boxA, { x: -10, y: -10 });
-    //   //Static Objects
-    //   var boxB = Bodies.rectangle(
-    //     Math.random() * width,
-    //     Math.random() * height,
-    //     80,
-    //     80,
-    //     { isStatic: true }
-    //   );
-    //   var ball = Bodies.circle(
-    //     Math.random() * width,
-    //     Math.random() * height,
-    //     40,
-    //     { isStatic: true }
-    //   );
-    //   // add all of the bodies to the world
-    //   Events.on(boxA, "sleepEnd", (e) => console.log);
-    //   World.add(world, [boxA, boxB, ball]);
-    //   //Trying Chiainign
-    //   var boxes = Composites.stack(
-    //     width / 2,
-    //     height / 2,
-    //     1,
-    //     4,
-    //     0,
-    //     0.78,
-    //     (x, y) => Bodies.circle(x, y, 16, { dampening: 1 })
-    //   );
-    //   var chain = Composites.chain(boxes, 0, 0, 0.1, 0.1, {
-    //     dampening: 1,
-    //     stiffness: 1,
-    //     render: { strokeStyle: "transparent", lineWidth: 0 },
-    //   });
-    //   Composite.add(
-    //     boxes,
-    //     Constraint.create({
-    //       pointA: { x: width / 4, y: height / 2 },
-    //       bodyB: boxes.bodies[3],
-    //       length: 1,
-    //       stiffness: 1,
-    //       dampening: 1,
-    //       render: {
-    //         strokeStyle: "transparent",
-    //         type: "line",
-    //       },
-    //     })
-    //   );
-    //   World.add(world, chain);
-    //   var jfPath = Vertices.fromPath(
-    //     "L0 0 100 0 100 20 60 20 60 40 90 40 90 60 60 60 60 100 40 100 0 80 0 60 40 80 40 20 0 20"
-    //   );
-    //   let jfColor = Common.choose([
-    //       "#556270",
-    //       "#4ECDC4",
-    //       "#C7F464",
-    //       "#FF6B6B",
-    //       "#C44D58",
-    //     ]),
-    //     jf = Bodies.fromVertices(
-    //       width / 2,
-    //       height / 2,
-    //       Common.choose([jfPath]),
-    //       {
-    //         render: {
-    //           fillStyle: jfColor,
-    //           strokeStyle: "transparent",
-    //           lineWidth: 0,
-    //         },
-    //       },
-    //       true
-    //     );
-    //   let jfConstraint = Constraint.create({
-    //     pointA: { x: width / 2, y: height / 4 },
-    //     bodyB: jf,
-    //     pointB: { x: 0, y: -20 },
-    //     stiffness: 1,
-    //     damping: 0.99,
-    //     //length:10,
-    //     render: {
-    //       //strokeStyle: "transparent",
-    //       strokeStyle: jfColor,
-    //       type: "line",
-    //       anchors: true,
-    //       visible: true,
-    //     },
-    //   });
-    //   World.add(world, [jf, jfConstraint]);
-    //   Events.on(render, "afterRender", (e) => {
-    //     let el = document.querySelector("#testLabel");
-    //     el.style.position = "absolute";
-    //     el.style.top = `${boxes.bodies[0].position.y - el.clientHeight / 2}px`;
-    //     el.style.left = `${boxes.bodies[0].position.x - el.clientWidth / 2}px`;
-    //   });
-    //   // run the engine
-    //   Engine.run(engine);
-    //   // run the renderer
-    //   Render.run(render);
-    // }
+  beforeDestroy() {
+    if (this.timerId) clearInterval(this.timerId);
   },
   methods: {
-    sanpai() {
-      this.$router.push("/result/" + "0123456789");
+    async getToken() {
+      const auth = getAuth();
+      const currentUser = await resolveCurrentUser(auth);
+      if (!currentUser) {
+        this.$store.dispatch("logout");
+        return null;
+      }
+      const token = await currentUser.getIdToken();
+      this.$store.commit("setToken", token);
+      return token;
+    },
+    // 引かずに現在の状態(引ける/クールダウン+前回結果)を取得する。
+    async fetchStatus() {
+      this.state = "loading";
+      const token = await this.getToken();
+      if (!token) return;
+      try {
+        const res = await this.$axios.post(
+          "omikujiGo",
+          { github_id: this.user.github_id, peek: true },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        this.applyResponse(res.data);
+      } catch (e) {
+        this.state = "error";
+      }
+    },
+    // 「引く」→ 演出(鈴の緒儀式)を開始。実際の抽選は鈴が鳴った時(onRang)。
+    startScene() {
+      if (this.state === "animating") return;
+      this.pendingResult = null;
+      this._pendingRemaining = 0;
+      this.state = "animating";
+    },
+    // 鈴が鳴った → サーバーで抽選。成功なら結果を保持し、演出(狐)が着地してから表示。
+    async onRang() {
+      const token = await this.getToken();
+      if (!token) {
+        this.state = "error";
+        return;
+      }
+      try {
+        const res = await this.$axios.post(
+          "omikujiGo",
+          { github_id: this.user.github_id },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const d = res.data;
+        if (d.status === "success") {
+          this._pendingRemaining = d.remaining_seconds || 0;
+          this.pendingResult = d.result; // targetTier が埋まり、狐が本命へ走る
+        } else {
+          // cooldown / failed など:演出を畳んで通常表示へ
+          this.applyResponse(d);
+        }
+      } catch (e) {
+        this.state = "error";
+      }
+    },
+    // 狐が本命ビンに着地 → 結果を確定表示。
+    onLanded() {
+      if (this.pendingResult) {
+        this.result = this.pendingResult;
+        this.remaining = this._pendingRemaining || 0;
+        this.pendingResult = null;
+        this.state = "cooldown";
+        this.startTimer();
+      } else {
+        // 演出が結果より先に終わった(スキップ等)→ サーバー状態を取り直す
+        this.fetchStatus();
+      }
+    },
+    applyResponse(d) {
+      if (d.status === "success") {
+        this.result = d.result;
+        this.remaining = d.remaining_seconds || 0;
+        this.state = "cooldown";
+        this.startTimer();
+      } else if (d.status === "cooldown") {
+        this.result = d.result || null;
+        this.remaining = d.remaining_seconds || 0;
+        this.state = "cooldown";
+        this.startTimer();
+      } else if (d.status === "available") {
+        this.state = "available";
+      } else {
+        // not registered / failed など
+        this.state = "error";
+      }
+    },
+    startTimer() {
+      if (this.timerId) clearInterval(this.timerId);
+      this.timerId = setInterval(() => {
+        this.remaining -= 1;
+        if (this.remaining <= 0) {
+          clearInterval(this.timerId);
+          this.timerId = null;
+          this.remaining = 0;
+          // 引ける状態へ。前回結果は残しつつボタンを出す。
+          this.state = "available";
+        }
+      }, 1000);
+    },
+  },
+  computed: {
+    ...mapGetters(["user"]),
+    remainingText() {
+      const s = Math.max(0, this.remaining);
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const sec = s % 60;
+      if (h > 0) return `${h}時間${m}分`;
+      if (m > 0) return `${m}分${sec}秒`;
+      return `${sec}秒`;
+    },
+    shareUrl() {
+      return this.$config.baseUrl;
+    },
+    shareMessage() {
+      if (!this.result) return "でばっぐ神社でおみくじを引いたよ。";
+      return `でばっぐ神社のITおみくじは【${this.result.tier}】「${this.result.fortune}」でした。`;
     },
   },
 };
 </script>
+
+<style scoped>
+.omikuji-box {
+  width: 120px;
+  height: 120px;
+  line-height: 120px;
+  font-size: 64px;
+  border-radius: 12px;
+  background: radial-gradient(circle at 50% 40%, #5a5050, #2b2b2b 70%);
+  box-shadow: 0 0 18px rgba(255, 180, 90, 0.4);
+}
+</style>
