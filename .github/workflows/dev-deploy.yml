@@ -269,6 +269,10 @@ jobs:
             --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s
           deploy profileStatsGo ProfileStatsGo \
             --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s
+          # GitHub APIのレート制限緩和のため sanpaiGo と同じOAuth資格情報を使う
+          deploy githubStatsGo GithubStatsGo \
+            --trigger-http --allow-unauthenticated --memory=256Mi --timeout=60s \
+            --set-env-vars="GITHUB_CLIENT_ID=$SANPAI_GH_CLIENT_ID,GITHUB_CLIENT_SECRET=$SANPAI_GH_CLIENT_SECRET"
           deploy omikujiGo OmikujiGo \
             --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s \
             --set-env-vars="OMIKUJI_COOLDOWN_SECONDS=60"

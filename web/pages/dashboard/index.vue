@@ -100,8 +100,13 @@
           <RadarChart :chartData="chartData" />
         </div>
       </div>
-      <!-- 参拝の記録(累計・ストリーク・称号)と草 -->
+      <!-- ポートフォリオ: 参拝の記録(累計・ストリーク・称号)/GitHub実績/草 -->
       <ProfileStats
+        v-if="user && user.screen_name"
+        class="mt-4"
+        :screen-name="user.screen_name"
+      />
+      <GithubStats
         v-if="user && user.screen_name"
         class="mt-4"
         :screen-name="user.screen_name"

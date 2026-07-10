@@ -28,6 +28,10 @@
         "function": "profileStatsGo"
       },
       {
+        "source": "/githubStatsGo",
+        "function": "githubStatsGo"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
