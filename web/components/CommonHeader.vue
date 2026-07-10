@@ -38,6 +38,9 @@
         </ul>
         <ul class="navbar-nav mb-2 mb-lg-0" v-if="isLogin">
           <li class="nav-item">
+            <nuxt-link class="nav-link active" to="/omikuji">おみくじ</nuxt-link>
+          </li>
+          <li class="nav-item">
             <nuxt-link
               class="nav-link active"
               aria-current="page"
