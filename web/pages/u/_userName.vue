@@ -5,7 +5,7 @@
         <div class="col-12 col-md-5 col-xl-8 mb-4 mb-md-0">
           <div class="p-3 bg-dark h-100 rounded">
             <div class="d-lg-flex align-items-center">
-              <div class="fs-4 me-4">{{ profile.nickName }}</div>
+              <h1 class="fs-4 me-4 mb-0">{{ profile.nickName }}</h1>
             </div>
             <div class="d-flex mt-3 d-md-block">
               <div class="w-35 mb-3 me-3">
@@ -73,7 +73,7 @@
             </div>
             <div class="col-8 col-md-12 mt-md-4">
               <div
-                class="bg-primary text-center d-inline-block p-1 debug-title"
+                class="text-center d-inline-block p-1 label-accent debug-title"
               >
                 <small>でばっぐのうりょく</small>
               </div>
@@ -97,7 +97,7 @@
     <div v-if="!isLogin" class="text-center">
       <nuxt-link
         to="/"
-        class="btn btn-lg btn-primary mt-3 d-block d-md-inline-block"
+        class="btn btn-lg btn-accent mt-3 d-block d-md-inline-block"
         >コントリビュートして<br class="d-md-none" />自分の能力を分析！
       </nuxt-link>
     </div>
@@ -185,18 +185,25 @@ export default {
     this.chartData.datasets[0].data =
       chartMax > 0 ? raw.map((v) => Math.round((v / chartMax) * 100)) : raw;
 
-    this.profile.nickName = response.data.user.display_name;
-    this.profile.screenName = response.data.user.screen_name;
-    this.profile.profileImage = response.data.user.github_image_path;
-    this.status.level = response.data.level;
-    this.status.points = response.data.points;
-    this.status.total = response.data.total;
-    this.status.hp = response.data.hp;
-    this.status.power = response.data.power;
-    this.status.intelligence = response.data.intelligence;
-    this.status.defence = response.data.defence;
-    this.status.agility = response.data.agility;
-    this.status.last_sanpai = response.data.last_sanpai;
+    // dataの空オブジェクトへの後付けプロパティ追加はVue 2では検知されず、
+    // computed(shareMessage等)が初回値のまま固定される。オブジェクトごと
+    // 差し替えてリアクティブにする(#165)。
+    this.profile = {
+      nickName: response.data.user.display_name,
+      screenName: response.data.user.screen_name,
+      profileImage: response.data.user.github_image_path,
+    };
+    this.status = {
+      level: response.data.level,
+      points: response.data.points,
+      total: response.data.total,
+      hp: response.data.hp,
+      power: response.data.power,
+      intelligence: response.data.intelligence,
+      defence: response.data.defence,
+      agility: response.data.agility,
+      last_sanpai: response.data.last_sanpai,
+    };
     if(response){
       this.isLoading = false;
     }

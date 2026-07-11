@@ -1,7 +1,7 @@
 <template>
   <div class="sanpai-grass p-3 rounded">
     <div class="d-flex justify-content-between align-items-center flex-wrap mb-2">
-      <div class="grass-title">⛩️ 参拝の草</div>
+      <h2 class="grass-title fs-6 mb-0">⛩️ 参拝の草</h2>
       <div v-if="state === 'loaded'" class="grass-sub">
         直近1年: {{ recent.totalCount }}回参拝
       </div>
@@ -72,7 +72,7 @@
 // 参拝履歴のヒートマップ(草)。sanpaiHistoryGo から日別集計を取得して表示する。
 // デフォルトは直近1年、「全期間を解析する」ボタンで初参拝まで遡って年別に出す。
 import GrassGrid from "@/components/GrassGrid";
-const { splitYearRanges } = require("@/components/sanpaiGrass");
+const { splitYearRanges } = require("@/utils/sanpaiGrass");
 
 export default {
   components: { GrassGrid },
@@ -154,14 +154,14 @@ export default {
 
 <style scoped>
 .sanpai-grass {
-  background: #0d1117;
+  background: var(--color-surface);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 .grass-title {
   font-weight: 700;
 }
 .grass-sub {
-  color: #9a9a9a;
+  color: var(--color-text-muted);
   font-size: 0.85rem;
 }
 .all-summary {
