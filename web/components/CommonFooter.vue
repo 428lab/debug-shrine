@@ -37,18 +37,6 @@
                 >
                   <i class="fab fa-github fa-lg fa-fw"></i>
                 </a>
-                <!-- <a class="d-inline-block" href="https://428lab.net/" target="_blank">
-                <img src="/brandlogo/lab_icon.svg" alt="" width="40px" />
-              </a>
-              <a class="ms-3 d-inline-block" href="https://blog.428lab.net/" target="_blank">
-                <img src="/brandlogo/hatena_icon.svg" alt="" width="40px" />
-              </a>
-              <a class="ms-3 d-inline-block" href="https://twitter.com/lab_428" target="_blank">
-                <img src="/brandlogo/twitter.svg" alt="" width="40px" />
-              </a>
-              <a class="ms-3 d-inline-block" href="https://www.facebook.com/%E5%9B%9B%E8%B0%B7%E3%83%A9%E3%83%9C-102455797824507/" target="_blank">
-                <img src="/brandlogo/facebook.svg" alt="" width="40px" />
-              </a> -->
               </div>
             </div>
           </div>
