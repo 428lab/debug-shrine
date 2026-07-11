@@ -1,7 +1,7 @@
 <template>
   <div class="github-stats p-3 rounded">
     <div class="d-flex justify-content-between align-items-center flex-wrap mb-2">
-      <div class="gh-title"><i class="fab fa-github fa-fw"></i> GitHubの実績</div>
+      <h2 class="gh-title fs-6 mb-0"><i class="fab fa-github fa-fw"></i> GitHubの実績</h2>
       <div v-if="state === 'loaded'" class="gh-sub">
         {{ fetchedAtText }}
       </div>
@@ -205,14 +205,14 @@ export default {
 
 <style scoped>
 .github-stats {
-  background: #0d1117;
+  background: var(--color-surface);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 .gh-title {
   font-weight: 700;
 }
 .gh-sub {
-  color: #9a9a9a;
+  color: var(--color-text-muted);
   font-size: 0.85rem;
 }
 
@@ -239,7 +239,7 @@ export default {
   margin-left: 1px;
 }
 .tile-label {
-  color: #9a9a9a;
+  color: var(--color-text-muted);
   font-size: 0.8rem;
   margin-top: 2px;
 }
@@ -300,7 +300,7 @@ export default {
   font-weight: 700;
 }
 .repo-desc {
-  color: #9a9a9a;
+  color: var(--color-text-muted);
   font-size: 0.85rem;
   margin: 4px 0 6px;
   display: -webkit-box;

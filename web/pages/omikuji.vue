@@ -1,13 +1,10 @@
 <template>
-  <div class="text-center container py-5" style="max-width: 640px">
+  <div class="text-center container py-5 content-narrow">
     <h1 class="mb-2">おみくじ</h1>
     <p class="text-muted">8時間に1回、ITの運勢を占えるぞ。</p>
 
-    <!-- 状態取得中 -->
-    <div v-if="state === 'loading'" class="my-5">
-      <div class="spinner-border" role="status"></div>
-      <div class="mt-3 text-muted">お伺いを立てています...</div>
-    </div>
+    <!-- 状態取得中(ローディング表現はLoadingコンポーネントに統一) -->
+    <Loading v-if="state === 'loading'" message="お伺いを立てています"></Loading>
 
     <!-- エラー -->
     <div v-else-if="state === 'error'" class="my-5">
@@ -22,7 +19,7 @@
     <!-- 引ける -->
     <div v-else-if="state === 'available'" class="my-5">
       <div class="omikuji-box mx-auto mb-4">⛩️</div>
-      <button class="btn btn-lg btn-danger px-5" @click="startScene">
+      <button class="btn btn-lg btn-accent px-5" @click="startScene">
         おみくじを引く
       </button>
       <div v-if="result" class="mt-3 text-muted small">
@@ -39,17 +36,19 @@
         次に引けるまで <span class="fw-bold">{{ remainingText }}</span>
       </div>
 
-      <!-- コピペ用テキスト(参拝結果と同じUI) -->
-      <div class="my-5 mx-auto" style="max-width: 600px">
-        <ShareText title="SNSで自慢しよう" :text="shareText"></ShareText>
-      </div>
-
       <div class="mt-4">
         <Share
           title="おみくじの結果をSNSで報告しよう"
           :url="shareUrl"
           :message="shareMessage"
+          :text="shareText"
         ></Share>
+      </div>
+
+      <div class="mt-4">
+        <nuxt-link class="btn btn-outline-light" to="/dashboard">
+          マイページで称号を確認
+        </nuxt-link>
       </div>
     </div>
 

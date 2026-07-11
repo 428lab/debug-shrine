@@ -1,7 +1,7 @@
 <template>
   <div class="profile-stats p-3 rounded">
     <div class="d-flex justify-content-between align-items-center flex-wrap mb-2">
-      <div class="stats-title">📊 参拝の記録</div>
+      <h2 class="stats-title fs-6 mb-0">📊 参拝の記録</h2>
     </div>
 
     <div v-if="state === 'loading'" class="stats-sub py-3">
@@ -126,14 +126,14 @@ export default {
 
 <style scoped>
 .profile-stats {
-  background: #0d1117;
+  background: var(--color-surface);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 .stats-title {
   font-weight: 700;
 }
 .stats-sub {
-  color: #9a9a9a;
+  color: var(--color-text-muted);
   font-size: 0.85rem;
 }
 
@@ -164,7 +164,7 @@ export default {
   margin-left: 1px;
 }
 .tile-label {
-  color: #9a9a9a;
+  color: var(--color-text-muted);
   font-size: 0.8rem;
   margin-top: 2px;
 }
