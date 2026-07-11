@@ -3,7 +3,7 @@
     <div v-if="title !== ''">{{ title }}</div>
     <!-- 全文(text)指定時は編集可能なテキストエリアを表示し、
          コピー・シェアシートには編集後のテキストを使う -->
-    <div v-if="text" class="mt-2 mx-auto" style="max-width: 600px">
+    <div v-if="text" class="mt-2 content-narrow">
       <textarea
         class="form-control share-text-area"
         rows="4"
@@ -12,7 +12,7 @@
     </div>
     <!-- 対応環境(主にモバイル)ではOSのシェアシートを一次導線にする -->
     <div v-if="canWebShare" class="mt-2">
-      <button type="button" class="btn btn-primary" @click="webShare">
+      <button type="button" class="btn btn-outline-light" @click="webShare">
         <i class="fas fa-share-alt fa-lg fa-fw"></i>
         シェアする
       </button>

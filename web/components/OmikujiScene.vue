@@ -35,7 +35,7 @@
           </a>
         </div>
         <div v-else>
-          <button class="btn btn-lg btn-danger" @click.stop="onRing">鈴を鳴らす</button>
+          <button class="btn btn-lg btn-accent" @click.stop="onRing">鈴を鳴らす</button>
         </div>
       </div>
       <div v-else-if="phase === 'cascade' || phase === 'fox'" class="hint skip">

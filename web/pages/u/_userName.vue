@@ -73,7 +73,7 @@
             </div>
             <div class="col-8 col-md-12 mt-md-4">
               <div
-                class="bg-primary text-center d-inline-block p-1 debug-title"
+                class="text-center d-inline-block p-1 label-accent debug-title"
               >
                 <small>でばっぐのうりょく</small>
               </div>
@@ -97,7 +97,7 @@
     <div v-if="!isLogin" class="text-center">
       <nuxt-link
         to="/"
-        class="btn btn-lg btn-primary mt-3 d-block d-md-inline-block"
+        class="btn btn-lg btn-accent mt-3 d-block d-md-inline-block"
         >コントリビュートして<br class="d-md-none" />自分の能力を分析！
       </nuxt-link>
     </div>
