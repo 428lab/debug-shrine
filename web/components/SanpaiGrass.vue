@@ -72,7 +72,7 @@
 // 参拝履歴のヒートマップ(草)。sanpaiHistoryGo から日別集計を取得して表示する。
 // デフォルトは直近1年、「全期間を解析する」ボタンで初参拝まで遡って年別に出す。
 import GrassGrid from "@/components/GrassGrid";
-const { splitYearRanges } = require("@/components/sanpaiGrass");
+const { splitYearRanges } = require("@/utils/sanpaiGrass");
 
 export default {
   components: { GrassGrid },

@@ -37,7 +37,7 @@
 
 <script>
 // 1つの草グリッド(期間分)を描画する。直近1年と年別表示(全期間)で共用。
-const { buildGrassGrid, levelFor } = require("@/components/sanpaiGrass");
+const { buildGrassGrid, levelFor } = require("@/utils/sanpaiGrass");
 
 export default {
   props: {
