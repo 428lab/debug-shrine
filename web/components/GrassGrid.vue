@@ -37,7 +37,7 @@
 
 <script>
 // 1つの草グリッド(期間分)を描画する。直近1年と年別表示(全期間)で共用。
-const { buildGrassGrid, levelFor } = require("@/components/sanpaiGrass");
+const { buildGrassGrid, levelFor } = require("@/utils/sanpaiGrass");
 
 export default {
   props: {
@@ -95,7 +95,7 @@ export default {
   position: absolute;
   top: 0;
   font-size: 10px;
-  color: #9a9a9a;
+  color: var(--color-text-muted);
   white-space: nowrap;
 }
 
@@ -115,7 +115,7 @@ export default {
   height: 11px;
   line-height: 11px;
   font-size: 10px;
-  color: #9a9a9a;
+  color: var(--color-text-muted);
 }
 
 /* 草本体 */

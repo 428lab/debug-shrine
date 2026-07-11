@@ -1,7 +1,7 @@
 <template>
   <main class="container p-3">
     <div class="d-md-flex justify-content-between align-items-end" v-if="!isLoading">
-      <div class="fs-1 flex-fill">マイページ</div>
+      <h1 class="fs-1 flex-fill mb-0">マイページ</h1>
       <div class="text-end mt-2 ms-3">
         <nuxt-link :to="`/u/` + user.screen_name"
           >公開プロフィールを確認 ></nuxt-link
@@ -94,7 +94,7 @@
         </div>
         <div class="col-12 col-md-6 col-lg-4">
           <div class="mb-3">前回の参拝：{{ profile.last_sanpai }}</div>
-          <div class="bg-primary rounded p-2 text-center">
+          <div class="p-2 text-center label-accent">
             でばっぐのうりょく
           </div>
           <RadarChart :chartData="chartData" />
@@ -228,11 +228,11 @@ export default {
 }
 
 .badge-section {
-  background: #0d1117;
+  background: var(--color-surface);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 .badge-note {
-  color: #9a9a9a;
+  color: var(--color-text-muted);
   font-size: 0.85rem;
 }
 

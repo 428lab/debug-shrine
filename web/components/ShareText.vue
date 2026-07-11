@@ -8,7 +8,7 @@
     ></textarea>
     <button
       type="button"
-      class="btn btn-primary mt-2"
+      class="btn btn-outline-light mt-2"
       :class="{ copied: copied }"
       @click="copy"
     >

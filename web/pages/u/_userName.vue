@@ -5,7 +5,7 @@
         <div class="col-12 col-md-5 col-xl-8 mb-4 mb-md-0">
           <div class="p-3 bg-dark h-100 rounded">
             <div class="d-lg-flex align-items-center">
-              <div class="fs-4 me-4">{{ profile.nickName }}</div>
+              <h1 class="fs-4 me-4 mb-0">{{ profile.nickName }}</h1>
             </div>
             <div class="d-flex mt-3 d-md-block">
               <div class="w-35 mb-3 me-3">
@@ -73,7 +73,7 @@
             </div>
             <div class="col-8 col-md-12 mt-md-4">
               <div
-                class="bg-primary text-center d-inline-block p-1 debug-title"
+                class="text-center d-inline-block p-1 label-accent debug-title"
               >
                 <small>でばっぐのうりょく</small>
               </div>
@@ -97,7 +97,7 @@
     <div v-if="!isLogin" class="text-center">
       <nuxt-link
         to="/"
-        class="btn btn-lg btn-primary mt-3 d-block d-md-inline-block"
+        class="btn btn-lg btn-accent mt-3 d-block d-md-inline-block"
         >コントリビュートして<br class="d-md-none" />自分の能力を分析！
       </nuxt-link>
     </div>
