@@ -146,9 +146,14 @@
           :text="result === 'success' ? shareText : ''"
         ></Share>
       </div>
-      <nuxt-link class="btn btn-lg btn-primary" to="/dashboard">
-        マイページを見る
-      </nuxt-link>
+      <div>
+        <nuxt-link class="btn btn-lg btn-accent me-2" to="/omikuji">
+          おみくじを引く
+        </nuxt-link>
+        <nuxt-link class="btn btn-lg btn-outline-light" to="/dashboard">
+          マイページを見る
+        </nuxt-link>
+      </div>
     </template>
     <transition name="loading-fade">
       <Loading v-if="isLoading" :messages="loadingMessages"></Loading>
