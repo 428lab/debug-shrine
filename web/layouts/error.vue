@@ -13,7 +13,7 @@
           <div class="fs-2 mt-5" v-else>エラーが発生しました</div>
           <div class="fs-1"><strong>{{ error.statusCode }}</strong></div>
           <div class="fs-4 mt-2">
-            <a href="/" class="btn btn-lg btn-success">トップに戻る</a>
+            <a href="/" class="btn btn-lg btn-outline-light">トップに戻る</a>
           </div>
         </div>
       </div>

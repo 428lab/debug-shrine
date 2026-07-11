@@ -94,7 +94,7 @@
         </div>
         <div class="col-12 col-md-6 col-lg-4">
           <div class="mb-3">前回の参拝：{{ profile.last_sanpai }}</div>
-          <div class="bg-primary rounded p-2 text-center">
+          <div class="p-2 text-center label-accent">
             でばっぐのうりょく
           </div>
           <RadarChart :chartData="chartData" />
