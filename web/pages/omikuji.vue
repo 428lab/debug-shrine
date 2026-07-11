@@ -39,16 +39,12 @@
         次に引けるまで <span class="fw-bold">{{ remainingText }}</span>
       </div>
 
-      <!-- コピペ用テキスト(参拝結果と同じUI) -->
-      <div class="my-5 mx-auto" style="max-width: 600px">
-        <ShareText title="SNSで自慢しよう" :text="shareText"></ShareText>
-      </div>
-
       <div class="mt-4">
         <Share
           title="おみくじの結果をSNSで報告しよう"
           :url="shareUrl"
           :message="shareMessage"
+          :text="shareText"
         ></Share>
       </div>
     </div>

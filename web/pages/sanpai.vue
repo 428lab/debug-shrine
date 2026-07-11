@@ -101,10 +101,6 @@
           </div>
         </div>
 
-        <!-- SNS投稿用テキスト -->
-        <div class="my-5 mx-auto" style="max-width: 600px">
-          <ShareText title="SNSで自慢しよう" :text="shareText"></ShareText>
-        </div>
       </div>
       <div v-else-if="result === 'expire'">
         <div class="px-5">
@@ -147,6 +143,7 @@
           title="参拝したことをSNSで報告しよう"
           :url="shareUrl"
           :message="shareMessage"
+          :text="result === 'success' ? shareText : ''"
         ></Share>
       </div>
       <nuxt-link class="btn btn-lg btn-primary" to="/dashboard">
