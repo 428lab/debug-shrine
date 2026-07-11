@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div class="p-3 text-start bg-black rounded" v-if="isLogin">
+    <div class="p-3 text-start card-shrine" v-if="isLogin">
       <div class="fs-5 mb-3">あなたの順位</div>
       <table v-if="myRanking">
         <tr>
@@ -17,14 +17,13 @@
       <div class="" v-else>まだランキングに反映されていないようです</div>
     </div>
     <div class="text-start mt-3">
-      <div class="card border-primary">
-        <div class="card-header bg-primary">せんとうりょくランキング</div>
-        <div class="list-group list-group-flush text-dark">
+      <div class="card card-shrine ranking-card">
+        <div class="card-header ranking-header">せんとうりょくランキング</div>
+        <div class="list-group list-group-flush">
           <nuxt-link
             class="
               list-group-item list-group-item-action
               d-flex
-              text-dark
               align-items-center
             "
             v-for="item in rankingView"
@@ -55,8 +54,8 @@ import { mapGetters } from "vuex";
 
 export default {
   props: {
-    pagenation: false,
-    max: 100,
+    pagenation: { type: Boolean, default: false },
+    max: { type: Number, default: 100 },
   },
   data() {
     return {
@@ -93,7 +92,22 @@ export default {
 </script>
 
 <style scoped>
-.bg-black {
-  background-color: #000000;
+/* 実績カード群と同じダークカードでランキングを組む
+   (Bootstrapのcard/list-group既定は白背景のため暗色を明示する) */
+.ranking-header {
+  background-color: rgba(255, 255, 255, 0.04);
+  color: var(--color-text);
+  font-weight: 700;
+  border-bottom: 1px solid var(--color-surface-border);
+}
+.ranking-card .list-group-item {
+  background-color: transparent;
+  color: var(--color-text);
+  border-color: var(--color-surface-border);
+}
+.ranking-card .list-group-item-action:hover,
+.ranking-card .list-group-item-action:focus {
+  background-color: rgba(255, 255, 255, 0.06);
+  color: var(--color-text);
 }
 </style>

@@ -6,7 +6,7 @@
 </template>
 
 <script>
-import Ranking from "@/components/ranking";
+import Ranking from "@/components/Ranking";
 
 export default {
   components: { Ranking },
