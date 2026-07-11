@@ -185,18 +185,25 @@ export default {
     this.chartData.datasets[0].data =
       chartMax > 0 ? raw.map((v) => Math.round((v / chartMax) * 100)) : raw;
 
-    this.profile.nickName = response.data.user.display_name;
-    this.profile.screenName = response.data.user.screen_name;
-    this.profile.profileImage = response.data.user.github_image_path;
-    this.status.level = response.data.level;
-    this.status.points = response.data.points;
-    this.status.total = response.data.total;
-    this.status.hp = response.data.hp;
-    this.status.power = response.data.power;
-    this.status.intelligence = response.data.intelligence;
-    this.status.defence = response.data.defence;
-    this.status.agility = response.data.agility;
-    this.status.last_sanpai = response.data.last_sanpai;
+    // dataの空オブジェクトへの後付けプロパティ追加はVue 2では検知されず、
+    // computed(shareMessage等)が初回値のまま固定される。オブジェクトごと
+    // 差し替えてリアクティブにする(#165)。
+    this.profile = {
+      nickName: response.data.user.display_name,
+      screenName: response.data.user.screen_name,
+      profileImage: response.data.user.github_image_path,
+    };
+    this.status = {
+      level: response.data.level,
+      points: response.data.points,
+      total: response.data.total,
+      hp: response.data.hp,
+      power: response.data.power,
+      intelligence: response.data.intelligence,
+      defence: response.data.defence,
+      agility: response.data.agility,
+      last_sanpai: response.data.last_sanpai,
+    };
     if(response){
       this.isLoading = false;
     }
