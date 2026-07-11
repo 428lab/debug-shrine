@@ -22,20 +22,20 @@
               <!-- SNSリンク -->
               <div class="py-2">
                 <a
-                  class="btn bg-twitter text-white"
-                  href="https://twitter.com/debug_shrine"
+                  class="btn bg-x text-white"
+                  href="https://x.com/debug_shrine"
                   target="_blank"
+                  aria-label="X"
                 >
-                  <i class="fab fa-twitter fa-lg fa-fw"></i>
-                  Twitter
+                  <IconX />
                 </a>
                 <a
                   class="ms-3 btn bg-github text-white"
                   href="https://github.com/428lab/debug-shrine"
                   target="_blank"
+                  aria-label="GitHub"
                 >
                   <i class="fab fa-github fa-lg fa-fw"></i>
-                  GitHub
                 </a>
                 <!-- <a class="d-inline-block" href="https://428lab.net/" target="_blank">
                 <img src="/brandlogo/lab_icon.svg" alt="" width="40px" />

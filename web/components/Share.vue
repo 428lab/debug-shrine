@@ -2,13 +2,21 @@
   <div class="">
     <div v-if="title !== ''">{{ title }}</div>
     <div class="mt-2">
-      <a :href="twitterUrl" class="btn text-white bg-twitter" target="_blank">
-        <i class="fab fa-twitter fa-lg fa-fw"></i>
-        Twitter
+      <a
+        :href="xUrl"
+        class="btn text-white bg-x"
+        target="_blank"
+        aria-label="Xでシェア"
+      >
+        <IconX />
       </a>
-      <a :href="facebookUrl" class="btn text-white bg-facebook" target="_blank">
+      <a
+        :href="facebookUrl"
+        class="btn text-white bg-facebook"
+        target="_blank"
+        aria-label="Facebookでシェア"
+      >
         <i class="fab fa-facebook fa-lg fa-fw"></i>
-        Facebook
       </a>
     </div>
   </div>
@@ -24,9 +32,9 @@ export default {
     message: "",
   },
   computed: {
-    twitterUrl() {
+    xUrl() {
       return (
-        "https://twitter.com/intent/tweet?url=" +
+        "https://x.com/intent/post?url=" +
         encodeURIComponent(this.url) +
         "&text=" +
         encodeURIComponent(this.message) +
