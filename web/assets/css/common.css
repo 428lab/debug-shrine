@@ -2,11 +2,17 @@ body {
     background-image: url(/background.png);
     background-repeat: repeat;
     background-size: 8%;
-    color: #fff;
+    color: var(--color-text);
 }
 
 a {
-    color: #ccc;
+    color: var(--color-link);
+}
+
+/* インラインコード(aboutの`でばっぐ神社とは`等)。
+   Bootstrap既定のピンクをやめ、サイトの暖色トーンに合わせる */
+code {
+    color: var(--color-accent-soft);
 }
 
 .w-35 {
@@ -19,4 +25,53 @@ a {
 
 .h-min-100vh {
    min-height: 100vh;
+}
+
+/* 本文系コンテンツの標準幅(インラインstyleのmax-width散在を置き換える) */
+.content-narrow {
+    max-width: var(--width-content);
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* ダークカード(GitHub実績カード・参拝の草と同系のサーフェス) */
+.card-shrine {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-surface-border);
+    border-radius: 0.5rem;
+    color: var(--color-text);
+}
+
+/* セクション見出し(実績カード群の見出しと同じ、太字ゴシック) */
+.section-title {
+    font-size: 1.35rem;
+    font-weight: 700;
+}
+
+/* 主要アクション(参拝・おみくじ・鈴)は琥珀のボタン。汎用はBootstrap標準のまま */
+.btn-accent {
+    color: #1a1206;
+    font-weight: 700;
+    background-color: var(--color-accent);
+    border-color: var(--color-accent);
+}
+.btn-accent:hover,
+.btn-accent:focus,
+.btn-accent:active {
+    color: #1a1206;
+    background-color: var(--color-accent-hover);
+    border-color: var(--color-accent-hover);
+}
+
+/* ボタンに見えない強調ラベル(「でばっぐのうりょく」等) */
+.label-accent {
+    color: var(--color-accent-soft);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+}
+
+/* 経験値バー等の進捗もトーンを揃える */
+.progress-bar {
+    background-color: var(--color-accent);
+    color: #1a1206;
 }

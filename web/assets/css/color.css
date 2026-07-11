@@ -1,37 +1,44 @@
-.text-twitter {
-  color: #1da1f2;
-}
-.text-facebook {
-  color: #1778f2;
-}
-.text-hatena {
-  color: #1da1f2;
-}
-.text-github {
-  color: #333;
-}
-.text-connpass {
-  color: #666;
+/* デザイントークン(#166)
+   基準は「夜の神社×暖色」(おみくじ演出・実績カード群のトーン)。
+   色はここで一元管理し、各所ではトークンを参照する */
+:root {
+  /* ベース */
+  --color-text: #ffffff;
+  --color-text-muted: #adb5bd;
+  --color-link: #cccccc;
+
+  /* サーフェス(GitHub実績カード等と同系のダークカード) */
+  --color-surface: #0d1117;
+  --color-surface-border: #30363d;
+
+  /* アクセント(提灯・鈴の金に合わせた琥珀) */
+  --color-accent: #e0a83c;
+  --color-accent-hover: #c98f2a;
+  --color-accent-soft: #ffcf6b;
+
+  /* SNSブランド色 */
+  --color-x: #000000;
+  --color-bluesky: #0085ff;
+  --color-facebook: #1778f2;
+  --color-github: #333333;
+  --color-discord: #5865f2;
+
+  /* レイアウト */
+  --width-content: 600px;
 }
 
 .bg-x {
-  background-color: #000000;
+  background-color: var(--color-x);
 }
 .bg-bluesky {
-  background-color: #0085ff;
+  background-color: var(--color-bluesky);
 }
 .bg-facebook {
-  background-color: #1778f2;
-}
-.bg-line {
-  background-color: #00B900;
-}
-.bg-hatena {
-  background-color: #1da1f2;
+  background-color: var(--color-facebook);
 }
 .bg-github {
-  background-color: #333;
+  background-color: var(--color-github);
 }
 .bg-discord {
-  background-color: #5865F2;
+  background-color: var(--color-discord);
 }
