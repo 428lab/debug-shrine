@@ -1,6 +1,15 @@
 <template>
   <div class="">
     <div v-if="title !== ''">{{ title }}</div>
+    <!-- 全文(text)指定時は編集可能なテキストエリアを表示し、
+         コピー・シェアシートには編集後のテキストを使う -->
+    <div v-if="text" class="mt-2 mx-auto" style="max-width: 600px">
+      <textarea
+        class="form-control share-text-area"
+        rows="4"
+        v-model="editableText"
+      ></textarea>
+    </div>
     <!-- 対応環境(主にモバイル)ではOSのシェアシートを一次導線にする -->
     <div v-if="canWebShare" class="mt-2">
       <button type="button" class="btn btn-primary" @click="webShare">
@@ -60,7 +69,13 @@ export default {
       canWebShare: false,
       copied: false,
       resetTimer: null,
+      editableText: this.text,
     };
+  },
+  watch: {
+    text(value) {
+      this.editableText = value;
+    },
   },
   mounted() {
     this.canWebShare = typeof navigator !== "undefined" && !!navigator.share;
@@ -69,9 +84,9 @@ export default {
     clearTimeout(this.resetTimer);
   },
   computed: {
-    // コピー用の全文
+    // コピー用の全文(テキストエリアで編集した内容を優先)
     fullText() {
-      if (this.text) return this.text;
+      if (this.editableText) return this.editableText;
       return [this.message, this.url].filter(Boolean).join("\n");
     },
     // 直リンクは短文+URL(全文はintentには長すぎる)
@@ -103,9 +118,9 @@ export default {
   methods: {
     async webShare() {
       try {
-        // text に URL が含まれるケースの重複を避けるため使い分ける
-        if (this.text) {
-          await navigator.share({ text: this.text });
+        // 全文(URL込み)がある場合はそれを、無い場合は message + url を渡す
+        if (this.editableText) {
+          await navigator.share({ text: this.editableText });
         } else {
           await navigator.share({ text: this.message, url: this.url });
         }
@@ -124,3 +139,9 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.share-text-area {
+  resize: vertical;
+}
+</style>
