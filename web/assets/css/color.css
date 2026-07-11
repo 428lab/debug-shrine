@@ -4,7 +4,7 @@
 :root {
   /* ベース */
   --color-text: #ffffff;
-  --color-text-muted: #adb5bd;
+  --color-text-muted: #9a9a9a;
   --color-link: #cccccc;
 
   /* サーフェス(GitHub実績カード等と同系のダークカード) */

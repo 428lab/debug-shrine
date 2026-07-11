@@ -95,7 +95,7 @@ export default {
   position: absolute;
   top: 0;
   font-size: 10px;
-  color: #9a9a9a;
+  color: var(--color-text-muted);
   white-space: nowrap;
 }
 
@@ -115,7 +115,7 @@ export default {
   height: 11px;
   line-height: 11px;
   font-size: 10px;
-  color: #9a9a9a;
+  color: var(--color-text-muted);
 }
 
 /* 草本体 */
