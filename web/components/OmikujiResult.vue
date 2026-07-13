@@ -14,6 +14,16 @@
           <span class="txt">{{ l.text }}</span>
         </li>
       </ul>
+
+      <!-- 物理乱数の出自(kudaで引いたときだけ表示) -->
+      <div v-if="isPhysical" class="entropy">
+        <div>⚛️ この御籤は量子ゆらぎと放射性崩壊(物理乱数)が決めました</div>
+        <div class="entropy-batches">
+          <span v-for="b in result.entropy.batches" :key="b" class="entropy-batch">{{
+            b
+          }}</span>
+        </div>
+      </div>
     </div>
   </transition>
 </template>
@@ -36,6 +46,14 @@ export default {
   computed: {
     meta() {
       return META[this.result.tier] || { key: "chukichi", emoji: "🔮", accent: "#888" };
+    },
+    // kuda(物理乱数)で引いた結果のみ true。導入前の保存結果には entropy が無い。
+    isPhysical() {
+      return (
+        this.result.entropy &&
+        this.result.entropy.source === "physical" &&
+        Array.isArray(this.result.entropy.batches)
+      );
     },
   },
 };
@@ -109,6 +127,29 @@ export default {
   color: #3a2f28;
   font-size: 0.98rem;
   line-height: 1.55;
+}
+
+/* 物理乱数の出自 */
+.entropy {
+  border-top: 1px dashed rgba(0, 0, 0, 0.12);
+  margin: 0 16px;
+  padding: 10px 0 14px;
+  color: #8a7f74;
+  font-size: 0.74rem;
+  line-height: 1.5;
+}
+.entropy-batches {
+  margin-top: 4px;
+}
+.entropy-batch {
+  display: inline-block;
+  font-family: SFMono-Regular, Consolas, Menlo, monospace;
+  font-size: 0.68rem;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-right: 4px;
+  word-break: break-all;
 }
 
 /* レア度ごとの縁取り */
