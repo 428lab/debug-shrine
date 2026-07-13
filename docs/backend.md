@@ -576,3 +576,38 @@ sanpai_logs / omikuji_logs を集計して返す(表示: `web/components/Profile
 - OGP画像はGCSにキャッシュされるため、オブジェクト名を世代付き
   (`ogps/{user}_v3.webp`、`userogp.go` の `ogpObjectName`)にして旧カードを無効化。
   描画内容を変えるときはこの世代を上げること(旧世代は scheduled_ogp_delete が掃除)。
+
+## おみくじの物理乱数化(kuda)
+
+おみくじの抽選乱数を Go の `math/rand`(疑似乱数)から 428lab/kuda
+(https://kuda.kojiran.workers.dev)の**物理エントロピー**に置き換えた。
+kuda は ANU の量子真空ゆらぎ+ガイガーカウンター(放射性崩壊)をプールし、
+`GET /drop` で1バイトずつ払い出す(消費したバイトは不可逆削除)。
+
+### kudaの原則に対するこちらの振る舞い
+
+- **引いた値の拒否(rejection sampling)はしない**。値→確率の写像は
+  スケーリングのみ(`bytesToUnitFloat` / `byteToUnitFloat`)。
+- **疑似乱数へフォールバックしない**。枯渇(503)・停止・タイムアウト時は
+  `{status:"no_entropy"}` を返し、フロントは「御籤の源が尽きておる」を表示。
+  このとき `last_omikuji` は書かない=クールダウンを消費しないので、
+  補充後すぐ引き直せる。
+- peek(状態確認)はkudaに触れない。バイトを消費するのは実際の抽選だけ。
+
+### バイト割当とエントロピー収支
+
+- 1回の抽選 = **3バイト**: tier に2バイト(重み合計100に対する量子化誤差
+  ~0.003%)、文言に1バイト(レア度ごと15件のflavor用途)。
+- kudaのプールは1日1024バイト(ANU cron)+home注入 ≒ 約340回/日の抽選。
+  クールダウン8hの現ユーザー規模では十分。
+- `/drop` は並列3コール・全体タイムアウト4秒(`kuda.go`)。
+
+### 出自の記録・表示
+
+- 結果(`omikuji_result` 保存含む)に `entropy: {source:"physical",
+  batches:[...]}`(kudaのバッチラベル。重複除去済み)を付与し、
+  結果カード下部に「⚛️ この御籤は量子ゆらぎと放射性崩壊(物理乱数)が
+  決めました」+バッチを表示する。導入前の結果には entropy が無く非表示。
+- `omikuji_logs` にも `entropy_batches` を記録(監査用)。
+- 接続先は env `KUDA_BASE_URL`(dev/prod とも本番kudaを使用。テストは
+  httptest モックで実プールを消費しない)。

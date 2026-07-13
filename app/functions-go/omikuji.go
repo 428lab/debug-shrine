@@ -12,7 +12,6 @@ package gofunctions
 import (
 	"context"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
 	"strconv"
@@ -246,8 +245,23 @@ func runOmikuji(ctx context.Context, w http.ResponseWriter, client *firestore.Cl
 		return nil
 	}
 
-	tier := drawTierByValue(rand.Float64())
-	entry, ok := pickEntryByValue(tier, rand.Float64())
+	// 抽選は kuda の物理乱数(量子ゆらぎ/放射性崩壊)で行う。1回の抽選で
+	// 3バイト消費: tier に2バイト(重み合計100に対し量子化誤差~0.003%)、
+	// 文言に1バイト(プール15件のflavor用途)。
+	// kuda が枯渇(503)・停止中は疑似乱数へフォールバックせず「引けない」を
+	// 返す(ユーザー決定。クールダウンは消費しないので復旧後に引き直せる)。
+	drops, err := fetchKudaBytes(ctx, 3)
+	if err != nil {
+		log.Printf("omikuji: kuda unavailable: %v", err)
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"status":  "no_entropy",
+			"message": "physical entropy unavailable",
+		})
+		return nil
+	}
+
+	tier := drawTierByValue(bytesToUnitFloat(drops[0].Value, drops[1].Value))
+	entry, ok := pickEntryByValue(tier, byteToUnitFloat(drops[2].Value))
 	if !ok {
 		// データ不備(そのレア度のエントリが存在しない)。異常系として扱う。
 		return errNoEntryForTier(tier)
@@ -258,6 +272,11 @@ func runOmikuji(ctx context.Context, w http.ResponseWriter, client *firestore.Cl
 		"tier":    entry.Tier,
 		"fortune": entry.Fortune,
 		"lines":   linesToMaps(entry.Lines),
+		// 出自(結果カードに「物理乱数が決めた」ことを表示するため保存にも含める)
+		"entropy": map[string]interface{}{
+			"source":  "physical",
+			"batches": dedupBatches(drops),
+		},
 	}
 
 	if _, err := userRef.Update(ctx, []firestore.Update{
@@ -269,10 +288,12 @@ func runOmikuji(ctx context.Context, w http.ResponseWriter, client *firestore.Cl
 
 	// 統計・称号用の履歴(読み手: profileStatsGo)。sanpai_logs と同じ流儀で
 	// 1回の抽選ごとに1ドキュメント残す。導入以前の抽選は遡れない。
+	// entropy_batches は物理乱数の出自(監査用。kudaのバッチラベル)。
 	if _, _, err := userRef.Collection("omikuji_logs").Add(ctx, map[string]interface{}{
-		"entry_id":  entry.ID,
-		"tier":      entry.Tier,
-		"timestamp": firestore.ServerTimestamp,
+		"entry_id":        entry.ID,
+		"tier":            entry.Tier,
+		"timestamp":       firestore.ServerTimestamp,
+		"entropy_batches": dedupBatches(drops),
 	}); err != nil {
 		return err
 	}
