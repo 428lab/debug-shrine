@@ -9,6 +9,19 @@
           </div> -->
         </div>
         <div class="col-12 col-md-6 col-lg-4 mb-5 text-center align-self-end">
+          <!-- 看板娘らぼみ(セリフの口調は docs/character.md 参照) -->
+          <div class="labomi-stage">
+            <div v-if="labomiLine" class="labomi-bubble" role="note">
+              {{ labomiLine }}
+            </div>
+            <img
+              src="/labomi/labomi_01.png"
+              alt="らぼみ(でばっぐ神社の巫女)"
+              class="labomi-img"
+              width="360"
+              height="480"
+            />
+          </div>
           <div class="mt-4" v-if="!isLogin">
             <button
               @click="GitHubAuth"
@@ -141,7 +154,18 @@ export default {
       buttons: {
         sanpai: false,
       },
+      // らぼみの吹き出し。SSR/CSRの差異を避けるため mounted で選ぶ(初期は空)。
+      labomiLine: "",
     };
+  },
+  mounted() {
+    this.pickLabomiLine();
+  },
+  watch: {
+    // ログイン状態が変わったら(認証復元含む)セリフプールを切り替える
+    isLogin() {
+      this.pickLabomiLine();
+    },
   },
   async beforeMount() {
     const auth = getAuth();
@@ -155,6 +179,22 @@ export default {
     });
   },
   methods: {
+    // らぼみのセリフ(オタクに優しいギャル。口調は docs/character.md 準拠)。
+    // 表示のたびにランダムで1つ選び、再訪の楽しみにする。
+    pickLabomiLine() {
+      const guest = [
+        "GitHubと連携して参拝してこ!あーしが見ててあげるから!",
+        "でばっぐ神社へようこそ〜!参拝すると戦闘力出るの、ちょーウケるよww",
+        "コントリビュートしてから来た?してないなら…ガン萎えだわ〜",
+      ];
+      const member = [
+        "おかえり〜!今日も参拝してくの?えらすぎ、最高かよ!",
+        "連続参拝続いてる?なんとかなるっしょ!って思ったら草枯れるからね?",
+        "おみくじ引いた?物理乱数だから文句は宇宙に言って〜www",
+      ];
+      const pool = this.isLogin ? member : guest;
+      this.labomiLine = pool[Math.floor(Math.random() * pool.length)];
+    },
     GitHubAuth() {
       this.buttons.sanpai = true;
       const provider = new GithubAuthProvider();
@@ -216,5 +256,59 @@ export default {
 .main-logo {
   width: 100%;
   max-width: 600px;
+}
+
+/* 看板娘らぼみ */
+.labomi-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.labomi-bubble {
+  position: relative;
+  background: #fdfaf3;
+  color: #3a2f28;
+  border-radius: 14px;
+  padding: 10px 14px;
+  max-width: 320px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.55;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+/* 吹き出しのしっぽ(下向き) */
+.labomi-bubble::after {
+  content: "";
+  position: absolute;
+  bottom: -9px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-top: 10px solid #fdfaf3;
+}
+.labomi-img {
+  margin-top: 14px;
+  /* 元画像 360x480(3:4)。高さ基準で可変にする */
+  height: clamp(200px, 30vw, 280px);
+  width: auto;
+  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.45));
+  animation: labomi-float 3.2s ease-in-out infinite;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+@keyframes labomi-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .labomi-img {
+    animation: none;
+  }
 }
 </style>
