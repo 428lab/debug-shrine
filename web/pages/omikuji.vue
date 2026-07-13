@@ -57,6 +57,21 @@
       次に引けるまで <span class="fw-bold">{{ remainingText }}</span>
     </div>
 
+    <!-- 物理乱数(kuda)が枯渇・停止中。疑似乱数では引かない -->
+    <div v-else-if="state === 'empty'" class="my-5">
+      <div class="fs-1">⚛️</div>
+      <div class="fs-4 mt-3">
+        「御籤の源(物理乱数)が尽きておる…<br class="d-md-none" />しばし待たれよ。」
+      </div>
+      <p class="text-muted mt-2 small">
+        この神社のおみくじは量子ゆらぎと放射性崩壊の実測値だけで引かれます。
+        エントロピーが補充されるまでお待ちください。
+      </p>
+      <button class="btn btn-outline-secondary mt-2" @click="fetchStatus">
+        もう一度確かめる
+      </button>
+    </div>
+
     <!-- 抽選演出(鈴の緒 → 連鎖 → 狐が選ぶ)。全画面オーバーレイ -->
     <OmikujiScene
       v-if="state === 'animating'"
@@ -87,7 +102,7 @@ export default {
   components: { ResultCard, OmikujiScene },
   data() {
     return {
-      state: "loading", // loading | available | animating | cooldown | error
+      state: "loading", // loading | available | animating | cooldown | empty(物理乱数枯渇) | error
       result: null,
       pendingResult: null, // 演出中に保持(着地まで表示しない)
       remaining: 0, // 次に引けるまでの秒
@@ -186,6 +201,10 @@ export default {
         this.startTimer();
       } else if (d.status === "available") {
         this.state = "available";
+      } else if (d.status === "no_entropy") {
+        // 物理乱数(kuda)が枯渇・停止中。クールダウンは消費されていないので
+        // 補充され次第また引ける。
+        this.state = "empty";
       } else {
         // not registered / failed など
         this.state = "error";

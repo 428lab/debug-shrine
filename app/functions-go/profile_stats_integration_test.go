@@ -100,6 +100,7 @@ func TestProfileStats_Basic(t *testing.T) {
 // おみくじを引くと omikuji_logs が書かれる(profileStatsGoのデータ源になる)ことの確認。
 func TestOmikuji_WritesLog(t *testing.T) {
 	client := emulatorClient(t)
+	mockKuda(t)
 	ctx := context.Background()
 	t.Setenv("OMIKUJI_COOLDOWN_SECONDS", "3600")
 
@@ -134,5 +135,8 @@ func TestOmikuji_WritesLog(t *testing.T) {
 	data := docs[0].Data()
 	if data["tier"] == "" || data["entry_id"] == "" || data["timestamp"] == nil {
 		t.Errorf("omikuji_log fields missing: %v", data)
+	}
+	if batches, ok := data["entropy_batches"].([]interface{}); !ok || len(batches) == 0 {
+		t.Errorf("omikuji_log entropy_batches missing: %v", data["entropy_batches"])
 	}
 }
