@@ -22,6 +22,7 @@ func decodeOmikujiResp(t *testing.T, rec *httptest.ResponseRecorder) map[string]
 
 func TestOmikuji_RunOmikuji_PeekDrawCooldown(t *testing.T) {
 	client := emulatorClient(t)
+	kuda := mockKuda(t)
 	ctx := context.Background()
 	t.Setenv("OMIKUJI_COOLDOWN_SECONDS", "3600")
 
@@ -34,13 +35,16 @@ func TestOmikuji_RunOmikuji_PeekDrawCooldown(t *testing.T) {
 
 	body := omikujiRequestBody{GithubID: uid}
 
-	// 1) peek: 未抽選なので available
+	// 1) peek: 未抽選なので available。kuda(物理乱数)は消費しない
 	rec := httptest.NewRecorder()
 	if err := runOmikuji(ctx, rec, client, omikujiRequestBody{GithubID: uid, Peek: true}); err != nil {
 		t.Fatalf("runOmikuji peek: %v", err)
 	}
 	if got := decodeOmikujiResp(t, rec)["status"]; got != "available" {
 		t.Fatalf("peek status = %v, want available", got)
+	}
+	if kuda.Calls != 0 {
+		t.Errorf("peek should not consume kuda bytes (calls=%d)", kuda.Calls)
 	}
 
 	// 2) draw: success + 結果 + 保存
@@ -55,6 +59,17 @@ func TestOmikuji_RunOmikuji_PeekDrawCooldown(t *testing.T) {
 	result, ok := resp["result"].(map[string]interface{})
 	if !ok || result["tier"] == "" || result["fortune"] == "" {
 		t.Fatalf("draw result missing tier/fortune: %v", resp["result"])
+	}
+	// 抽選は3バイト消費し、結果に出自(entropy)が付く
+	if kuda.Calls != 3 {
+		t.Errorf("draw should consume 3 kuda bytes (calls=%d)", kuda.Calls)
+	}
+	entropy, ok := result["entropy"].(map[string]interface{})
+	if !ok || entropy["source"] != "physical" {
+		t.Errorf("result entropy = %v, want source=physical", result["entropy"])
+	}
+	if batches, ok := entropy["batches"].([]interface{}); !ok || len(batches) == 0 {
+		t.Errorf("entropy batches = %v, want non-empty", entropy["batches"])
 	}
 	// 保存確認
 	snap, err := userRef.Get(ctx)
@@ -82,6 +97,49 @@ func TestOmikuji_RunOmikuji_PeekDrawCooldown(t *testing.T) {
 	}
 	if _, ok := resp2["result"].(map[string]interface{}); !ok {
 		t.Errorf("cooldown response should include previous result")
+	}
+}
+
+// kuda(物理乱数)が枯渇・停止しているときは疑似乱数へフォールバックせず
+// no_entropy を返し、クールダウン(last_omikuji)を消費しない。
+func TestOmikuji_RunOmikuji_NoEntropy(t *testing.T) {
+	client := emulatorClient(t)
+	kuda := mockKuda(t)
+	kuda.Depleted = true
+	ctx := context.Background()
+	t.Setenv("OMIKUJI_COOLDOWN_SECONDS", "3600")
+
+	uid := "omikuji-test-user-3"
+	userRef := client.Collection("users").Doc(uid)
+	if _, err := userRef.Set(ctx, map[string]interface{}{"screen_name": "tester3"}); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	t.Cleanup(func() { userRef.Delete(context.Background()) })
+
+	rec := httptest.NewRecorder()
+	if err := runOmikuji(ctx, rec, client, omikujiRequestBody{GithubID: uid}); err != nil {
+		t.Fatalf("runOmikuji: %v", err)
+	}
+	if got := decodeOmikujiResp(t, rec)["status"]; got != "no_entropy" {
+		t.Fatalf("status = %v, want no_entropy", got)
+	}
+	// クールダウンは消費されない(復旧後にすぐ引き直せる)
+	snap, err := userRef.Get(ctx)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	if _, err := snap.DataAt("last_omikuji"); err == nil {
+		t.Error("last_omikuji should NOT be written on no_entropy")
+	}
+
+	// 復旧したら普通に引ける
+	kuda.Depleted = false
+	rec = httptest.NewRecorder()
+	if err := runOmikuji(ctx, rec, client, omikujiRequestBody{GithubID: uid}); err != nil {
+		t.Fatalf("runOmikuji after recovery: %v", err)
+	}
+	if got := decodeOmikujiResp(t, rec)["status"]; got != "success" {
+		t.Errorf("status after recovery = %v, want success", got)
 	}
 }
 
