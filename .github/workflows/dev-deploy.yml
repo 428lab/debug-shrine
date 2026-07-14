@@ -275,6 +275,10 @@ jobs:
           deploy githubStatsGo GithubStatsGo \
             --trigger-http --allow-unauthenticated --memory=256Mi --timeout=60s \
             --set-env-vars="GITHUB_CLIENT_ID=$SANPAI_GH_CLIENT_ID,GITHUB_CLIENT_SECRET=$SANPAI_GH_CLIENT_SECRET"
+          # ピン留め保存(GitHubでリポジトリを検証するため同じ資格情報を使う)
+          deploy pinnedReposGo PinnedReposGo \
+            --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s \
+            --set-env-vars="GITHUB_CLIENT_ID=$SANPAI_GH_CLIENT_ID,GITHUB_CLIENT_SECRET=$SANPAI_GH_CLIENT_SECRET"
           deploy omikujiGo OmikujiGo \
             --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s \
             --set-env-vars="OMIKUJI_COOLDOWN_SECONDS=60,KUDA_BASE_URL=https://kuda.kojiran.workers.dev"
