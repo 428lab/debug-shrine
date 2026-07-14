@@ -81,7 +81,9 @@ type githubStatsData struct {
 
 type githubStatsResponse struct {
 	githubStatsData
-	FetchedAt string `json:"fetched_at"`
+	// TopRepos の選出元: "pinned"(本人指定) or "stars"(スター上位の自動選出)
+	TopReposSource string `json:"top_repos_source"`
+	FetchedAt      string `json:"fetched_at"`
 }
 
 func githubStatsHandler(w http.ResponseWriter, r *http.Request) {
@@ -123,9 +125,14 @@ func runGithubStats(ctx context.Context, w http.ResponseWriter, client *firestor
 		return nil
 	}
 
+	// 本人がピン留めしていれば top_repos をそれで置き換える(pinnedReposGoが
+	// GitHub検証済みの実データを保存している)。github_stats キャッシュとは
+	// 独立に毎リクエスト反映されるので、ピン変更に6hのTTLは掛からない。
+	pinned := readPinnedRepos(userDoc)
+
 	cached, fetchedAt := readGithubStatsCache(userDoc)
 	if cached != nil && now.Sub(fetchedAt) < githubStatsTTL {
-		writeGithubStatsResponse(w, *cached, fetchedAt)
+		writeGithubStatsResponse(w, *cached, pinned, fetchedAt)
 		return nil
 	}
 
@@ -134,7 +141,7 @@ func runGithubStats(ctx context.Context, w http.ResponseWriter, client *firestor
 		// GitHub側の失敗。古いキャッシュがあればそれで凌ぐ(可用性優先)。
 		if cached != nil {
 			log.Printf("githubStats: fetch failed, serving stale cache: %v", err)
-			writeGithubStatsResponse(w, *cached, fetchedAt)
+			writeGithubStatsResponse(w, *cached, pinned, fetchedAt)
 			return nil
 		}
 		log.Printf("githubStats: fetch failed with no cache: %v", err)
@@ -149,17 +156,40 @@ func runGithubStats(ctx context.Context, w http.ResponseWriter, client *firestor
 		return err
 	}
 
-	writeGithubStatsResponse(w, stats, now)
+	writeGithubStatsResponse(w, stats, pinned, now)
 	return nil
 }
 
-func writeGithubStatsResponse(w http.ResponseWriter, stats githubStatsData, fetchedAt time.Time) {
+func writeGithubStatsResponse(w http.ResponseWriter, stats githubStatsData, pinned []githubTopRepo, fetchedAt time.Time) {
+	source := "stars"
+	if len(pinned) > 0 {
+		stats.TopRepos = pinned
+		source = "pinned"
+	}
 	// 公開データ・userでキー分離。Firestore側で6hキャッシュするためCDNも長めで良い。
 	w.Header().Set("Cache-Control", "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400")
 	writeJSON(w, http.StatusOK, githubStatsResponse{
 		githubStatsData: stats,
+		TopReposSource:  source,
 		FetchedAt:       fetchedAt.UTC().Format(time.RFC3339),
 	})
+}
+
+// readPinnedRepos はユーザードキュメントの pinned_repos を読む(無ければnil)。
+func readPinnedRepos(userDoc *firestore.DocumentSnapshot) []githubTopRepo {
+	raw, err := userDoc.DataAt("pinned_repos")
+	if err != nil || raw == nil {
+		return nil
+	}
+	b, err := json.Marshal(raw)
+	if err != nil {
+		return nil
+	}
+	var pinned []githubTopRepo
+	if err := json.Unmarshal(b, &pinned); err != nil {
+		return nil
+	}
+	return pinned
 }
 
 func readGithubStatsCache(userDoc *firestore.DocumentSnapshot) (*githubStatsData, time.Time) {

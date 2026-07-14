@@ -62,9 +62,29 @@
         </div>
       </template>
 
-      <!-- 代表リポジトリ(スター上位) -->
-      <template v-if="stats.top_repos.length > 0">
-        <div class="gh-sub mt-3 mb-1">代表リポジトリ</div>
+      <!-- 代表リポジトリ(本人のピン留め or スター上位の自動選出) -->
+      <template v-if="stats.top_repos.length > 0 || editable">
+        <div class="d-flex align-items-center mt-3 mb-1">
+          <div class="gh-sub">
+            {{ stats.top_repos_source === "pinned" ? "📌 ピン留めリポジトリ" : "代表リポジトリ" }}
+          </div>
+          <button
+            v-if="editable && !pickerOpen"
+            class="btn btn-sm btn-outline-light ms-2 pick-btn"
+            @click="pickerOpen = true"
+          >
+            📌 選ぶ
+          </button>
+        </div>
+        <RepoPicker
+          v-if="pickerOpen"
+          class="mb-2"
+          :screen-name="screenName"
+          :github-id="githubId"
+          :initial-pinned="pinnedNames"
+          @saved="onPinsSaved"
+          @close="pickerOpen = false"
+        />
         <div class="repo-grid">
           <a
             v-for="r in stats.top_repos"
@@ -132,17 +152,30 @@ const LANG_COLORS = {
 };
 const OTHER_COLOR = "#8b949e";
 
+import RepoPicker from "@/components/RepoPicker";
+
 export default {
+  components: { RepoPicker },
   props: {
     screenName: { type: String, required: true },
+    // マイページ(本人)でのみ true: ピン留めの編集UIを出す
+    editable: { type: Boolean, default: false },
+    // 編集(pinnedReposGoへの保存)に使う。editable時のみ必要
+    githubId: { type: String, default: "" },
   },
   data() {
     return {
       state: "loading", // loading | loaded | error
       stats: null,
+      pickerOpen: false,
     };
   },
   computed: {
+    // 現在ピン留め表示中のリポジトリ名(編集パネルの初期選択)
+    pinnedNames() {
+      if (!this.stats || this.stats.top_repos_source !== "pinned") return [];
+      return (this.stats.top_repos || []).map((r) => r.name);
+    },
     githubYears() {
       if (!this.stats.account_created_at) return "-";
       const ms = Date.now() - new Date(this.stats.account_created_at).getTime();
@@ -186,12 +219,29 @@ export default {
     langColor(name) {
       return LANG_COLORS[name] || OTHER_COLOR;
     },
-    async fetchStats() {
+    // 保存成功 → サーバー検証済みのピンで即時反映(公開ページはCDN失効後に追従)
+    onPinsSaved(pinned) {
+      if (pinned.length > 0) {
+        this.stats = {
+          ...this.stats,
+          top_repos: pinned,
+          top_repos_source: "pinned",
+        };
+      } else {
+        // ピン解除はスター上位に戻る。CDNの古い応答を掴まないよう
+        // キャッシュバスター付きで取り直す
+        this.fetchStats(true);
+      }
+      this.pickerOpen = false;
+    },
+    async fetchStats(bustCache) {
       this.state = "loading";
       try {
+        const params = { user: this.screenName };
+        if (bustCache) params._ = Date.now();
         const res = await this.$axios.get("/githubStatsGo", {
           baseURL: this.$config.rankingBaseUrl || this.$config.apiUrl,
-          params: { user: this.screenName },
+          params: params,
         });
         this.stats = res.data;
         this.state = "loaded";
