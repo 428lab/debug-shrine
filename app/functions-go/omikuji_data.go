@@ -29,7 +29,7 @@ var omikujiEntries = []omikujiEntry{
 		{Category: "レビュー運", Text: "あなたのPRが社内勉強会の教材に昇格する。"},
 		{Category: "金運", Text: "本棚の技術書が絶版プレミアになっている。"},
 	}},
-	{ID: "chokichi-006", Tier: TierChokichi, Fortune: "Stack Overflowで質問したら、3分後にライブラリ作者本人から回答が来た。", Lines: []omikujiLine{
+	{ID: "chokichi-006", Tier: TierChokichi, Fortune: "バグ報告のissueを立てたら、3分後に作者本人が修正PR付きで現れた。", Lines: []omikujiLine{
 		{Category: "対人運", Text: "雲の上の人が『いいね』ではなく『一緒にやろう』と言ってくる。"},
 		{Category: "願望", Text: "OSSにスターが付く速度が、通知を読む速度を超える。"},
 		{Category: "デプロイ運", Text: "依存ライブラリが今日だけ誰も破壊的変更をしない。"},
