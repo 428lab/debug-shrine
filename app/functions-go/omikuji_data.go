@@ -9,50 +9,50 @@ var omikujiEntries = []omikujiEntry{
 		{Category: "デプロイ運", Text: "金曜17時にデプロイしたのに、月曜になっても何も起きていない。"},
 		{Category: "願望", Text: "願う前に叶っている。むしろ叶ってから願っている。"},
 	}},
-	{ID: "chokichi-002", Tier: TierChokichi, Fortune: "git push --force して誰の作業も消えなかった。全員が偶然pull済みだった。", Lines: []omikujiLine{
-		{Category: "対人運", Text: "チーム全員が今日だけ聖人。コンフリクトすら譲り合いで解決する。"},
-		{Category: "レビュー運", Text: "『LGTM』の後に『勉強になりました』が付いてくる。"},
-		{Category: "金運", Text: "経費精算が申請額より多く振り込まれる。しかも正規の理由で。"},
+	{ID: "chokichi-002", Tier: TierChokichi, Fortune: "DROP TABLE した直後、そのテーブルが3年前から誰にも使われていなかったと判明。", Lines: []omikujiLine{
+		{Category: "対人運", Text: "Slackの全リアクションが🎉。アンチも今日は休業する。"},
+		{Category: "金運", Text: "昇給の連絡が、査定面談より先に来る。"},
+		{Category: "願望", Text: "書いただけの妄想Issueに『実装しました』とリプが付く。"},
 	}},
-	{ID: "chokichi-003", Tier: TierChokichi, Fortune: "再現しないバグが、上司の目の前でだけ再現して株が上がった。", Lines: []omikujiLine{
-		{Category: "障害運", Text: "アラートが鳴る前に原因が分かる。もはや予知。"},
-		{Category: "学問", Text: "分厚い公式ドキュメント、適当に開いたページに答えが載っている。"},
-		{Category: "待ち人", Text: "来る。しかもコーヒーを2つ持って。"},
+	{ID: "chokichi-003", Tier: TierChokichi, Fortune: "依存クラウドのリージョンが全滅する中、うちのサービスだけ無傷だった。理由は不明。", Lines: []omikujiLine{
+		{Category: "障害運", Text: "障害対応に駆けつけたら、もう直っていて議事録だけが残っている。"},
+		{Category: "対人運", Text: "『あの人に聞けば分かる』の『あの人』に、今日はあなたがなっている。"},
+		{Category: "待ち人", Text: "来る。Approveと差し入れを両手に。"},
 	}},
-	{ID: "chokichi-004", Tier: TierChokichi, Fortune: "rm -rf した場所に、過去の自分が .bak を仕込んでいた。天才か。", Lines: []omikujiLine{
-		{Category: "失物", Text: "消したはずのファイルが全部隣に居る。過去の自分からの愛。"},
-		{Category: "健康運", Text: "心臓に悪い出来事が全部未遂で終わるため、異常に健康。"},
+	{ID: "chokichi-004", Tier: TierChokichi, Fortune: "秘密鍵をpublicリポにpushしてしまったが、その鍵は昨日ローテ済みで無効だった。", Lines: []omikujiLine{
+		{Category: "失物", Text: "無くしたドングルが、次に行く場所で先回りして待っている。"},
+		{Category: "障害運", Text: "アラートが鳴らない。テスト送信ですら遠慮してくる。"},
 		{Category: "願望", Text: "『無かったことにしたい』まで含めて叶う。"},
 	}},
-	{ID: "chokichi-005", Tier: TierChokichi, Fortune: "レガシーコードを開いたら、5年前の自分が完璧なコメントを残していた。", Lines: []omikujiLine{
-		{Category: "学問", Text: "昔書いた雑なメモが、今日の問題をピンポイントで解決する。"},
-		{Category: "レビュー運", Text: "あなたのPRが社内勉強会の教材に昇格する。"},
-		{Category: "金運", Text: "本棚の技術書が絶版プレミアになっている。"},
+	{ID: "chokichi-005", Tier: TierChokichi, Fortune: "タイムゾーンのバグが別のバグと相殺して、3年間ずっと正しい時刻を表示していた。", Lines: []omikujiLine{
+		{Category: "学問", Text: "適当に開いた論文が、そのまま今日のタスクの答えだった。"},
+		{Category: "レビュー運", Text: "レビュアーが指摘を書こうとして、賞賛しか出てこない。"},
+		{Category: "金運", Text: "クラウドの無料枠が今日だけ2倍になっている。問い合わせても『正規です』。"},
 	}},
 	{ID: "chokichi-006", Tier: TierChokichi, Fortune: "バグ報告のissueを立てたら、3分後に作者本人が修正PR付きで現れた。", Lines: []omikujiLine{
 		{Category: "対人運", Text: "雲の上の人が『いいね』ではなく『一緒にやろう』と言ってくる。"},
 		{Category: "願望", Text: "OSSにスターが付く速度が、通知を読む速度を超える。"},
-		{Category: "デプロイ運", Text: "依存ライブラリが今日だけ誰も破壊的変更をしない。"},
+		{Category: "デプロイ運", Text: "デプロイ直後に依存の脆弱性が公表される。あなたの入れたバージョンだけ無傷。"},
 	}},
-	{ID: "chokichi-007", Tier: TierChokichi, Fortune: "型パズルが一発で解けた。しかもエラーメッセージの意味が分かった。", Lines: []omikujiLine{
-		{Category: "学問", Text: "コンパイラのエラーが母国語より分かりやすく感じる。"},
-		{Category: "待ち人", Text: "Approveが3分で来る。本文まで読まれた上でだ。"},
-		{Category: "健康運", Text: "目も肩も腰も無事。人間工学があなたに味方している。"},
+	{ID: "chokichi-007", Tier: TierChokichi, Fortune: "本番データを消したが、レプリケーション遅延のおかげでレプリカに無傷で残っていた。", Lines: []omikujiLine{
+		{Category: "失物", Text: "消したはずのログが、誰も覚えていないバックアップから無傷で出てくる。"},
+		{Category: "健康運", Text: "腰痛が椅子ごと治る。"},
+		{Category: "待ち人", Text: "返信が来る。こちらが送るより先に。"},
 	}},
-	{ID: "chokichi-008", Tier: TierChokichi, Fortune: "会議が全部キャンセルになり、8時間の集中時間が天から降ってきた。", Lines: []omikujiLine{
-		{Category: "対人運", Text: "『例の件、こっちでやっときました』と言われる。二回も。"},
-		{Category: "金運", Text: "欲しかったツールの年間プランが今日だけ半額。"},
-		{Category: "願望", Text: "TODOリストが向こうから勝手にDoneになっていく。"},
+	{ID: "chokichi-008", Tier: TierChokichi, Fortune: "本番サーバーを誤って落とした瞬間、館内放送が『ただいまより電源工事を行います』と告げた。", Lines: []omikujiLine{
+		{Category: "対人運", Text: "隣のチームが『例の件、直しときました』と言ってくる。二回も。"},
+		{Category: "障害運", Text: "エラーバジェットが余りすぎて、繰り越しを申し出てくる。"},
+		{Category: "願望", Text: "口に出した願いから順に、その日のうちに叶っていく。"},
 	}},
-	{ID: "chokichi-009", Tier: TierChokichi, Fortune: "再起動したら直った。しかも原因が分かって再発防止策まで書けた。", Lines: []omikujiLine{
-		{Category: "障害運", Text: "ポストモーテムのコメント欄が賞賛で埋まる。"},
-		{Category: "デプロイ運", Text: "念のため用意したロールバック手順、出番なし。"},
-		{Category: "健康運", Text: "オンコール当番なのに8時間睡眠。夢の中でも鳴らない。"},
+	{ID: "chokichi-009", Tier: TierChokichi, Fortune: "締切当日の朝、要件そのものがキャンセルになった。まだ1行も書いていなかった。", Lines: []omikujiLine{
+		{Category: "願望", Text: "『時間が欲しい』と願うと、締切のほうが消える。"},
+		{Category: "対人運", Text: "進捗を聞いてくる人が、聞く直前に長期休暇に入る。"},
+		{Category: "健康運", Text: "買い置きの胃薬のほうが、先に賞味期限を迎える。"},
 	}},
-	{ID: "chokichi-010", Tier: TierChokichi, Fortune: "AIに書かせたコードが一発で動いた。しかも自分の意図より良い設計だった。", Lines: []omikujiLine{
-		{Category: "学問", Text: "呪文(プロンプト)の才能に目覚める。詠唱が短くなる。"},
-		{Category: "レビュー運", Text: "『これAIですか?』『いえ、私です』が堂々と言える日。"},
-		{Category: "金運", Text: "使い放題プランの上限に、今日だけなぜか達しない。"},
+	{ID: "chokichi-010", Tier: TierChokichi, Fortune: "git blame したら、あの伝説の事故の犯人が自分ではなかった。", Lines: []omikujiLine{
+		{Category: "失物", Text: "探し物が、最初に開けた引き出しにある。全部。"},
+		{Category: "レビュー運", Text: "コンフリクトがあなたを見て、道を譲る。"},
+		{Category: "金運", Text: "ガチャを引く前に天井が来る。"},
 	}},
 	{ID: "chokichi-011", Tier: TierChokichi, Fortune: "「動くけど理由が分からないコード」の理由が分かった。しかも正しかった。", Lines: []omikujiLine{
 		{Category: "失物", Text: "謎の設定ファイルの存在理由が判明する。消さなくてよかった。"},
@@ -64,10 +64,10 @@ var omikujiEntries = []omikujiEntry{
 		{Category: "金運", Text: "提示年収が希望額の上を行く。値切られる気配がない。"},
 		{Category: "待ち人", Text: "内定が来る。歩いて。"},
 	}},
-	{ID: "chokichi-013", Tier: TierChokichi, Fortune: "本番ログを眺めていたら、ユーザーの「ありがとう」が流れてきた。", Lines: []omikujiLine{
-		{Category: "障害運", Text: "エラーレート0%。監視ツールの方が疑って自分を再起動する。"},
-		{Category: "健康運", Text: "定時退社したのに罪悪感がゼロ。むしろ拍手される。"},
-		{Category: "願望", Text: "作ったものが誰かの人生をちょっと良くしている。実感付きで。"},
+	{ID: "chokichi-013", Tier: TierChokichi, Fortune: "クラウド請求が想定の100倍届いたが、サポートが『弊社のミスです』と全額返金+お詫びクレジットをくれた。", Lines: []omikujiLine{
+		{Category: "金運", Text: "経費で落ちるか微妙なものが、今日は全部落ちる。"},
+		{Category: "障害運", Text: "監視ダッシュボードが緑を通り越して、なんだか輝いて見える。"},
+		{Category: "健康運", Text: "健康診断の結果が全部A。座りっぱなしなのにだ。"},
 	}},
 	{ID: "chokichi-014", Tier: TierChokichi, Fortune: "徹夜明けに出したプルリクが、人生最高のコードと評された。", Lines: []omikujiLine{
 		{Category: "健康運", Text: "徹夜明けなのに肌ツヤが良い。医学が困惑している。"},
