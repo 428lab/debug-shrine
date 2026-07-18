@@ -157,6 +157,124 @@ func TestRanking_ResponseJSONFieldNames(t *testing.T) {
 	}
 }
 
+func TestRanking_PointsRankingTopAndMyPointRank(t *testing.T) {
+	client := emulatorClient(t)
+	ctx := context.Background()
+
+	battleEntries := []map[string]interface{}{
+		{"display_name": "a", "screen_name": "a", "image_path": "", "battle_point": int64(1), "rank": int64(1)},
+	}
+	pointsEntries := []map[string]interface{}{}
+	for i := 1; i <= 120; i++ {
+		n := strconv.Itoa(i)
+		pointsEntries = append(pointsEntries, map[string]interface{}{
+			"display_name": "puser" + n,
+			"screen_name":  "puser" + n,
+			"image_path":   "https://example.com/" + n + ".png",
+			"point":        int64(2000 - i),
+			"rank":         int64(i),
+		})
+	}
+	docID := "ranking_cache_TestRanking_PointsRankingTopAndMyPointRank"
+	if _, err := client.Collection("cache_data").Doc(docID).Set(ctx, map[string]interface{}{
+		"ranking":        battleEntries,
+		"points_ranking": pointsEntries,
+		"latest_update":  time.Now(),
+	}); err != nil {
+		t.Fatalf("failed to seed ranking cache: %v", err)
+	}
+
+	out, err := buildRankingResponseFromDoc(ctx, client, docID, "puser110")
+	if err != nil {
+		t.Fatalf("buildRankingResponseFromDoc: %v", err)
+	}
+	if len(out.PointsRanking) != 100 {
+		t.Errorf("points_ranking length = %d, want 100", len(out.PointsRanking))
+	}
+	if out.PointsRanking[0].ScreenName != "puser1" {
+		t.Errorf("points_ranking[0].screen_name = %q, want puser1", out.PointsRanking[0].ScreenName)
+	}
+	// my_point_rank はトップ100の外(110位)でも全件走査で見つかるべき。
+	if out.MyPointRank == nil || out.MyPointRank.ScreenName != "puser110" {
+		t.Fatalf("my_point_rank = %+v, want screen_name puser110", out.MyPointRank)
+	}
+	if out.MyPointRank.Point != 1890 {
+		t.Errorf("my_point_rank.point = %d, want 1890", out.MyPointRank.Point)
+	}
+	// 戦闘力側の my_rank には puser110 は存在しないので nil のはず。
+	if out.MyRank != nil {
+		t.Errorf("my_rank should be nil for points-only user, got: %+v", out.MyRank)
+	}
+
+	// JSONフィールド名の検証(point / my_point_rank)。
+	raw, err := json.Marshal(out)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	var asMap map[string]interface{}
+	if err := json.Unmarshal(raw, &asMap); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	pointsRanking, ok := asMap["points_ranking"].([]interface{})
+	if !ok || len(pointsRanking) == 0 {
+		t.Fatalf("points_ranking is not a non-empty array: %v", asMap["points_ranking"])
+	}
+	first, ok := pointsRanking[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("points_ranking[0] is not an object: %v", pointsRanking[0])
+	}
+	if _, ok := first["point"]; !ok {
+		t.Errorf("points_ranking[0] JSON is missing point key: %v", first)
+	}
+	myPointRank, ok := asMap["my_point_rank"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("my_point_rank is not an object: %v", asMap["my_point_rank"])
+	}
+	if myPointRank["screen_name"] != "puser110" {
+		t.Errorf("my_point_rank.screen_name = %v, want puser110", myPointRank["screen_name"])
+	}
+}
+
+func TestRanking_MissingPointsRankingIsEmptyNotError(t *testing.T) {
+	client := emulatorClient(t)
+	ctx := context.Background()
+
+	// points_ranking は後付けフィールド。新rankingUpdateGoが走る前の旧キャッシュ
+	// ドキュメントには存在しないが、エラーにせず空配列で返すべき。
+	docID := "ranking_cache_TestRanking_MissingPointsRanking"
+	if _, err := client.Collection("cache_data").Doc(docID).Set(ctx, map[string]interface{}{
+		"ranking": []map[string]interface{}{
+			{"display_name": "a", "screen_name": "a", "image_path": "", "battle_point": int64(1), "rank": int64(1)},
+		},
+		"latest_update": time.Now(),
+	}); err != nil {
+		t.Fatalf("failed to seed ranking cache: %v", err)
+	}
+
+	out, err := buildRankingResponseFromDoc(ctx, client, docID, "a")
+	if err != nil {
+		t.Fatalf("buildRankingResponseFromDoc should not error on missing points_ranking: %v", err)
+	}
+	if out.PointsRanking == nil || len(out.PointsRanking) != 0 {
+		t.Errorf("points_ranking should be an empty slice, got: %+v", out.PointsRanking)
+	}
+	if out.MyPointRank != nil {
+		t.Errorf("my_point_rank should be nil when points_ranking is missing, got: %+v", out.MyPointRank)
+	}
+	// JSONでも null ではなく [] になるべき。
+	raw, err := json.Marshal(out)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	var asMap map[string]interface{}
+	if err := json.Unmarshal(raw, &asMap); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if arr, ok := asMap["points_ranking"].([]interface{}); !ok || len(arr) != 0 {
+		t.Errorf("points_ranking JSON should be an empty array, got: %v", asMap["points_ranking"])
+	}
+}
+
 func TestRanking_ScreenNameNotFound(t *testing.T) {
 	client := emulatorClient(t)
 	ctx := context.Background()
