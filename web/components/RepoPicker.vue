@@ -1,7 +1,7 @@
 <template>
   <div class="repo-picker rounded p-3">
     <div class="d-flex justify-content-between align-items-center mb-2">
-      <div class="picker-title">📌 表示するリポジトリを選ぶ</div>
+      <div class="picker-title"><i class="fas fa-fw fa-thumbtack"></i> 表示するリポジトリを選ぶ</div>
       <button class="btn btn-sm btn-outline-light" @click="$emit('close')">
         閉じる
       </button>
@@ -47,7 +47,7 @@
             {{ repo.name }}
             <span v-if="repo.fork" class="picker-sub">(fork)</span>
           </span>
-          <span class="picker-sub">⭐ {{ repo.stars }}</span>
+          <span class="picker-sub"><i class="fas fa-star"></i> {{ repo.stars }}</span>
         </label>
         <div v-if="filteredCandidates.length === 0" class="picker-sub p-2">
           該当するリポジトリがありません。
