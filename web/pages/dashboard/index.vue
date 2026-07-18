@@ -120,7 +120,7 @@
       />
       <!-- README埋め込みバッジ(自分のプロフィールへの導線をGitHubに貼れる) -->
       <div v-if="user && user.screen_name" class="badge-section p-3 rounded mt-4">
-        <div class="fw-bold mb-2">🔖 READMEに貼れるバッジ</div>
+        <div class="fw-bold mb-2"><i class="fas fa-fw fa-bookmark"></i> READMEに貼れるバッジ</div>
         <p class="badge-note mb-2">
           GitHubのプロフィールREADMEに貼ると、レベルと戦闘力のバッジから
           公開プロフィールへ飛べます。

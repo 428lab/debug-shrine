@@ -1,7 +1,7 @@
 <template>
   <div class="sanpai-grass p-3 rounded">
     <div class="d-flex justify-content-between align-items-center flex-wrap mb-2">
-      <h2 class="grass-title fs-6 mb-0">⛩️ 参拝の草</h2>
+      <h2 class="grass-title fs-6 mb-0"><i class="fas fa-fw fa-seedling"></i> 参拝の草</h2>
       <div v-if="state === 'loaded'" class="grass-sub">
         直近1年: {{ recent.totalCount }}回参拝
       </div>
@@ -36,7 +36,7 @@
           class="btn btn-sm btn-outline-light"
           @click="loadAll"
         >
-          📜 全期間を解析する
+          <i class="fas fa-fw fa-scroll"></i> 全期間を解析する
         </button>
         <div v-else-if="allState === 'loading'" class="grass-sub py-2">
           全期間の参拝を解析しています<span class="dots"></span>
