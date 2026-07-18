@@ -1,81 +1,83 @@
 package gofunctions
 
 var omikujiEntries = []omikujiEntry{
-	{ID: "chokichi-001", Tier: TierChokichi, Fortune: "本番デプロイが一発。CIは全部緑。オンコール鳴らず。", Lines: []omikujiLine{
-		{Category: "デプロイ運", Text: "金曜17時でも無風。むしろ定時で上がれる。"},
-		{Category: "レビュー運", Text: "指摘ゼロ。『神』とだけ返ってくる。"},
-		{Category: "健康運", Text: "睡眠8時間。夢の中でも設計が捗る。"},
+	// 超吉(出現率2%)は「ちょっと良い日」ではなく、エンジニア伝説として
+	// 酒の席で語れるレベルの宇宙規模の豪運を書く。無茶が全部セーフになる系・
+	// ありえない奇跡系で構成する(#177でユーザーフィードバックにより全面改稿)。
+	{ID: "chokichi-001", Tier: TierChokichi, Fortune: "WHERE句を忘れたUPDATEが、なぜか対象1行だった。神は実在する。", Lines: []omikujiLine{
+		{Category: "障害運", Text: "障害が起きない。起こしたのにだ。"},
+		{Category: "デプロイ運", Text: "金曜17時にデプロイしたのに、月曜になっても何も起きていない。"},
+		{Category: "願望", Text: "願う前に叶っている。むしろ叶ってから願っている。"},
 	}},
-	{ID: "chokichi-002", Tier: TierChokichi, Fortune: "詰まってた不具合、席に戻ったら直っていた。", Lines: []omikujiLine{
-		{Category: "失物", Text: "半年見つからなかった原因が一目で判明。"},
-		{Category: "障害運", Text: "アラートは全て健全。監視画面が全部緑。"},
-		{Category: "願望", Text: "叶う。しかも想定より早く叶う。"},
+	{ID: "chokichi-002", Tier: TierChokichi, Fortune: "DROP TABLE した直後、そのテーブルが3年前から誰にも使われていなかったと判明。", Lines: []omikujiLine{
+		{Category: "対人運", Text: "Slackの全リアクションが🎉。アンチも今日は休業する。"},
+		{Category: "金運", Text: "昇給の連絡が、査定面談より先に来る。"},
+		{Category: "願望", Text: "書いただけの妄想Issueに『実装しました』とリプが付く。"},
 	}},
-	{ID: "chokichi-003", Tier: TierChokichi, Fortune: "書いたコードがそのまま設計書になる美しさ。", Lines: []omikujiLine{
-		{Category: "学問", Text: "新しいフレームワークが手に馴染む。公式ドキュメントも神。"},
-		{Category: "レビュー運", Text: "レビュアーが君のPRを教材に使い始める。"},
-		{Category: "金運", Text: "査定面談で上司が先に金額を提示してくる。"},
-		{Category: "対人運", Text: "会議が10分で終わり、全員が笑顔で退出。"},
+	{ID: "chokichi-003", Tier: TierChokichi, Fortune: "依存クラウドのリージョンが全滅する中、うちのサービスだけ無傷だった。理由は不明。", Lines: []omikujiLine{
+		{Category: "障害運", Text: "障害対応に駆けつけたら、もう直っていて議事録だけが残っている。"},
+		{Category: "対人運", Text: "『あの人に聞けば分かる』の『あの人』に、今日はあなたがなっている。"},
+		{Category: "待ち人", Text: "来る。Approveと差し入れを両手に。"},
 	}},
-	{ID: "chokichi-004", Tier: TierChokichi, Fortune: "リファクタしたら行数が半分、速度は倍。", Lines: []omikujiLine{
-		{Category: "デプロイ運", Text: "ロールバックという単語を今日は思い出さない。"},
-		{Category: "健康運", Text: "肩こりが消え、目薬も要らない一日。"},
-		{Category: "待ち人", Text: "秒でApprove。むしろ向こうから催促が来る。"},
+	{ID: "chokichi-004", Tier: TierChokichi, Fortune: "秘密鍵をpublicリポにpushしてしまったが、その鍵は昨日ローテ済みで無効だった。", Lines: []omikujiLine{
+		{Category: "失物", Text: "無くしたドングルが、次に行く場所で先回りして待っている。"},
+		{Category: "障害運", Text: "アラートが鳴らない。テスト送信ですら遠慮してくる。"},
+		{Category: "願望", Text: "『無かったことにしたい』まで含めて叶う。"},
 	}},
-	{ID: "chokichi-005", Tier: TierChokichi, Fortune: "オンコール当番なのに一度も鳴らず爆睡。", Lines: []omikujiLine{
-		{Category: "障害運", Text: "サーバーは全台安定。SREも暇を持て余す。"},
-		{Category: "金運", Text: "臨時ボーナスの通知が朝イチで届く。"},
-		{Category: "願望", Text: "望みは全て通る。稟議も一発承認。"},
+	{ID: "chokichi-005", Tier: TierChokichi, Fortune: "タイムゾーンのバグが別のバグと相殺して、3年間ずっと正しい時刻を表示していた。", Lines: []omikujiLine{
+		{Category: "学問", Text: "適当に開いた論文が、そのまま今日のタスクの答えだった。"},
+		{Category: "レビュー運", Text: "レビュアーが指摘を書こうとして、賞賛しか出てこない。"},
+		{Category: "金運", Text: "クラウドの無料枠が今日だけ2倍になっている。問い合わせても『正規です』。"},
 	}},
-	{ID: "chokichi-006", Tier: TierChokichi, Fortune: "本番の負荷が想定の3倍でも余裕で捌く。", Lines: []omikujiLine{
-		{Category: "デプロイ運", Text: "カナリアが全部緑。全展開もノーストレス。"},
-		{Category: "学問", Text: "登壇したLTがバズり、勉強会に招待される。"},
-		{Category: "対人運", Text: "『それいいね』しか聞こえないMTG。"},
+	{ID: "chokichi-006", Tier: TierChokichi, Fortune: "バグ報告のissueを立てたら、3分後に作者本人が修正PR付きで現れた。", Lines: []omikujiLine{
+		{Category: "対人運", Text: "雲の上の人が『いいね』ではなく『一緒にやろう』と言ってくる。"},
+		{Category: "願望", Text: "OSSにスターが付く速度が、通知を読む速度を超える。"},
+		{Category: "デプロイ運", Text: "デプロイ直後に依存の脆弱性が公表される。あなたの入れたバージョンだけ無傷。"},
 	}},
-	{ID: "chokichi-007", Tier: TierChokichi, Fortune: "書いた瞬間テストが全部通る奇跡。", Lines: []omikujiLine{
-		{Category: "レビュー運", Text: "レビュアーが『完璧』と一言。差し戻しゼロ。"},
-		{Category: "失物", Text: "探し物のログが検索一発でヒット。"},
-		{Category: "健康運", Text: "コーヒーが今日は特にうまい。集中が続く。"},
+	{ID: "chokichi-007", Tier: TierChokichi, Fortune: "本番データを消したが、レプリケーション遅延のおかげでレプリカに無傷で残っていた。", Lines: []omikujiLine{
+		{Category: "失物", Text: "消したはずのログが、誰も覚えていないバックアップから無傷で出てくる。"},
+		{Category: "健康運", Text: "腰痛が椅子ごと治る。"},
+		{Category: "待ち人", Text: "返信が来る。こちらが送るより先に。"},
 	}},
-	{ID: "chokichi-008", Tier: TierChokichi, Fortune: "無理と言われた要件が一日で片付く。", Lines: []omikujiLine{
-		{Category: "願望", Text: "全て思い通り。締切すら前倒しで終わる。"},
-		{Category: "金運", Text: "気づけば昇格の内示。役職手当もアップ。"},
-		{Category: "障害運", Text: "障害ゼロ日数が更新記録を叩き出す。"},
+	{ID: "chokichi-008", Tier: TierChokichi, Fortune: "本番サーバーを誤って落とした瞬間、館内放送が『ただいまより電源工事を行います』と告げた。", Lines: []omikujiLine{
+		{Category: "対人運", Text: "隣のチームが『例の件、直しときました』と言ってくる。二回も。"},
+		{Category: "障害運", Text: "エラーバジェットが余りすぎて、繰り越しを申し出てくる。"},
+		{Category: "願望", Text: "口に出した願いから順に、その日のうちに叶っていく。"},
 	}},
-	{ID: "chokichi-009", Tier: TierChokichi, Fortune: "レガシーコードが読んだ端から理解できる。", Lines: []omikujiLine{
-		{Category: "学問", Text: "難解な論文が母国語のように頭に入る。"},
-		{Category: "デプロイ運", Text: "初回デプロイからゼロダウンタイム。"},
-		{Category: "待ち人", Text: "テックリードが自ら手を挙げてレビュー。"},
+	{ID: "chokichi-009", Tier: TierChokichi, Fortune: "締切当日の朝、要件そのものがキャンセルになった。まだ1行も書いていなかった。", Lines: []omikujiLine{
+		{Category: "願望", Text: "『時間が欲しい』と願うと、締切のほうが消える。"},
+		{Category: "対人運", Text: "進捗を聞いてくる人が、聞く直前に長期休暇に入る。"},
+		{Category: "健康運", Text: "買い置きの胃薬のほうが、先に賞味期限を迎える。"},
 	}},
-	{ID: "chokichi-010", Tier: TierChokichi, Fortune: "推測せず計測したら、全部が最適解だった。", Lines: []omikujiLine{
-		{Category: "障害運", Text: "監視のグラフが芸術的なほど平ら。"},
-		{Category: "健康運", Text: "退勤後にジムまで行ける余力が残る。"},
-		{Category: "対人運", Text: "隣のチームからも感謝のスタンプが届く。"},
+	{ID: "chokichi-010", Tier: TierChokichi, Fortune: "git blame したら、あの伝説の事故の犯人が自分ではなかった。", Lines: []omikujiLine{
+		{Category: "失物", Text: "探し物が、最初に開けた引き出しにある。全部。"},
+		{Category: "レビュー運", Text: "コンフリクトがあなたを見て、道を譲る。"},
+		{Category: "金運", Text: "ガチャを引く前に天井が来る。"},
 	}},
-	{ID: "chokichi-011", Tier: TierChokichi, Fortune: "マージした瞬間、全世界が平和になる。", Lines: []omikujiLine{
-		{Category: "レビュー運", Text: "コンフリクトという概念が今日は存在しない。"},
-		{Category: "金運", Text: "副業の相談が舞い込み、単価も右肩上がり。"},
-		{Category: "願望", Text: "願い事は書く前から叶っている。"},
+	{ID: "chokichi-011", Tier: TierChokichi, Fortune: "「動くけど理由が分からないコード」の理由が分かった。しかも正しかった。", Lines: []omikujiLine{
+		{Category: "失物", Text: "謎の設定ファイルの存在理由が判明する。消さなくてよかった。"},
+		{Category: "学問", Text: "チェスタトンのフェンスを、今日は堂々と撤去できる。"},
+		{Category: "願望", Text: "技術的負債が音を立てて資産に変わる。"},
 	}},
-	{ID: "chokichi-012", Tier: TierChokichi, Fortune: "詰んだと思ったバグ、Stack Overflowに答えが完備。", Lines: []omikujiLine{
-		{Category: "失物", Text: "再現手順が一発で確定。修正も5分。"},
-		{Category: "デプロイ運", Text: "本番反映が拍子抜けするほどスムーズ。"},
-		{Category: "健康運", Text: "肩も腰も軽い。姿勢すら良くなる。"},
+	{ID: "chokichi-012", Tier: TierChokichi, Fortune: "面接で「趣味はOSSです」と言ったら、面接官がそのユーザーだった。", Lines: []omikujiLine{
+		{Category: "対人運", Text: "初対面の全員が、あなたの作った何かのユーザー。"},
+		{Category: "金運", Text: "提示年収が希望額の上を行く。値切られる気配がない。"},
+		{Category: "待ち人", Text: "内定が来る。歩いて。"},
 	}},
-	{ID: "chokichi-013", Tier: TierChokichi, Fortune: "仕様が明確、締切が余裕、心が凪。", Lines: []omikujiLine{
-		{Category: "対人運", Text: "全MTGが定刻に始まり定刻で終わる楽園。"},
-		{Category: "学問", Text: "触った新言語がすぐ手に馴染み、実装が加速。"},
-		{Category: "障害運", Text: "アラートが鳴らなすぎて逆に心配になる。"},
+	{ID: "chokichi-013", Tier: TierChokichi, Fortune: "クラウド請求が想定の100倍届いたが、サポートが『弊社のミスです』と全額返金+お詫びクレジットをくれた。", Lines: []omikujiLine{
+		{Category: "金運", Text: "経費で落ちるか微妙なものが、今日は全部落ちる。"},
+		{Category: "障害運", Text: "監視ダッシュボードが緑を通り越して、なんだか輝いて見える。"},
+		{Category: "健康運", Text: "健康診断の結果が全部A。座りっぱなしなのにだ。"},
 	}},
-	{ID: "chokichi-014", Tier: TierChokichi, Fortune: "君のコミットが後世の教科書に載る勢い。", Lines: []omikujiLine{
-		{Category: "金運", Text: "ストックオプションの価値が跳ね上がる。"},
-		{Category: "レビュー運", Text: "レビューがそのまま賞賛コメント欄になる。"},
-		{Category: "願望", Text: "野望も夢も、今日という日に全部叶う。"},
+	{ID: "chokichi-014", Tier: TierChokichi, Fortune: "徹夜明けに出したプルリクが、人生最高のコードと評された。", Lines: []omikujiLine{
+		{Category: "健康運", Text: "徹夜明けなのに肌ツヤが良い。医学が困惑している。"},
+		{Category: "レビュー運", Text: "指摘ゼロ。コメントは🚀の絵文字ひとつ。"},
+		{Category: "デプロイ運", Text: "CIオール緑。あのフレーキーなテストまで緑。"},
 	}},
-	{ID: "chokichi-015", Tier: TierChokichi, Fortune: "何を触っても壊れない。まさに無双状態。", Lines: []omikujiLine{
-		{Category: "デプロイ運", Text: "深夜メンテが不要になり、全員が定時退社。"},
-		{Category: "待ち人", Text: "レビュアー全員が即レス。承認が雨あられ。"},
-		{Category: "健康運", Text: "目も肩も絶好調。今日は無敵の一日。"},
+	{ID: "chokichi-015", Tier: TierChokichi, Fortune: "キーボードに珈琲をこぼしたら、保険で最新モデルに化けた。", Lines: []omikujiLine{
+		{Category: "失物", Text: "失ったものが全部、アップグレードされて帰ってくる。"},
+		{Category: "金運", Text: "ポイント還元が謎に二重で付く。問い合わせても『正規です』。"},
+		{Category: "対人運", Text: "総務が今日だけ神対応。備品申請が音速で通る。"},
 	}},
 
 	{ID: "daikichi-001", Tier: TierDaikichi, Fortune: "詰まってたバグ、散歩から戻ったら直し方が降ってくる。", Lines: []omikujiLine{
