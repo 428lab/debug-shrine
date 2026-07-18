@@ -33,12 +33,23 @@ type rankingEntry struct {
 	Rank        int64  `firestore:"rank" json:"rank"`
 }
 
+// pointsRankingEntry は cache_data/ranking_cache ドキュメントの
+// points_ranking 配列の1要素(ぽいんと=ユーザーの exp によるランキング)。
+type pointsRankingEntry struct {
+	DisplayName string `firestore:"display_name" json:"display_name"`
+	ScreenName  string `firestore:"screen_name" json:"screen_name"`
+	ImagePath   string `firestore:"image_path" json:"image_path"`
+	Point       int64  `firestore:"point" json:"point"`
+	Rank        int64  `firestore:"rank" json:"rank"`
+}
+
 // rankingCacheDoc は cache_data/ranking_cache ドキュメントの形状。
 // latest_update(Firestore Timestamp)はNode版のJSON化形式
 // (`_seconds`/`_nanoseconds`)を再現するため DataTo ではなく DataAt で個別に取得する
 // (extractTimestampField 参照)。
 type rankingCacheDoc struct {
-	Ranking []rankingEntry `firestore:"ranking"`
+	Ranking       []rankingEntry       `firestore:"ranking"`
+	PointsRanking []pointsRankingEntry `firestore:"points_ranking"`
 }
 
 // firestoreTimestampRaw は Node版の Firestore Timestamp を JSON.stringify した際の
@@ -53,9 +64,11 @@ type firestoreTimestampRaw struct {
 }
 
 type rankingResponse struct {
-	Ranking      []rankingEntry         `json:"ranking"`
-	LatestUpdate *firestoreTimestampRaw `json:"latest_update,omitempty"`
-	MyRank       *rankingEntry          `json:"my_rank,omitempty"`
+	Ranking       []rankingEntry         `json:"ranking"`
+	PointsRanking []pointsRankingEntry   `json:"points_ranking"`
+	LatestUpdate  *firestoreTimestampRaw `json:"latest_update,omitempty"`
+	MyRank        *rankingEntry          `json:"my_rank,omitempty"`
+	MyPointRank   *pointsRankingEntry    `json:"my_point_rank,omitempty"`
 }
 
 func rankingHandler(w http.ResponseWriter, r *http.Request) {
@@ -148,7 +161,18 @@ func buildRankingResponseFromDoc(ctx context.Context, client *firestore.Client, 
 		top = top[:100]
 	}
 
-	resp := rankingResponse{Ranking: top}
+	// points_ranking は後付けフィールドのため、rankingUpdateGo の新版が一度
+	// 走るまではドキュメントに存在しない。ranking と違って欠落をエラーには
+	// せず、空配列として返す(フロントは空タブを表示するだけで壊れない)。
+	pointsTop := doc.PointsRanking
+	if pointsTop == nil {
+		pointsTop = []pointsRankingEntry{}
+	}
+	if len(pointsTop) > 100 {
+		pointsTop = pointsTop[:100]
+	}
+
+	resp := rankingResponse{Ranking: top, PointsRanking: pointsTop}
 	if hasLatestUpdate {
 		resp.LatestUpdate = &firestoreTimestampRaw{Seconds: rawSeconds, Nanoseconds: rawNanos}
 	}
@@ -156,6 +180,12 @@ func buildRankingResponseFromDoc(ctx context.Context, client *firestore.Client, 
 		for i := range doc.Ranking {
 			if doc.Ranking[i].ScreenName == screenName {
 				resp.MyRank = &doc.Ranking[i]
+				break
+			}
+		}
+		for i := range doc.PointsRanking {
+			if doc.PointsRanking[i].ScreenName == screenName {
+				resp.MyPointRank = &doc.PointsRanking[i]
 				break
 			}
 		}
