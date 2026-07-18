@@ -1,0 +1,57 @@
+# スケジュール関数の手動キック。
+#
+# Cloud Scheduler の定時実行(例: ランキング集計は毎時0分UTC)を待たずに、
+# 対象のPub/Subトピックへ手動でpublishしてスケジュール関数を即時実行する。
+# 典型的な用途は、ランキング集計のデプロイ直後にキャッシュを新形式で
+# 作り直したい場合(定時を待つと最大1時間、新フィールドが空のままになる)。
+#
+# セキュリティ: workflow_dispatch はリポジトリのwrite権限を持つメンバーしか
+# 実行できない(GitHubの仕様)。またフォークPRにはsecretsが渡らないため、
+# フォーク経由でGCP認証を悪用することもできない。処理内容もキャッシュ
+# 再計算(冪等)のみで、連打されても実害はない。
+name: Kick scheduled function
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '対象環境'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+      topic:
+        description: 'キックするPub/Subトピック(=スケジュール関数)'
+        required: true
+        type: choice
+        default: ranking-update-go
+        options:
+          - ranking-update-go
+          - ranking-cache-go
+          - status-cache-backfill-go
+          - scheduled-ogp-delete-go
+
+jobs:
+  kick:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: ${{ inputs.environment == 'prod' && secrets.PROD_GCLOUD_SERVICE_KEY || secrets.DEV_GCLOUD_SERVICE_KEY }}
+
+      - name: 'Set up Cloud SDK'
+        uses: 'google-github-actions/setup-gcloud@v2'
+
+      - name: Publish kick message
+        run: |
+          set -eo pipefail
+          if [ "${{ inputs.environment }}" = "prod" ]; then
+            PROJECT=d-shrine
+          else
+            PROJECT=d-shrine-dev
+          fi
+          gcloud pubsub topics publish "${{ inputs.topic }}" \
+            --project="$PROJECT" \
+            --message='{"kick":"manual","source":"github-actions"}'
+          echo "published to ${{ inputs.topic }} in $PROJECT"
