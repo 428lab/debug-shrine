@@ -242,15 +242,27 @@ jobs:
             local name="$1"; shift
             local entry="$1"; shift
             echo "start deploy: $name"
-            ( gcloud functions deploy "$name" \
-                --project=d-shrine-dev \
-                --gen2 \
-                --runtime=go125 \
-                --region=us-central1 \
-                --docker-repository="$DOCKER_REPO" \
-                --source=. \
-                --entry-point="$entry" \
-                "$@" ) > "/tmp/deploy-$name.log" 2>&1 &
+            # 直前のデプロイrunのGCP側オペレーションが未解放だと 409
+            # (unable to queue the operation)で即失敗するため、90秒おいて
+            # 1回だけリトライする(マージが近接して連続デプロイになった場合の対策)。
+            ( for attempt in 1 2; do
+                if gcloud functions deploy "$name" \
+                    --project=d-shrine-dev \
+                    --gen2 \
+                    --runtime=go125 \
+                    --region=us-central1 \
+                    --docker-repository="$DOCKER_REPO" \
+                    --source=. \
+                    --entry-point="$entry" \
+                    "$@"; then
+                  exit 0
+                fi
+                if [ "$attempt" -eq 1 ]; then
+                  echo "deploy $name failed (attempt 1); retrying in 90s..."
+                  sleep 90
+                fi
+              done
+              exit 1 ) > "/tmp/deploy-$name.log" 2>&1 &
             PIDS+=("$!")
             NAMES+=("$name")
           }
