@@ -29,7 +29,7 @@
           </div>
         </div>
         <div class="tile">
-          <div class="tile-value">⭐ {{ stats.stars_total.toLocaleString() }}</div>
+          <div class="tile-value"><i class="fas fa-star"></i> {{ stats.stars_total.toLocaleString() }}</div>
           <div class="tile-label">獲得スター</div>
         </div>
         <div class="tile">
@@ -66,14 +66,14 @@
       <template v-if="stats.top_repos.length > 0 || editable">
         <div class="d-flex align-items-center mt-3 mb-1">
           <div class="gh-sub">
-            {{ stats.top_repos_source === "pinned" ? "📌 ピン留めリポジトリ" : "代表リポジトリ" }}
+            {{ stats.top_repos_source === "pinned" ? "ピン留めリポジトリ" : "代表リポジトリ" }}
           </div>
           <button
             v-if="editable && !pickerOpen"
             class="btn btn-sm btn-outline-light ms-2 pick-btn"
             @click="pickerOpen = true"
           >
-            📌 選ぶ
+            <i class="fas fa-fw fa-thumbtack"></i> 選ぶ
           </button>
         </div>
         <RepoPicker
@@ -103,8 +103,8 @@
                 <span class="lang-dot" :style="{ background: langColor(r.language) }"></span>
                 {{ r.language }}
               </span>
-              <span class="me-3">⭐ {{ r.stars.toLocaleString() }}</span>
-              <span v-if="r.forks > 0">🍴 {{ r.forks.toLocaleString() }}</span>
+              <span class="me-3"><i class="fas fa-star"></i> {{ r.stars.toLocaleString() }}</span>
+              <span v-if="r.forks > 0"><i class="fas fa-code-branch"></i> {{ r.forks.toLocaleString() }}</span>
             </div>
           </a>
         </div>

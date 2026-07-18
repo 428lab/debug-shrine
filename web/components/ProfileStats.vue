@@ -1,7 +1,7 @@
 <template>
   <div class="profile-stats p-3 rounded">
     <div class="d-flex justify-content-between align-items-center flex-wrap mb-2">
-      <h2 class="stats-title fs-6 mb-0">📊 参拝の記録</h2>
+      <h2 class="stats-title fs-6 mb-0"><i class="fas fa-fw fa-chart-bar"></i> 参拝の記録</h2>
     </div>
 
     <div v-if="state === 'loading'" class="stats-sub py-3">
@@ -24,7 +24,7 @@
           <div class="tile-value">
             {{ stats.sanpai.current_streak
             }}<span class="tile-unit">日</span>
-            <span v-if="stats.sanpai.current_streak >= 3">🔥</span>
+            <span v-if="stats.sanpai.current_streak >= 3"><i class="fas fa-fire streak-fire"></i></span>
           </div>
           <div class="tile-label">連続参拝中</div>
         </div>
@@ -125,6 +125,11 @@ export default {
 </script>
 
 <style scoped>
+/* ストリーク継続中の炎(元の🔥に合わせて琥珀で彩色) */
+.streak-fire {
+  color: var(--color-accent);
+}
+
 .profile-stats {
   background: var(--color-surface);
   border: 1px solid rgba(255, 255, 255, 0.08);

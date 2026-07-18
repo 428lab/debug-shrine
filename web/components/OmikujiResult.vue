@@ -17,7 +17,7 @@
 
       <!-- 物理乱数の出自(kudaで引いたときだけ表示) -->
       <div v-if="isPhysical" class="entropy">
-        <div>⚛️ この御籤は量子ゆらぎと放射性崩壊(物理乱数)が決めました</div>
+        <div><i class="fas fa-atom"></i> この御籤は量子ゆらぎと放射性崩壊(物理乱数)が決めました</div>
         <div class="entropy-batches">
           <span v-for="b in result.entropy.batches" :key="b" class="entropy-batch">{{
             b
