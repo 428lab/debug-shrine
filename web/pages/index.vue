@@ -71,7 +71,7 @@
       <div class="container py-4 mt-4">
         <div class="row flex-row-reverse">
           <div class="col-12 col-md-6 col-lg-4 px-4">
-            <h2 class="section-title mb-3">🏆 ランキング</h2>
+            <h2 class="section-title mb-3"><i class="fas fa-fw fa-trophy"></i> ランキング</h2>
             <ranking max="10" class="mt-3"></ranking>
             <div class="text-end px-4 mt-3 mb-4">
               <nuxt-link to="/ranking">
@@ -80,7 +80,7 @@
             </div>
           </div>
           <div class="col-12 col-md-6 col-lg-8 px-4 mb-4">
-            <h2 class="section-title mb-3">⛩️ でばっぐ神社とは</h2>
+            <h2 class="section-title mb-3"><i class="fas fa-fw fa-torii-gate"></i> でばっぐ神社とは</h2>
             <p class="fs-4">
               <span class="text-danger"
                 ><strong>露御読把和流（ろおどはわる）</strong></span
@@ -97,7 +97,7 @@
                 >もっと詳しく <i class="fas fa-fw fa-chevron-right"></i
               ></nuxt-link>
             </div>
-            <h2 class="section-title mt-5 mb-3">💬 開発コミュニティ</h2>
+            <h2 class="section-title mt-5 mb-3"><i class="fas fa-fw fa-comments"></i> 開発コミュニティ</h2>
             <div class="">
               <a href="https://discord.gg/HTdSVdgEXJ" target="_blank" class="btn btn-lg bg-discord text-white mt-2 me-2">
                 <i class="fab fa-discord fa-fw fa-lg"></i> 四谷ラボ Discord
@@ -106,7 +106,7 @@
                 <i class="fab fa-github fa-fw fa-lg"></i> 四谷ラボ GitHub
               </a>
             </div>
-            <h2 class="section-title mt-5 mb-3">📦 でばっぐ神社リポジトリ</h2>
+            <h2 class="section-title mt-5 mb-3"><i class="fas fa-fw fa-box"></i> でばっぐ神社リポジトリ</h2>
             <div class="mt-2">
               <a href="https://github.com/428lab/debug-shrine" target="_blank">
                 <i class="fab fa-github fa-fw fa-lg"></i> 428lab/debug-shrine

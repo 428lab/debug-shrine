@@ -18,7 +18,7 @@
 
     <!-- 引ける -->
     <div v-else-if="state === 'available'" class="my-5">
-      <div class="omikuji-box mx-auto mb-4">⛩️</div>
+      <div class="omikuji-box mx-auto mb-4"><i class="fas fa-torii-gate"></i></div>
       <button class="btn btn-lg btn-accent px-5" @click="startScene">
         おみくじを引く
       </button>
@@ -59,7 +59,7 @@
 
     <!-- 物理乱数(kuda)が枯渇・停止中。疑似乱数では引かない -->
     <div v-else-if="state === 'empty'" class="my-5">
-      <div class="fs-1">⚛️</div>
+      <div class="fs-1"><i class="fas fa-atom"></i></div>
       <div class="fs-4 mt-3">
         「御籤の源(物理乱数)が尽きておる…<br class="d-md-none" />しばし待たれよ。」
       </div>
@@ -273,6 +273,7 @@ export default {
   height: 120px;
   line-height: 120px;
   font-size: 64px;
+  color: var(--color-accent);
   border-radius: 12px;
   background: radial-gradient(circle at 50% 40%, #5a5050, #2b2b2b 70%);
   box-shadow: 0 0 18px rgba(255, 180, 90, 0.4);
