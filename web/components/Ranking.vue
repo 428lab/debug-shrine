@@ -1,21 +1,21 @@
 <template>
   <div>
-    <div class="ranking-tabs d-flex mb-3" role="tablist">
+    <div class="ranking-seg mb-3" role="tablist">
       <button
         type="button"
-        class="ranking-tab"
+        class="seg-btn"
         :class="{ active: mode === 'battle' }"
         @click="mode = 'battle'"
       >
-        ⚔️ せんとうりょく
+        <i class="fas fa-fw fa-fist-raised"></i> せんとうりょく
       </button>
       <button
         type="button"
-        class="ranking-tab"
+        class="seg-btn"
         :class="{ active: mode === 'points' }"
         @click="mode = 'points'"
       >
-        🪙 ぽいんと
+        <i class="fas fa-fw fa-coins"></i> ぽいんと
       </button>
     </div>
     <div class="p-3 text-start card-shrine" v-if="isLogin">
@@ -173,25 +173,31 @@ export default {
   font-size: 0.9rem;
 }
 
-/* せんとうりょく/ぽいんと切替タブ(ピル型。ダークカードに馴染む配色) */
-.ranking-tabs {
-  gap: 8px;
-}
-.ranking-tab {
-  background: transparent;
+/* せんとうりょく/ぽいんと切替(セグメント型。card-shrineと同じ
+   角丸0.5rem・ボーダー・背景色で、周囲のカードUIと揃える) */
+.ranking-seg {
+  display: inline-flex;
   border: 1px solid var(--color-surface-border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background-color: var(--color-surface);
+}
+.seg-btn {
+  background: transparent;
+  border: none;
   color: var(--color-text-muted, #9a9a9a);
-  border-radius: 999px;
-  padding: 4px 14px;
+  padding: 8px 18px;
   font-size: 0.9rem;
   transition: background-color 0.15s, color 0.15s;
 }
-.ranking-tab:hover {
+.seg-btn + .seg-btn {
+  border-left: 1px solid var(--color-surface-border);
+}
+.seg-btn:hover {
   color: var(--color-text);
 }
-.ranking-tab.active {
+.seg-btn.active {
   background: rgba(255, 196, 120, 0.15);
-  border-color: rgba(255, 196, 120, 0.6);
   color: var(--color-text);
   font-weight: 700;
 }
