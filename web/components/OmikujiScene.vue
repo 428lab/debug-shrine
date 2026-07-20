@@ -1,5 +1,8 @@
 <template>
-  <div class="omikuji-scene" @click="onTap">
+  <!-- スキップはclickとtouchendの両方で拾う。装置canvasのMatter.Mouseが
+       touchstartをpreventDefaultするため、iOS Safariではcanvas上のタップで
+       clickが合成されない(touchendはバブルするので拾える)。 -->
+  <div class="omikuji-scene" @click="onTap" @touchend="onTap">
     <div ref="inner" class="scene-inner" :style="innerStyle">
       <!-- からくり装置(鈴の緒・絵馬・水車・斜面)の物理キャンバス -->
       <div v-if="!reducedMotion" ref="canvasWrap" class="canvas-wrap"></div>
