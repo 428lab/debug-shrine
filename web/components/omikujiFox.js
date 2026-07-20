@@ -7,13 +7,24 @@
 // この関数は演出用だが、「最後のホップ先 == targetBin」「途中はターゲット以外」という
 // 公平性の核を Node で決定論的に検証できるよう純粋に保つ(乱数は引数で注入可能)。
 
+// ひと跳び直行(おとり無し)の確率。毎回2〜3回のフェイクアウトだと展開が
+// 読めてしまうため、たまに迷いなく本命へ飛び込むパターンを混ぜる。
+const DIRECT_HOP_RATE = 0.2;
+
 // targetBin: 本命の物理ビン index(0..binCount-1)
 // binCount : ビン数(通常7)
 // rnd      : 0..1 の乱数関数(省略時 Math.random)。テストでは固定値を注入する。
-// 返り値   : ビン index の配列。末尾が必ず targetBin。長さ >= 2(おとり>=1 + 本命)。
+// 返り値   : ビン index の配列。末尾が必ず targetBin。
+//            約20%で [targetBin] のみ(ひと跳び直行)、それ以外は
+//            おとり2〜3 + 本命(長さ3〜4)。
 function foxHopSequence(targetBin, binCount, rnd) {
   rnd = rnd || Math.random;
   if (binCount <= 1) return [targetBin];
+
+  // ひと跳び直行: おとり無しで寝床から本命へ飛び込む。
+  if (rnd() < DIRECT_HOP_RATE) {
+    return [targetBin];
+  }
 
   // おとりの回数(2〜3)。1ホップに溜め・着地・間を含めて約2秒かけるため、
   // 多すぎると尺が延びる。ビンが少なければさらに抑える。
@@ -43,4 +54,4 @@ function foxHopSequence(targetBin, binCount, rnd) {
   return seq;
 }
 
-module.exports = { foxHopSequence };
+module.exports = { foxHopSequence, DIRECT_HOP_RATE };
