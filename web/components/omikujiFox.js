@@ -11,8 +11,13 @@
 // 読めてしまうため、たまに迷いなく本命へ飛び込むパターンを混ぜる。
 const DIRECT_HOP_RATE = 0.2;
 
-// 本命ティーズの確率(非直行時)。一度本命ビンに入ってから別のビンへ離れ、
-// 最後にやっぱり本命へ戻ってくるルート(この時点ではビンは光らないので
+// 居座り決定の確率(非直行時 0.125 = 全体の約10%)。本命ビンに入った狐が
+// 移動せず、その場で長い溜めから垂直ジャンプして着地と同時に確定する
+// (「え、動かないの?…そこでいいんかい!」という演出)。
+const STAY_DECIDE_RATE = 0.125;
+
+// 本命ティーズの確率(非直行・非居座り時)。一度本命ビンに入ってから別のビンへ
+// 離れ、最後にやっぱり本命へ戻ってくるルート(この時点ではビンは光らないので
 // 見ている側は「そこ!?…違うんかい…やっぱりそこか!」となる)。
 const TARGET_TEASE_RATE = 0.3;
 
@@ -25,10 +30,11 @@ const STAY_HOP_RATE = 0.2;
 // rnd      : 0..1 の乱数関数(省略時 Math.random)。テストでは固定値を注入する。
 // 返り値   : ビン index の配列。末尾が必ず targetBin。
 //            - 約20%: [targetBin] のみ(ひと跳び直行)
+//            - 約10%: [targetBin, targetBin](居座り決定=最後は垂直ジャンプ)
 //            - 残りの約30%: 本命ティーズ [targetBin, d1, (d2), targetBin]
 //            - それ以外: おとり2〜3 + 本命(長さ3〜4)
 //            おとりにはその場ジャンプ(直前と同じビン)が混ざり得るが、
-//            末尾直前は必ず本命以外(フィナーレは移動して本命着地)。
+//            居座り決定を除き末尾直前は本命以外(フィナーレは移動して本命着地)。
 function foxHopSequence(targetBin, binCount, rnd) {
   rnd = rnd || Math.random;
   if (binCount <= 1) return [targetBin];
@@ -36,6 +42,13 @@ function foxHopSequence(targetBin, binCount, rnd) {
   // ひと跳び直行: おとり無しで寝床から本命へ飛び込む。
   if (rnd() < DIRECT_HOP_RATE) {
     return [targetBin];
+  }
+
+  // 居座り決定: 本命に入って動かず、その場の垂直ジャンプで確定する。
+  // Scene側は [本命, 本命] を受けると「移動して入る(光らない)→
+  // isFinalの長い溜め→垂直ジャンプ→着地で発光」になる(コード変更不要)。
+  if (rnd() < STAY_DECIDE_RATE) {
+    return [targetBin, targetBin];
   }
 
   // 本命ティーズ: 先頭で本命に入り、1〜2ビン離れてから本命へ戻る。
@@ -98,6 +111,7 @@ function pickOtherBin(targetBin, prev, binCount, rnd) {
 module.exports = {
   foxHopSequence,
   DIRECT_HOP_RATE,
+  STAY_DECIDE_RATE,
   TARGET_TEASE_RATE,
   STAY_HOP_RATE,
 };
