@@ -258,6 +258,10 @@ export default {
     onRing() {
       if (this.rung) return;
       this.rung = true;
+      // 鳴った直後はスキップを武装しない。鈴を鳴らしたジェスチャーの指離し
+      // (touchend)や勢い余った直後のタップが、cascadeに切り替わった瞬間の
+      // スキップ判定に食われて即結果表示になるのを防ぐ。
+      this._skipArmedAt = performance.now() + 1500;
       this.$emit("rang");
       this.ringPulse = true;
       this.later(900, () => (this.ringPulse = false));
@@ -394,6 +398,8 @@ export default {
     },
     onTap() {
       // 演出中はタップでスキップ(儀式中は誤爆防止のため無効。fallbackリンクを使う)
+      // 鳴った直後の猶予中(_skipArmedAt前)も無効(onRing参照)。
+      if (this._skipArmedAt && performance.now() < this._skipArmedAt) return;
       if (this.phase === "cascade" || this.phase === "fox") this.finish();
     },
 
