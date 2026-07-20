@@ -1,5 +1,8 @@
 <template>
-  <div class="omikuji-scene" @click="onTap">
+  <!-- スキップはclickとtouchendの両方で拾う。装置canvasのMatter.Mouseが
+       touchstartをpreventDefaultするため、iOS Safariではcanvas上のタップで
+       clickが合成されない(touchendはバブルするので拾える)。 -->
+  <div class="omikuji-scene" @click="onTap" @touchend="onTap">
     <div ref="inner" class="scene-inner" :style="innerStyle">
       <!-- からくり装置(鈴の緒・絵馬・水車・斜面)の物理キャンバス -->
       <div v-if="!reducedMotion" ref="canvasWrap" class="canvas-wrap"></div>
@@ -255,6 +258,10 @@ export default {
     onRing() {
       if (this.rung) return;
       this.rung = true;
+      // 鳴った直後はスキップを武装しない。鈴を鳴らしたジェスチャーの指離し
+      // (touchend)や勢い余った直後のタップが、cascadeに切り替わった瞬間の
+      // スキップ判定に食われて即結果表示になるのを防ぐ。
+      this._skipArmedAt = performance.now() + 1500;
       this.$emit("rang");
       this.ringPulse = true;
       this.later(900, () => (this.ringPulse = false));
@@ -276,18 +283,18 @@ export default {
       this.later(300, () => {
         if (this.engine) machine.spawnBall(Matter, this.engine.world, 0.35);
       });
-      // フォールバック階段(通常は約11.5秒で狐に直撃して不要):
+      // フォールバック階段(通常は6〜10.4秒で狐に直撃して不要):
       // 1) 連鎖が途中で詰まったら、リレーの玉2をそっと押して旅を続けさせる
-      this.later(16000, () => {
+      this.later(13000, () => {
         if (this.phase === "cascade" && this.relayBall && this.engine) {
           Matter.Sleeping.set(this.relayBall, false);
           Matter.Body.setVelocity(this.relayBall, { x: -1.2, y: -0.4 });
         }
       });
       // 2) それでも届かなければ狐を起こす
-      this.later(20000, () => this.wakeFox());
+      this.later(17000, () => this.wakeFox());
       // 3) 全体フェイルセーフ
-      this.later(32000, () => this.finish());
+      this.later(28000, () => this.finish());
     },
     waitTargetThen(cb) {
       if (this.targetTier) return cb();
@@ -391,6 +398,8 @@ export default {
     },
     onTap() {
       // 演出中はタップでスキップ(儀式中は誤爆防止のため無効。fallbackリンクを使う)
+      // 鳴った直後の猶予中(_skipArmedAt前)も無効(onRing参照)。
+      if (this._skipArmedAt && performance.now() < this._skipArmedAt) return;
       if (this.phase === "cascade" || this.phase === "fox") this.finish();
     },
 

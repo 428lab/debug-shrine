@@ -61,13 +61,25 @@ const GEO = {
   // ドミノ階段(鏡像・浮き板)。右端(x0)が最下段で、左へ上る。
   // 板を浮かせるのは、下の空間をリレー後の玉2の通り道にするため。
   STAIRS: { count: 5, x0: 152, runW: -22, topY0: 545, rise: 5, plateW: 22, plateH: 8 },
-  DOMINO: { w: 7, h: 36, density: 0.005, friction: 0.05 },
+  // h はドミノ連鎖の成否マージンを決める。装置は絵馬・水車の拘束が常に
+  // 微振動しており、儀式の長さ(=玉1投入までの経過ステップ数)によって連鎖の
+  // 初期状態が毎回僅かに変わる。h=36 は上り階段の連鎖がぎりぎりで、儀式時間の
+  // 掃引(0〜10秒×61点)で13%が途中停止した。h=40 なら同掃引121点で失敗0
+  // (倒れたドミノが次の段へ届く余裕が増える)。
+  DOMINO: { w: 7, h: 40, density: 0.005, friction: 0.05 },
 
   // リレーの玉2が待つ台(左壁ぎわ・水平)。スリープ(enableSleeping)により
   // 静止中の玉2はジッターで動かず、天辺のドミノに押されて目覚めた時だけ
   // 左端から壁沿いの溝へ転がり落ちる。
   RELAY_PERCH: { x: 38, y: 521, w: 24, h: 10, angle: 0 },
-  BALL2: { x: 30, y: 505 },
+  // friction はあえて玉1(0.01)より低くする。0.01だと緩い斜面Cの途中で
+  // 摩擦がスピンをかけ「滑り→転がり」に転換した瞬間、並進速度が回転に
+  // 食われて速度2.5→0.8に急失速し、以降4秒近くノロノロ進んでテンポが
+  // 悪かった(グリップ地点は決定論なので毎回同じ場所で失速する)。
+  // 0.001ならグリップが斜面の終端より先に来ず、加速したまま狐へ届く
+  // (0だと台の上でジッターを保持できず眠れなくなり、ドミノを待たずに
+  // 滑り落ちてリレーが崩壊するためNG。Node実測: 鈴→狐 12.2s → 6.9s)。
+  BALL2: { x: 30, y: 505, friction: 0.001 },
 
   // 玉1の受け皿。最下段のドミノを倒し終えた玉1をキャッチして舞台に残す
   // (玉1が下へ抜けて先に狐へ届いてしまうとリレーの意味が無くなる)。
@@ -235,7 +247,7 @@ function buildMachineWorld(Matter) {
   const relayBall = Bodies.circle(GEO.BALL2.x, GEO.BALL2.y, GEO.BALL.r, {
     density: GEO.BALL.density,
     restitution: GEO.BALL.restitution,
-    friction: GEO.BALL.friction,
+    friction: GEO.BALL2.friction,
     frictionAir: GEO.BALL.frictionAir,
     label: "ball",
     render: { fillStyle: "#f2c14e" },
