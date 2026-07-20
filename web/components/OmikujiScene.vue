@@ -327,9 +327,11 @@ export default {
       const target = this.targetBinIndex >= 0 ? this.targetBinIndex : 0;
       this.hopSeq = foxHopSequence(target, GEO.BIN_COUNT);
       this.hopIndex = 0;
-      // まず寝床からひと跳びで最初のビンへ
-      this.doHop(this.foxLeft, this.binLeftPct(this.hopSeq[0]), FOX.binBottom, false, () => {
-        this.later(500, () => this.nextHop());
+      // まず寝床からひと跳びで最初のビンへ。ひと跳び直行(hopSeqが本命のみ)の
+      // 場合はこれが決めのジャンプなので、本命着地の演出(長い溜め・長い滞空)にする。
+      const directToTarget = this.hopSeq.length === 1;
+      this.doHop(this.foxLeft, this.binLeftPct(this.hopSeq[0]), FOX.binBottom, directToTarget, () => {
+        this.later(directToTarget ? 250 : 500, () => this.nextHop());
       });
     },
     nextHop() {
