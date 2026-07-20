@@ -38,23 +38,24 @@
         </div>
       </div>
 
-      <!-- 称号(未達成はグレー表示でコレクション欲を煽る) -->
-      <div class="stats-sub mt-3 mb-1">
-        称号 <span class="ms-1">{{ achievedCount }}/{{ stats.badges.length }}</span>
-      </div>
-      <div class="badges">
-        <span
-          v-for="b in stats.badges"
-          :key="b.id"
-          class="badge-chip"
-          :class="{ locked: !b.achieved }"
-          :title="b.desc + (b.achieved ? '' : '(未達成)')"
-        >
-          <i v-if="b.icon" class="fas fa-fw" :class="b.icon"></i
-          ><span v-else>{{ b.emoji }}</span>
-          {{ b.label }}
-        </span>
-      </div>
+      <!-- 称号(獲得済みのみ表示。分母は全種数で「まだ先がある」ことは示す) -->
+      <template v-if="achievedBadges.length > 0">
+        <div class="stats-sub mt-3 mb-1">
+          称号 <span class="ms-1">{{ achievedBadges.length }}/{{ stats.badges.length }}</span>
+        </div>
+        <div class="badges">
+          <span
+            v-for="b in achievedBadges"
+            :key="b.id"
+            class="badge-chip"
+            :title="b.desc"
+          >
+            <i v-if="b.icon" class="fas fa-fw" :class="b.icon"></i
+            ><span v-else>{{ b.emoji }}</span>
+            {{ b.label }}
+          </span>
+        </div>
+      </template>
 
       <!-- おみくじ統計(記録があるときだけ) -->
       <template v-if="stats.omikuji.total_count > 0">
@@ -100,8 +101,8 @@ export default {
     };
   },
   computed: {
-    achievedCount() {
-      return this.stats.badges.filter((b) => b.achieved).length;
+    achievedBadges() {
+      return this.stats.badges.filter((b) => b.achieved);
     },
   },
   async mounted() {
@@ -189,13 +190,6 @@ export default {
   padding: 3px 10px;
   font-size: 0.85rem;
   white-space: nowrap;
-}
-.badge-chip.locked {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.12);
-  color: #777;
-  filter: grayscale(1);
-  opacity: 0.7;
 }
 .badge-chip.tier-chip {
   background: rgba(255, 255, 255, 0.06);
