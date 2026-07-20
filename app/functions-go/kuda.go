@@ -32,6 +32,16 @@ func resolveKudaBaseURL() string {
 	return "https://kuda.kojiran.workers.dev"
 }
 
+// kudaAPIKey は kuda のAPIキー(kuda_...)。環境変数 KUDA_API_KEY で注入し、
+// 設定されていれば Authorization: Bearer ヘッダで送る。サーバー間通信なので
+// ヘッダレーンのみ使用(半公開キーの ?key= クエリレーンは使わない)。
+// 未設定なら無認証で呼ぶ(kudaの移行期間 REQUIRE_API_KEY=0 の互換動作。
+// キー必須化後は 401 になり、おみくじは no_entropy として振る舞う)。
+var kudaAPIKey = os.Getenv("KUDA_API_KEY")
+
+// kudaClientID は kuda 側の統計・監査ログで消費元を識別するためのラベル。
+const kudaClientID = "debug-shrine"
+
 var kudaHTTPClient = &http.Client{}
 
 // kudaFetchTimeout は /drop 一式の取得に許す時間。おみくじは演出中に呼ばれる
@@ -85,6 +95,10 @@ func fetchKudaDrop(ctx context.Context) (kudaDrop, error) {
 		return kudaDrop{}, err
 	}
 	req.Header.Set("User-Agent", "debug-shrine-omikujiGo")
+	req.Header.Set("X-Client-Id", kudaClientID)
+	if kudaAPIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+kudaAPIKey)
+	}
 
 	resp, err := kudaHTTPClient.Do(req)
 	if err != nil {
@@ -96,7 +110,9 @@ func fetchKudaDrop(ctx context.Context) (kudaDrop, error) {
 		return kudaDrop{}, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		// 503 = プール枯渇。それ以外も「物理乱数が用意できない」として同じ扱い。
+		// 503 = プール枯渇、429 = 日次クォータ超過、401 = キー無効/必須化後の未認証。
+		// いずれも「物理乱数が用意できない」として同じ扱い(疑似乱数フォールバック
+		// はしない)。運用上の区別はこのエラーメッセージのログで行う。
 		return kudaDrop{}, fmt.Errorf("kuda /drop: status %d: %s", resp.StatusCode, string(body))
 	}
 	var drop kudaDrop
