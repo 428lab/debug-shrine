@@ -50,7 +50,9 @@
           :class="{ locked: !b.achieved }"
           :title="b.desc + (b.achieved ? '' : '(未達成)')"
         >
-          {{ b.emoji }} {{ b.label }}
+          <i v-if="b.icon" class="fas fa-fw" :class="b.icon"></i
+          ><span v-else>{{ b.emoji }}</span>
+          {{ b.label }}
         </span>
       </div>
 

@@ -39,9 +39,11 @@ type omikujiStats struct {
 }
 
 type profileBadge struct {
-	ID       string `json:"id"`
-	Label    string `json:"label"`
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	// Emoji は旧クライアント・CDNキャッシュ互換のため残す(表示は icon 優先)。
 	Emoji    string `json:"emoji"`
+	Icon     string `json:"icon"`
 	Desc     string `json:"desc"`
 	Achieved bool   `json:"achieved"`
 }
@@ -244,9 +246,13 @@ type profileFacts struct {
 }
 
 type badgeDef struct {
-	ID       string
-	Label    string
+	ID    string
+	Label string
+	// Emoji は互換用に残し、表示用アイコンは Icon(FontAwesome無料版のクラス名)。
+	// 絵文字は機種依存のため使わない方針(DESIGN.md / #183)。無料版に無い
+	// 絵文字は意訳(🏮→shoe-prints 🕯️→moon 🎋→scroll 🌩️→cloud-showers-heavy)。
 	Emoji    string
+	Icon     string
 	Desc     string
 	Achieved func(profileFacts) bool
 }
@@ -254,23 +260,23 @@ type badgeDef struct {
 // 称号の定義。達成済みかどうかに関わらず全件返し、フロントで未達成をグレー表示
 // する(コレクション欲を煽る)。条件はすべて既存の集計から導出できるものに限る。
 var badgeDefs = []badgeDef{
-	{"hatsumode", "初参拝", "⛩️", "はじめての参拝", func(f profileFacts) bool { return f.SanpaiTotal >= 1 }},
-	{"sanpai10", "常連さん", "🏮", "参拝10回", func(f profileFacts) bool { return f.SanpaiTotal >= 10 }},
-	{"sanpai50", "信徒", "🙏", "参拝50回", func(f profileFacts) bool { return f.SanpaiTotal >= 50 }},
-	{"sanpai100", "百度参り", "💯", "参拝100回", func(f profileFacts) bool { return f.SanpaiTotal >= 100 }},
-	{"sanpai365", "毎日詣で", "📅", "参拝365回", func(f profileFacts) bool { return f.SanpaiTotal >= 365 }},
-	{"sanpai1000", "千日参り", "🌟", "参拝1000回", func(f profileFacts) bool { return f.SanpaiTotal >= 1000 }},
-	{"streak3", "三日坊主克服", "🔥", "3日連続参拝", func(f profileFacts) bool { return f.LongestStreak >= 3 }},
-	{"streak7", "七日詣", "🕯️", "7日連続参拝", func(f profileFacts) bool { return f.LongestStreak >= 7 }},
-	{"streak30", "皆勤賞", "🎖️", "30日連続参拝", func(f profileFacts) bool { return f.LongestStreak >= 30 }},
-	{"streak100", "求道者", "⚡", "100日連続参拝", func(f profileFacts) bool { return f.LongestStreak >= 100 }},
-	{"lv10", "見習い神主", "🌱", "レベル10到達", func(f profileFacts) bool { return f.Level >= 10 }},
-	{"lv25", "本殿の主", "🛠️", "レベル25到達", func(f profileFacts) bool { return f.Level >= 25 }},
-	{"lv50", "生き神", "👑", "レベル50到達", func(f profileFacts) bool { return f.Level >= 50 }},
-	{"omikuji10", "おみくじ好き", "🎋", "おみくじ10回", func(f profileFacts) bool { return f.OmikujiTotal >= 10 }},
-	{"chokichi", "天に選ばれし者", "🌈", "超吉を引いた", func(f profileFacts) bool { return f.ChokichiCount >= 1 }},
-	{"daikyo", "受難の日", "💀", "大凶を引いた", func(f profileFacts) bool { return f.DaikyoCount >= 1 }},
-	{"daikyo3", "不運の帝王", "🌩️", "大凶を3回引いた", func(f profileFacts) bool { return f.DaikyoCount >= 3 }},
+	{"hatsumode", "初参拝", "⛩️", "fa-torii-gate", "はじめての参拝", func(f profileFacts) bool { return f.SanpaiTotal >= 1 }},
+	{"sanpai10", "常連さん", "🏮", "fa-shoe-prints", "参拝10回", func(f profileFacts) bool { return f.SanpaiTotal >= 10 }},
+	{"sanpai50", "信徒", "🙏", "fa-praying-hands", "参拝50回", func(f profileFacts) bool { return f.SanpaiTotal >= 50 }},
+	{"sanpai100", "百度参り", "💯", "fa-certificate", "参拝100回", func(f profileFacts) bool { return f.SanpaiTotal >= 100 }},
+	{"sanpai365", "毎日詣で", "📅", "fa-calendar-check", "参拝365回", func(f profileFacts) bool { return f.SanpaiTotal >= 365 }},
+	{"sanpai1000", "千日参り", "🌟", "fa-star", "参拝1000回", func(f profileFacts) bool { return f.SanpaiTotal >= 1000 }},
+	{"streak3", "三日坊主克服", "🔥", "fa-fire", "3日連続参拝", func(f profileFacts) bool { return f.LongestStreak >= 3 }},
+	{"streak7", "七日詣", "🕯️", "fa-moon", "7日連続参拝", func(f profileFacts) bool { return f.LongestStreak >= 7 }},
+	{"streak30", "皆勤賞", "🎖️", "fa-medal", "30日連続参拝", func(f profileFacts) bool { return f.LongestStreak >= 30 }},
+	{"streak100", "求道者", "⚡", "fa-bolt", "100日連続参拝", func(f profileFacts) bool { return f.LongestStreak >= 100 }},
+	{"lv10", "見習い神主", "🌱", "fa-seedling", "レベル10到達", func(f profileFacts) bool { return f.Level >= 10 }},
+	{"lv25", "本殿の主", "🛠️", "fa-tools", "レベル25到達", func(f profileFacts) bool { return f.Level >= 25 }},
+	{"lv50", "生き神", "👑", "fa-crown", "レベル50到達", func(f profileFacts) bool { return f.Level >= 50 }},
+	{"omikuji10", "おみくじ好き", "🎋", "fa-scroll", "おみくじ10回", func(f profileFacts) bool { return f.OmikujiTotal >= 10 }},
+	{"chokichi", "天に選ばれし者", "🌈", "fa-rainbow", "超吉を引いた", func(f profileFacts) bool { return f.ChokichiCount >= 1 }},
+	{"daikyo", "受難の日", "💀", "fa-skull", "大凶を引いた", func(f profileFacts) bool { return f.DaikyoCount >= 1 }},
+	{"daikyo3", "不運の帝王", "🌩️", "fa-cloud-showers-heavy", "大凶を3回引いた", func(f profileFacts) bool { return f.DaikyoCount >= 3 }},
 }
 
 func computeBadges(f profileFacts) []profileBadge {
@@ -280,6 +286,7 @@ func computeBadges(f profileFacts) []profileBadge {
 			ID:       def.ID,
 			Label:    def.Label,
 			Emoji:    def.Emoji,
+			Icon:     def.Icon,
 			Desc:     def.Desc,
 			Achieved: def.Achieved(f),
 		})
