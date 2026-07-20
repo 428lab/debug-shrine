@@ -90,3 +90,16 @@ func TestComputeBadges(t *testing.T) {
 		}
 	}
 }
+
+func TestBadges_AllHaveIcon(t *testing.T) {
+	// 絵文字は機種依存のため表示は icon(FontAwesome)優先(DESIGN.md / #183)。
+	// 定義漏れで絵文字フォールバックに落ちないよう全件にアイコンを要求する。
+	for _, def := range badgeDefs {
+		if def.Icon == "" {
+			t.Errorf("badge %s has no icon", def.ID)
+		}
+		if def.Emoji == "" {
+			t.Errorf("badge %s has no emoji fallback", def.ID)
+		}
+	}
+}
