@@ -67,7 +67,14 @@ const GEO = {
   // 静止中の玉2はジッターで動かず、天辺のドミノに押されて目覚めた時だけ
   // 左端から壁沿いの溝へ転がり落ちる。
   RELAY_PERCH: { x: 38, y: 521, w: 24, h: 10, angle: 0 },
-  BALL2: { x: 30, y: 505 },
+  // friction はあえて玉1(0.01)より低くする。0.01だと緩い斜面Cの途中で
+  // 摩擦がスピンをかけ「滑り→転がり」に転換した瞬間、並進速度が回転に
+  // 食われて速度2.5→0.8に急失速し、以降4秒近くノロノロ進んでテンポが
+  // 悪かった(グリップ地点は決定論なので毎回同じ場所で失速する)。
+  // 0.001ならグリップが斜面の終端より先に来ず、加速したまま狐へ届く
+  // (0だと台の上でジッターを保持できず眠れなくなり、ドミノを待たずに
+  // 滑り落ちてリレーが崩壊するためNG。Node実測: 鈴→狐 12.2s → 6.9s)。
+  BALL2: { x: 30, y: 505, friction: 0.001 },
 
   // 玉1の受け皿。最下段のドミノを倒し終えた玉1をキャッチして舞台に残す
   // (玉1が下へ抜けて先に狐へ届いてしまうとリレーの意味が無くなる)。
@@ -235,7 +242,7 @@ function buildMachineWorld(Matter) {
   const relayBall = Bodies.circle(GEO.BALL2.x, GEO.BALL2.y, GEO.BALL.r, {
     density: GEO.BALL.density,
     restitution: GEO.BALL.restitution,
-    friction: GEO.BALL.friction,
+    friction: GEO.BALL2.friction,
     frictionAir: GEO.BALL.frictionAir,
     label: "ball",
     render: { fillStyle: "#f2c14e" },
