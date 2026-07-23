@@ -240,10 +240,14 @@ export default {
       this.ritual = false;
       this.result = "success";
       this.status = { ...this.status, ...saved };
+      return;
     }
+    // 儀式〜参拝完了まではSWの自動リロードを保留させる(#198)
+    this.setSwReloadBlocked(true);
   },
   beforeDestroy() {
     if (this.clapTimerId) clearTimeout(this.clapTimerId);
+    this.setSwReloadBlocked(false);
   },
   methods: {
     // 二拍手の判定。dblclick はモバイルで不安定なため click を自前でカウントする。
@@ -275,7 +279,14 @@ export default {
     onRetry() {
       this.isError = false;
       this.isLoading = true;
+      this.setSwReloadBlocked(true);
       this.doSanpai();
+    },
+    // sw-update.client.js が公開するガード。儀式〜参拝API実行中の
+    // SW自動リロードを保留する(#198)
+    setSwReloadBlocked(blocked) {
+      const guard = typeof window !== "undefined" && window.$swReloadGuard;
+      if (guard) guard.blocked = blocked;
     },
     // 拍手のフィードバック(バウンス再生+波紋リング追加)
     pop() {
