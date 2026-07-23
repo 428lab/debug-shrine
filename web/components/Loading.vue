@@ -35,7 +35,7 @@
         <!-- 巡回するメッセージ -->
         <transition name="msg" mode="out-in">
           <div class="mt-4 loading-message" :key="currentMessage">
-            {{ currentMessage }}<span class="loading-dots"></span>
+            {{ currentMessage }}<span class="loading-dots" aria-hidden="true">…</span>
           </div>
         </transition>
       </div>
@@ -227,25 +227,25 @@ export default {
   font-size: clamp(1.1rem, 4.8vw, 2rem);
   line-height: 1.2;
 }
-.loading-dots::after {
-  content: "";
-  animation: dots 1.2s steps(4, end) infinite;
+/* 末尾の「…」はドット数を変えず(=幅固定)、明度だけをゆっくり変える。
+   ドット数が増減すると行幅が変わり、中央寄せの支点がずれて本文が
+   横に動いたり狭幅端末で改行したりするため(#201)。 */
+.loading-dots {
+  animation: dots-glow 1.6s ease-in-out infinite;
 }
-@keyframes dots {
-  0% {
-    content: "";
-  }
-  25% {
-    content: "・";
+@keyframes dots-glow {
+  0%,
+  100% {
+    opacity: 0.25;
   }
   50% {
-    content: "・・";
+    opacity: 1;
   }
-  75% {
-    content: "・・・";
-  }
-  100% {
-    content: "";
+}
+@media (prefers-reduced-motion: reduce) {
+  .loading-dots {
+    animation: none;
+    opacity: 1;
   }
 }
 
