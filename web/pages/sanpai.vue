@@ -164,6 +164,10 @@
 <script>
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { mapGetters } from "vuex";
+import {
+  saveSanpaiResult,
+  loadRestorableSanpaiResult,
+} from "~/utils/sanpaiSession";
 
 // 認証状態の復元は非同期のため、最初に確定したユーザーを待ち受ける
 function resolveCurrentUser(auth) {
@@ -212,6 +216,17 @@ export default {
         actionCount: 0,
       },
     };
+  },
+  mounted() {
+    // SWの自動リロード・PWA再起動・タブ退避復帰などで再マウントされた場合、
+    // クールダウン内なら儀式をやり直させず完了画面を復元する。儀式画面に
+    // 戻すと二拍手→サーバー判定でexpireの悪循環になる(#198)
+    const saved = loadRestorableSanpaiResult(Date.now());
+    if (saved) {
+      this.ritual = false;
+      this.result = "success";
+      this.status = { ...this.status, ...saved };
+    }
   },
   beforeDestroy() {
     if (this.clapTimerId) clearTimeout(this.clapTimerId);
@@ -295,6 +310,10 @@ export default {
         this.status.actionCount = d.action_count != null ? d.action_count : 0;
         this.result = d.status;
         this.isLoading = false;
+        if (d.status === "success") {
+          // クールダウン内の再マウントで完了画面を復元できるよう保存(#198)
+          saveSanpaiResult({ ...this.status }, d.next_time, Date.now());
+        }
       } else {
         this.isError = true;
         this.isLoading = false;
