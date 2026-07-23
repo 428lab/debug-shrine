@@ -302,6 +302,32 @@ function buildMachineWorld(Matter) {
   return { engine, world, rope, tassel, relayBall };
 }
 
+// ドミノ連鎖の確実始動(#199)。
+// 事前傾斜+スリープ凍結のドミノでも、当たりが弱いと接触減衰で連鎖が
+// 止まることが稀にある(実機はブラウザごとの浮動小数点差で掃引済み軌道から
+// 僅かにずれる)。玉またはドミノに触られた立ち姿勢のドミノに、転倒方向(左)の
+// 最低角速度を保証して連鎖を完走させる。すでに転倒閾値の8割まで傾いている
+// ため、後押しは僅かで見た目は自然なまま。
+const CHAIN_ASSIST = {
+  MIN_TIP_ANGULAR_VELOCITY: -0.02,
+  STANDING_ANGLE: -0.6, // これより起きていれば「まだ立っている」
+};
+function installChainAssist(Matter, engine) {
+  Matter.Events.on(engine, "collisionStart", (e) => {
+    for (const p of e.pairs) {
+      for (const [self, other] of [[p.bodyA, p.bodyB], [p.bodyB, p.bodyA]]) {
+        if (self.label !== "domino") continue;
+        if (other.label !== "ball" && other.label !== "domino") continue;
+        if (self.angle < CHAIN_ASSIST.STANDING_ANGLE) continue; // 倒れ済みは触らない
+        Matter.Sleeping.set(self, false);
+        if (self.angularVelocity > CHAIN_ASSIST.MIN_TIP_ANGULAR_VELOCITY) {
+          Matter.Body.setAngularVelocity(self, CHAIN_ASSIST.MIN_TIP_ANGULAR_VELOCITY);
+        }
+      }
+    }
+  });
+}
+
 // 御神玉(玉1)を生成して投入する(鈴が鳴った時に呼ぶ)。
 function spawnBall(Matter, world, vx) {
   const b = Matter.Bodies.circle(GEO.BALL.spawnX, GEO.BALL.spawnY, GEO.BALL.r, {
@@ -318,4 +344,4 @@ function spawnBall(Matter, world, vx) {
   return b;
 }
 
-module.exports = { GEO, buildMachineWorld, spawnBall };
+module.exports = { GEO, buildMachineWorld, spawnBall, installChainAssist };
