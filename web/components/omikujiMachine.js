@@ -102,7 +102,7 @@ const GEO = {
 // import)の両対応のため。返り値の relayBall(玉2)はシーン側のフォールバック
 // (詰まった時にそっと突く)に使う。
 function buildMachineWorld(Matter) {
-  const { Engine, World, Bodies, Body, Composites, Composite, Constraint } = Matter;
+  const { Engine, World, Bodies, Body, Composites, Composite, Constraint, Events } = Matter;
   const engine = Engine.create({ enableSleeping: true });
   engine.gravity.scale = 0.001;
   const world = engine.world;
@@ -130,14 +130,16 @@ function buildMachineWorld(Matter) {
       render: { fillStyle: "#b23a48" },
     })
   );
-  Composites.chain(rope, 0, 0.5, 0, -0.5, { stiffness: 0.9, length: 0, render: { strokeStyle: "#b23a48", lineWidth: 3 } });
+  // 拘束は stiffness 1(剛結)にする。1未満のソフト拘束は重力との釣り合いで
+  // 残留速度が乗り続け、スリープできずに永久に微振動する(#199)。
+  Composites.chain(rope, 0, 0.5, 0, -0.5, { stiffness: 1, length: 0, render: { strokeStyle: "#b23a48", lineWidth: 3 } });
   Composite.add(
     rope,
     Constraint.create({
       pointA: { x: GEO.BELL.x, y: ropeTopY },
       bodyB: rope.bodies[0],
       pointB: { x: 0, y: -GEO.ROPE.segH / 2 },
-      stiffness: 0.95,
+      stiffness: 1,
       length: 0,
       render: { strokeStyle: "#b23a48", lineWidth: 3 },
     })
@@ -155,7 +157,7 @@ function buildMachineWorld(Matter) {
       pointA: { x: 0, y: GEO.ROPE.segH / 2 },
       bodyB: tassel,
       pointB: { x: 0, y: -GEO.ROPE.tasselR },
-      stiffness: 0.95,
+      stiffness: 1,
       length: 0,
       render: { strokeStyle: "#b23a48", lineWidth: 3 },
     })
@@ -184,7 +186,9 @@ function buildMachineWorld(Matter) {
       bodyB: plaque,
       pointB: { x: 0, y: -GEO.EMA.h / 2 },
       length: GEO.EMA.hang,
-      stiffness: 0.9,
+      // 剛結(1)にしないと吊り下げのソフト拘束が微振動し続け、絵馬が
+      // 玉の通過前から震えてスリープもできない(#199)
+      stiffness: 1,
       render: { strokeStyle: "#caa96a", lineWidth: 2 },
     }));
   }
@@ -205,10 +209,27 @@ function buildMachineWorld(Matter) {
     frictionAir: GEO.WHEEL.frictionAir,
     label: "wheel",
   });
-  wheel.sleepThreshold = Infinity; // 眠って止まらないように(静止角は水平のまま)
+  // スリープを許可する(眠り=完全静止)。眠らせないと軸まわりの解の
+  // ノイズで常時±0.08rad前後ロッキングし続け、目に見えて震える(#199)。
+  // 玉が当たれば衝突で目を覚まして回る(ドミノと同じ仕組み)。玉は1回の
+  // 演出で1個しか通らないので、通過後にどの角度で眠っても支障はない。
   add(wheel);
-  add(Constraint.create({ pointA: { x: wx, y: wy }, bodyB: wheel, pointB: { x: 0, y: 0 }, length: 0, stiffness: 0.9, render: { visible: false } }));
-  add(Bodies.circle(wx, wy, 6, { isStatic: true, render: { fillStyle: "#7a2a12" } }));
+  // 軸ピンも剛結(1)。0.9 だと軸が重力でたわみ、水車が常時±0.1rad
+  // 前後で揺れ続ける(#199)
+  add(Constraint.create({ pointA: { x: wx, y: wy }, bodyB: wheel, pointB: { x: 0, y: 0 }, length: 0, stiffness: 1, render: { visible: false } }));
+  // 水車は左右対称でCOM=軸のため、自重は回転に寄与しない。それでも重力を
+  // 掛けたままだと軸ピンが毎ステップ重力と押し合い、その拘束インパルスが
+  // スリープを妨げて±0.08radのロッキングが永久に続く(#199)。自重だけ
+  // 打ち消して静止→スリープさせる(玉の重みは玉自身の重力で伝わるので、
+  // 「玉が乗ると回る」演出は変わらない)。
+  Events.on(engine, "beforeUpdate", () => {
+    if (!wheel.isSleeping) {
+      wheel.force.y -= wheel.mass * engine.gravity.y * engine.gravity.scale;
+    }
+  });
+  // 軸キャップは装飾。バーと重なっているので衝突を切らないと毎ステップ
+  // 押し出し解決が走り、水車が永久にロッキングして眠れない(#199)
+  add(Bodies.circle(wx, wy, 6, { isStatic: true, collisionFilter: { mask: 0 }, render: { fillStyle: "#7a2a12" } }));
 
   // 斜面B
   add(Bodies.rectangle(GEO.RAMP_B.x, GEO.RAMP_B.y, GEO.RAMP_B.w, GEO.RAMP_B.h, { isStatic: true, angle: GEO.RAMP_B.angle, chamfer: { radius: 5 }, render: wood }));
