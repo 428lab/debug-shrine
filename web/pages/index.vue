@@ -30,6 +30,9 @@
             >
               GitHubと連携して<br class="d-md-none" />参拝しよう
             </button>
+            <div v-if="registerError" class="alert alert-warning mt-3 mb-0">
+              登録に失敗しました。時間をおいて、もう一度GitHub連携からやり直してください。
+            </div>
           </div>
           <div class="mt-4" v-else>
             <div>
@@ -154,6 +157,8 @@ export default {
       buttons: {
         sanpai: false,
       },
+      // 登録API(registerGo)が失敗したときの表示フラグ(#205)
+      registerError: false,
       // らぼみの吹き出し。SSR/CSRの差異を避けるため mounted で選ぶ(初期は空)。
       labomiLine: "",
     };
@@ -195,48 +200,67 @@ export default {
       const pool = this.isLogin ? member : guest;
       this.labomiLine = pool[Math.floor(Math.random() * pool.length)];
     },
-    GitHubAuth() {
+    async GitHubAuth() {
       this.buttons.sanpai = true;
       const provider = new GithubAuthProvider();
       const auth = getAuth();
       if (this.isLogin) {
         //認証済み
         this.$router.push({ path: "/sanpai" });
-      } else {
-        //未認証
-        signInWithPopup(auth, provider)
-          .then((result) => {
-            let userData = {
-              github_id: result.user.providerData[0].uid,
-              display_name: result.user.displayName,
-              screen_name: result._tokenResponse.screenName,
-              image_path: result.user.photoURL,
-            };
+        return;
+      }
+      //未認証
+      this.registerError = false;
+      let result;
+      try {
+        result = await signInWithPopup(auth, provider);
+      } catch (error) {
+        console.error(error);
+        return;
+      }
+      // auth エミュレーターの偽GitHubサインインは screenName / photoURL を
+      // 返さないため、ローカル検証用のフォールバックを入れる(実GitHubでは
+      // 常に値が入るため本番の挙動は変わらない)(#205)
+      const provData = result.user.providerData[0] || {};
+      let userData = {
+        github_id: provData.uid || result.user.uid,
+        display_name: result.user.displayName,
+        screen_name:
+          result._tokenResponse.screenName ||
+          (result.user.email ? result.user.email.split("@")[0] : "local-dev"),
+        image_path:
+          result.user.photoURL ||
+          "https://avatars.githubusercontent.com/u/583231",
+      };
 
-            if (!userData.display_name) {
-              userData.display_name = userData.screen_name;
-            }
-            this.$store.commit("setUser", userData);
-            getAuth()
-              .currentUser.getIdToken()
-              .then((token) => {
-                this.$store.commit("setToken", token);
-                // Go版(registerGo)はコールドスタートが短くログイン直後の登録が
-                // 速くなるため使用する(Node版のregisterとレスポンス形式は同一。
-                // docs/backend.md参照)
-                this.$axios.post("registerGo", userData, {
-                  headers: {
-                    Authorization: `Bearer ${token}`,
-                  },
-                });
-              })
-              .catch((e) => {
-                console.log(e);
-              });
-          })
-          .catch((error) => {
-            console.error(error);
-          });
+      if (!userData.display_name) {
+        userData.display_name = userData.screen_name;
+      }
+      this.$store.commit("setUser", userData);
+      try {
+        const token = await auth.currentUser.getIdToken();
+        this.$store.commit("setToken", token);
+        // Go版(registerGo)はコールドスタートが短くログイン直後の登録が
+        // 速くなるため使用する(Node版のregisterとレスポンス形式は同一。
+        // docs/backend.md参照)
+        const res = await this.$axios.post("registerGo", userData, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        // success(新規)/ registered(登録済み)/ updated(uid補完)以外は登録失敗
+        const status = res && res.data && res.data.status;
+        if (!["success", "registered", "updated"].includes(status)) {
+          throw new Error("register failed: " + status);
+        }
+      } catch (e) {
+        // 登録に失敗したままログイン状態にすると、以後すべてのAPIが
+        // not registered を返す詰み状態になる(#205)。サインアウトして
+        // エラーを表示し、やり直せるようにする。
+        console.error(e);
+        this.registerError = true;
+        this.$store.dispatch("logout");
+        return;
       }
     },
     sanpai() {

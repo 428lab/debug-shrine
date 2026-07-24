@@ -77,6 +77,21 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if body.GithubID == "" || body.DisplayName == "" || body.ScreenName == "" || body.ImagePath == "" {
+		// どのフィールドが欠けたかログに残す(値は出さない)。無言で失敗すると
+		// 「Authにアカウントだけあり users ドキュメントが無い」詰み状態の
+		// 原因調査ができない(#205)
+		var missing []string
+		for name, v := range map[string]string{
+			"github_id":    body.GithubID,
+			"display_name": body.DisplayName,
+			"screen_name":  body.ScreenName,
+			"image_path":   body.ImagePath,
+		} {
+			if v == "" {
+				missing = append(missing, name)
+			}
+		}
+		log.Printf("register: failed parameter (missing: %v)", missing)
 		writeJSON(w, http.StatusOK, map[string]string{"status": "failed parameter"})
 		return
 	}
