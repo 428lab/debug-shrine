@@ -9,6 +9,9 @@
 //   node scripts/simulate-omikuji.js --sweep 1801 --max-ritual 30   0〜30秒を1step刻みで掃引
 //   node scripts/simulate-omikuji.js --jitter                無操作60秒の微振動(震え)を計測
 //   node scripts/simulate-omikuji.js --sweep 601 --no-assist 連鎖アシスト無効で掃引
+//   node scripts/simulate-omikuji.js --pattern billiard --sweep 601   特定パターンのみ
+//
+// 掃引・jitter とも全パターン(omikujiPatterns/index.js)に対して実行する。
 //
 // 検証項目:
 //   - ドミノ5枚が全て倒れるか(倒れ残り = 連鎖の途中停止)
@@ -22,8 +25,8 @@ const machine = require("../components/omikujiMachine.js");
 const STEPS_PER_SEC = 1000 / machine.GEO.FIXED_DELTA;
 
 function runOnce(opts) {
-  const { warmupSteps, maxSeconds, assist } = opts;
-  const built = machine.buildMachineWorld(Matter);
+  const { warmupSteps, maxSeconds, assist, patternIndex } = opts;
+  const built = machine.buildMachineWorld(Matter, { patternIndex });
   const engine = built.engine;
 
   if (assist && typeof machine.installChainAssist === "function") {
@@ -73,13 +76,13 @@ function runOnce(opts) {
 
 // 無操作のまま回し、静止しているべきボディの振動振幅を計測する。
 // warmupSec 経過後の windowSec 間で、各ボディの位置/角度の最大変位を取る。
-function measureJitter(warmupSec, windowSec) {
-  const built = machine.buildMachineWorld(Matter);
+function measureJitter(warmupSec, windowSec, patternIndex) {
+  const built = machine.buildMachineWorld(Matter, { patternIndex });
   const engine = built.engine;
   const bodies = Matter.Composite.allBodies(engine.world);
   const watch = [
     ...bodies.filter((b) => b.label === "ema").map((b, i) => ({ name: "ema" + i, b })),
-    ...bodies.filter((b) => b.label === "wheel").map((b) => ({ name: "wheel", b })),
+    ...bodies.filter((b) => b.label === "wheel").map((b, i) => ({ name: "wheel" + (i || ""), b })),
     { name: "tassel", b: built.tassel },
   ];
 
@@ -112,40 +115,62 @@ function main() {
     const i = args.indexOf(name);
     return i >= 0 && args[i + 1] ? parseInt(args[i + 1], 10) : def;
   };
+  const str = (name) => {
+    const i = args.indexOf(name);
+    return i >= 0 ? args[i + 1] : null;
+  };
+
+  const only = str("--pattern");
+  const targets = machine.PATTERNS.map((p, i) => ({ ...p, index: i })).filter(
+    (p) => !only || p.id === only
+  );
+  if (targets.length === 0) {
+    console.error(`unknown pattern: ${only}`);
+    process.exitCode = 1;
+    return;
+  }
 
   if (flag("--jitter")) {
-    console.log("== 無操作60秒後の5秒間の微振動(震え)==");
-    measureJitter(60, 5);
+    for (const p of targets) {
+      console.log(`== [${p.id}] 無操作60秒後の5秒間の微振動(震え)==`);
+      measureJitter(60, 5, p.index);
+    }
     return;
   }
 
   const points = num("--sweep", 121);
   const assist = !flag("--no-assist");
   const maxWarmup = num("--max-ritual", 10) * STEPS_PER_SEC;
-  let fail = 0;
-  const failures = [];
-  let slowest = 0;
-  for (let i = 0; i < points; i++) {
-    const warmupSteps = Math.round((i / Math.max(1, points - 1)) * maxWarmup);
-    const r = runOnce({ warmupSteps, maxSeconds: 25, assist });
-    const ok = r.foxHitSec !== null && r.dominoesFallen === r.dominoTotal;
-    if (!ok) {
-      fail++;
-      failures.push({ warmupSteps, ...r });
+  let totalFail = 0;
+  for (const p of targets) {
+    let fail = 0;
+    const failures = [];
+    let slowest = 0;
+    for (let i = 0; i < points; i++) {
+      const warmupSteps = Math.round((i / Math.max(1, points - 1)) * maxWarmup);
+      const r = runOnce({ warmupSteps, maxSeconds: 25, assist, patternIndex: p.index });
+      const ok = r.foxHitSec !== null && r.dominoesFallen === r.dominoTotal;
+      if (!ok) {
+        fail++;
+        failures.push({ warmupSteps, ...r });
+      }
+      if (r.foxHitSec !== null) slowest = Math.max(slowest, r.foxHitSec);
+      if (points > 60 && i % 60 === 0) {
+        process.stdout.write(`\r[${p.id}] ${i}/${points} (fail ${fail})   `);
+      }
     }
-    if (r.foxHitSec !== null) slowest = Math.max(slowest, r.foxHitSec);
-    if (points > 60 && i % 60 === 0) {
-      process.stdout.write(`\r${i}/${points} (fail ${fail})   `);
-    }
-  }
-  console.log(`\n掃引 ${points} 点: 失敗 ${fail} / 最遅到達 ${slowest.toFixed(1)}s (assist=${assist})`);
-  for (const f of failures.slice(0, 20)) {
     console.log(
-      `  warmup=${f.warmupSteps}step ドミノ ${f.dominoesFallen}/${f.dominoTotal} ` +
-        `狐到達 ${f.foxHitSec === null ? "なし" : f.foxHitSec.toFixed(1) + "s"}`
+      `\n[${p.id}] 掃引 ${points} 点: 失敗 ${fail} / 最遅到達 ${slowest.toFixed(1)}s (assist=${assist})`
     );
+    for (const f of failures.slice(0, 10)) {
+      console.log(
+        `  warmup=${f.warmupSteps}step ドミノ ${f.dominoesFallen}/${f.dominoTotal} ` +
+          `狐到達 ${f.foxHitSec === null ? "なし" : f.foxHitSec.toFixed(1) + "s"}`
+      );
+    }
+    totalFail += fail;
   }
-  process.exitCode = fail > 0 ? 1 : 0;
+  process.exitCode = totalFail > 0 ? 1 : 0;
 }
 
 main();
