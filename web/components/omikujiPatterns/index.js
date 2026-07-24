@@ -12,8 +12,7 @@
 
 const PATTERNS = [
   require("./pattern01Karakuri.js"),
-  require("./pattern02Zigzag.js"),
-  require("./pattern03Billiard.js"),
+  require("./pattern04Sekisho.js"),
 ];
 
 module.exports = { PATTERNS };

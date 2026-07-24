@@ -20,8 +20,7 @@ const webRoot = path.join(__dirname, "..");
 const MODULE_FILES = [
   "components/omikujiPatterns/frame.js",
   "components/omikujiPatterns/pattern01Karakuri.js",
-  "components/omikujiPatterns/pattern02Zigzag.js",
-  "components/omikujiPatterns/pattern03Billiard.js",
+  "components/omikujiPatterns/pattern04Sekisho.js",
   "components/omikujiPatterns/index.js",
   "components/omikujiMachine.js",
 ];
