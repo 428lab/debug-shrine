@@ -318,7 +318,7 @@ func runSanpai(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 		// Node版は Firestore Timestamp の整数秒(.seconds、ナノ秒切り捨て)同士を比較するため、
 		// Go側も time.Time の丸め込みではなく Unix()(整数秒)で揃える。
 		if userData.LastSanpai.Unix()+int64(cfg.NextTime) > time.Now().Unix() {
-			writeJSON(w, http.StatusOK, map[string]interface{}{"status": "expire", "add_exp": 0})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"status": "expire", "add_exp": 0, "next_time": cfg.NextTime})
 			return nil
 		}
 	}
@@ -477,6 +477,7 @@ func runSanpai(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 		"level_after":        formatted.Level,
 		"updated_repo_count": len(updatedRepos),
 		"action_count":       len(splited),
+		"next_time":          cfg.NextTime,
 	})
 	return nil
 }

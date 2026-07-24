@@ -190,6 +190,8 @@ export default {
     initScene() {
       if (this.destroyed || !this.$refs.canvasWrap) return;
       const { engine, world, tassel, relayBall } = machine.buildMachineWorld(Matter);
+      // 弱い当たりでもドミノ連鎖が完走するよう最低転倒速度を保証(#199)
+      machine.installChainAssist(Matter, engine);
       this.engine = engine;
       this.tassel = tassel;
       this.relayBall = relayBall;
