@@ -136,8 +136,22 @@
       </div>
       </transition>
     </div>
-    <!-- 参拝前(儀式中)は共有UIや導線を出さない -->
-    <template v-if="!ritual">
+    <!-- 通信失敗(ネットワーク瞬断・サーバーエラー)。儀式はやり直させない -->
+    <div class="container py-5" v-if="isError && !ritual">
+      <div class="fs-1">「むむ、うまく声が届かなかったようじゃ。」</div>
+      <div class="fs-4 mt-4">
+        通信に失敗しました。少し待ってからもう一度お試しください。
+      </div>
+      <button
+        type="button"
+        class="btn btn-lg btn-accent mt-4"
+        @click="onRetry"
+      >
+        もう一度参拝する
+      </button>
+    </div>
+    <!-- 参拝前(儀式中)・結果未確定のうちは共有UIや導線を出さない -->
+    <template v-if="!ritual && result">
       <div class="my-5">
         <Share
           title="参拝したことをSNSで報告しよう"
@@ -164,6 +178,10 @@
 <script>
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { mapGetters } from "vuex";
+import {
+  saveSanpaiResult,
+  loadRestorableSanpaiResult,
+} from "~/utils/sanpaiSession";
 
 // 認証状態の復元は非同期のため、最初に確定したユーザーを待ち受ける
 function resolveCurrentUser(auth) {
@@ -213,8 +231,23 @@ export default {
       },
     };
   },
+  mounted() {
+    // SWの自動リロード・PWA再起動・タブ退避復帰などで再マウントされた場合、
+    // クールダウン内なら儀式をやり直させず完了画面を復元する。儀式画面に
+    // 戻すと二拍手→サーバー判定でexpireの悪循環になる(#198)
+    const saved = loadRestorableSanpaiResult(Date.now());
+    if (saved) {
+      this.ritual = false;
+      this.result = "success";
+      this.status = { ...this.status, ...saved };
+      return;
+    }
+    // 儀式〜参拝完了まではSWの自動リロードを保留させる(#198)
+    this.setSwReloadBlocked(true);
+  },
   beforeDestroy() {
     if (this.clapTimerId) clearTimeout(this.clapTimerId);
+    this.setSwReloadBlocked(false);
   },
   methods: {
     // 二拍手の判定。dblclick はモバイルで不安定なため click を自前でカウントする。
@@ -242,6 +275,19 @@ export default {
         this.claps = 0; // 時間切れ:改めて2回必要
       }, 700);
     },
+    // 通信失敗後の再試行。儀式(二拍手)は済んでいるのでAPIだけやり直す
+    onRetry() {
+      this.isError = false;
+      this.isLoading = true;
+      this.setSwReloadBlocked(true);
+      this.doSanpai();
+    },
+    // sw-update.client.js が公開するガード。儀式〜参拝API実行中の
+    // SW自動リロードを保留する(#198)
+    setSwReloadBlocked(blocked) {
+      const guard = typeof window !== "undefined" && window.$swReloadGuard;
+      if (guard) guard.blocked = blocked;
+    },
     // 拍手のフィードバック(バウンス再生+波紋リング追加)
     pop() {
       this.popKey += 1;
@@ -268,36 +314,45 @@ export default {
       };
       // Go版(sanpaiGo)はコールドスタートが短く参拝処理が速くなるため使用する
       // (Node版のsanpaiとレスポンス形式は同一。docs/backend.md参照)
-      let response = await this.$axios.post("sanpaiGo",
-        payload,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        })
-        .catch(e=>{
-          this.$store.dispatch('logout');
-          this.isLoading = false;
-        })
-      if (response) {
-        const d = response.data;
-        this.status.level = d.level;
-        this.status.get = d.add_exp;
-        this.status.point = d.exp;
-        this.status.msg = d.msg;
-        this.status.pointsBefore = d.points_before != null ? d.points_before : 0;
-        this.status.pointsAfter = d.points_after != null ? d.points_after : d.exp;
-        this.status.powerBefore = d.power_before != null ? d.power_before : 0;
-        this.status.powerAfter = d.power_after != null ? d.power_after : 0;
-        this.status.levelBefore = d.level_before != null ? d.level_before : 0;
-        this.status.levelAfter = d.level_after != null ? d.level_after : d.level;
-        this.status.updatedRepoCount = d.updated_repo_count != null ? d.updated_repo_count : 0;
-        this.status.actionCount = d.action_count != null ? d.action_count : 0;
-        this.result = d.status;
+      let response;
+      try {
+        response = await this.$axios.post("sanpaiGo",
+          payload,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          });
+      } catch (e) {
+        // ログアウトは認証エラー(401/403)のときだけ。ネットワーク瞬断や5xxで
+        // ログアウトさせると、再サインイン→再参拝→expireの悪循環になる(#198)
+        const statusCode = e.response && e.response.status;
+        if (statusCode === 401 || statusCode === 403) {
+          this.$store.dispatch("logout");
+        } else {
+          this.isError = true;
+        }
         this.isLoading = false;
-      } else {
-        this.isError = true;
-        this.isLoading = false;
+        return;
+      }
+      const d = response.data;
+      this.status.level = d.level;
+      this.status.get = d.add_exp;
+      this.status.point = d.exp;
+      this.status.msg = d.msg;
+      this.status.pointsBefore = d.points_before != null ? d.points_before : 0;
+      this.status.pointsAfter = d.points_after != null ? d.points_after : d.exp;
+      this.status.powerBefore = d.power_before != null ? d.power_before : 0;
+      this.status.powerAfter = d.power_after != null ? d.power_after : 0;
+      this.status.levelBefore = d.level_before != null ? d.level_before : 0;
+      this.status.levelAfter = d.level_after != null ? d.level_after : d.level;
+      this.status.updatedRepoCount = d.updated_repo_count != null ? d.updated_repo_count : 0;
+      this.status.actionCount = d.action_count != null ? d.action_count : 0;
+      this.result = d.status;
+      this.isLoading = false;
+      if (d.status === "success") {
+        // クールダウン内の再マウントで完了画面を復元できるよう保存(#198)
+        saveSanpaiResult({ ...this.status }, d.next_time, Date.now());
       }
     },
   },
