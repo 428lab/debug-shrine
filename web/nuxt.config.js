@@ -104,7 +104,10 @@ export default {
       {
         persistence: 'local', // default
         ssr: false, // default
-        emulatorPort: 9099,
+        // ホスト側の9099が他プロジェクトに使われている場合に上書きできるようにする
+        emulatorPort: process.env.FIREBASE_AUTH_EMULATOR_PORT
+          ? parseInt(process.env.FIREBASE_AUTH_EMULATOR_PORT, 10)
+          : 9099,
         emulatorHost: 'http://localhost',
       }
     }

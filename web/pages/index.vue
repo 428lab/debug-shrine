@@ -218,11 +218,19 @@ export default {
         console.error(error);
         return;
       }
+      // auth エミュレーターの偽GitHubサインインは screenName / photoURL を
+      // 返さないため、ローカル検証用のフォールバックを入れる(実GitHubでは
+      // 常に値が入るため本番の挙動は変わらない)(#205)
+      const provData = result.user.providerData[0] || {};
       let userData = {
-        github_id: result.user.providerData[0].uid,
+        github_id: provData.uid || result.user.uid,
         display_name: result.user.displayName,
-        screen_name: result._tokenResponse.screenName,
-        image_path: result.user.photoURL,
+        screen_name:
+          result._tokenResponse.screenName ||
+          (result.user.email ? result.user.email.split("@")[0] : "local-dev"),
+        image_path:
+          result.user.photoURL ||
+          "https://avatars.githubusercontent.com/u/583231",
       };
 
       if (!userData.display_name) {
