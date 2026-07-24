@@ -67,6 +67,7 @@ export default {
   plugins: [
     '~/plugins/persistedstate.js',
     '~/plugins/sw-update.client.js',
+    '~/plugins/pwa-start.client.js',
   ],
 
   // Auto import components (https://go.nuxtjs.dev/config-components)
