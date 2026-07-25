@@ -75,7 +75,11 @@ function loadRestorableSanpaiResult(now, storage) {
     clearSanpaiResult(storage);
     return null;
   }
-  return record.status;
+  return {
+    status: record.status,
+    // 「次の参拝まで」のカウントダウン表示用(#215)
+    remainingSeconds: Math.ceil((expiresAt - now) / 1000),
+  };
 }
 
 function clearSanpaiResult(storage) {
