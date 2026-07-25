@@ -75,3 +75,17 @@ code {
     background-color: var(--color-accent);
     color: #1a1206;
 }
+
+/* 注意喚起(読み込み失敗・保存失敗・表示内容の食い違いなど)。
+   読み飛ばされると困るものは文字色だけでなく面で囲う(DESIGN.md参照)。
+   Bootstrapのalertは白背景なのでダークテーマでは使わず、これに統一する */
+.notice-danger {
+    display: block;
+    color: var(--color-danger);
+    border: 1px solid var(--color-danger);
+    border-radius: 0.5rem;
+    background: rgba(255, 107, 107, 0.1);
+    padding: 8px 12px;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
