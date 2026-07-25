@@ -11,8 +11,8 @@
       GitHubの実績を集めています<span class="dots"></span>
     </div>
     <div v-else-if="state === 'error'" class="py-2">
-      <span class="gh-sub">GitHubの実績を読み込めませんでした。</span>
-      <button class="btn btn-sm btn-outline-light ms-2" @click="fetchStats">
+      <span class="notice-danger"><i class="fas fa-fw fa-exclamation-triangle"></i> GitHubの実績を読み込めませんでした。</span>
+      <button class="btn btn-sm btn-outline-light mt-2" @click="fetchStats">
         再読み込み
       </button>
     </div>

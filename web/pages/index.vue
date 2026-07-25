@@ -30,8 +30,8 @@
             >
               GitHubと連携して<br class="d-md-none" />参拝しよう
             </button>
-            <div v-if="registerError" class="alert alert-warning mt-3 mb-0">
-              登録に失敗しました。時間をおいて、もう一度GitHub連携からやり直してください。
+            <div v-if="registerError" class="notice-danger mt-3">
+              <i class="fas fa-fw fa-exclamation-triangle"></i> 登録に失敗しました。時間をおいて、もう一度GitHub連携からやり直してください。
             </div>
           </div>
           <div class="mt-4" v-else>
