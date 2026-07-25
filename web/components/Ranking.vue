@@ -1,23 +1,43 @@
 <template>
   <div>
-    <div class="ranking-seg mb-3" role="tablist">
-      <button
-        type="button"
-        class="seg-btn"
-        :class="{ active: mode === 'battle' }"
-        @click="mode = 'battle'"
-      >
-        <i class="fas fa-fw fa-fist-raised"></i> せんとうりょく
-      </button>
-      <button
-        type="button"
-        class="seg-btn"
-        :class="{ active: mode === 'points' }"
-        @click="mode = 'points'"
-      >
-        <i class="fas fa-fw fa-coins"></i> ぽいんと
-      </button>
+    <template v-if="showTabs">
+      <div class="ranking-seg mb-2" role="tablist">
+        <button
+          type="button"
+          class="seg-btn"
+          :class="{ active: metric === 'battle' }"
+          @click="metric = 'battle'"
+        >
+          <i class="fas fa-fw fa-fist-raised"></i> せんとうりょく
+        </button>
+        <button
+          type="button"
+          class="seg-btn"
+          :class="{ active: metric === 'points' }"
+          @click="metric = 'points'"
+        >
+          <i class="fas fa-fw fa-coins"></i> ぽいんと
+        </button>
+      </div>
+      <div class="ranking-seg mb-3" role="tablist">
+        <button
+          v-for="p in periodOptions"
+          :key="p.key"
+          type="button"
+          class="seg-btn"
+          :class="{ active: period === p.key }"
+          @click="period = p.key"
+        >
+          {{ p.label }}
+        </button>
+      </div>
+    </template>
+
+    <!-- 期間の記録がまだ無いときは黙って空を出さず、トータルを見せる -->
+    <div v-if="fellBack" class="fallback-note mb-3">
+      まだ{{ periodLabel }}の記録が溜まっていないため、トータルを表示しています。
     </div>
+
     <div class="p-3 text-start card-shrine" v-if="isLogin">
       <div class="fs-5 mb-3">あなたの順位</div>
       <table v-if="myCurrentRanking">
@@ -36,7 +56,10 @@
     </div>
     <div class="text-start mt-3">
       <div class="card card-shrine ranking-card">
-        <div class="card-header ranking-header">{{ metricLabel }}ランキング</div>
+        <div class="card-header ranking-header">
+          {{ headerLabel }}
+          <div v-if="headerNote" class="ranking-note">{{ headerNote }}</div>
+        </div>
         <div class="list-group list-group-flush">
           <nuxt-link
             class="
@@ -80,17 +103,31 @@ export default {
   props: {
     pagenation: { type: Boolean, default: false },
     max: { type: Number, default: 100 },
+    // トップページのように幅が狭い場所ではタブを出さず、既定の組み合わせだけ
+    // 見せる(6タブが並んで窮屈になるのを避ける)。
+    showTabs: { type: Boolean, default: true },
+    defaultMetric: { type: String, default: "battle" },
+    defaultPeriod: { type: String, default: "week" },
   },
   data() {
     return {
-      // battle = せんとうりょく(battle_point) / points = ぽいんと(exp)
-      mode: "battle",
+      // battle = せんとうりょく / points = ぽいんと
+      metric: this.defaultMetric,
+      // total / week / month
+      period: this.defaultPeriod,
+      periodOptions: [
+        { key: "total", label: "トータル" },
+        { key: "week", label: "週間" },
+        { key: "month", label: "月間" },
+      ],
       ranking: [],
       pointsRanking: [],
-      myRanking: {},
+      myRanking: null,
       myPointRanking: null,
+      // periods["battle_week"] = { ranking: [...], my_rank: {...} }
+      periods: {},
       latestUpdate: null,
-    }
+    };
   },
   async beforeMount() {
     let params = {};
@@ -102,7 +139,7 @@ export default {
     // 取得先は rankingBaseUrl(Hosting CDN オリジン)を優先し、ランキング
     // レスポンスをエッジでキャッシュさせて関数・Firestoreへの到達を減らす。
     // 未設定なら従来どおり apiUrl 経由(関数直叩き)にフォールバックする。
-    // 戦闘力・ぽいんとの両ランキングを1レスポンスで受け取る(タブ切替は
+    // トータル・週間・月間の全ランキングを1レスポンスで受け取る(タブ切替は
     // 取得済みデータの表示切替のみで、再フェッチしない)。
     let response = await this.$axios.get("/rankingGo", {
       baseURL: this.$config.rankingBaseUrl || this.$config.apiUrl,
@@ -112,38 +149,74 @@ export default {
     this.pointsRanking = response.data.points_ranking || [];
     this.myRanking = response.data.my_rank;
     this.myPointRanking = response.data.my_point_rank;
+    this.periods = response.data.periods || {};
     this.latestUpdate = response.data.latest_update;
   },
   computed: {
     ...mapGetters(["isLogin", "user"]),
-    isBattleMode() {
-      return this.mode === "battle";
+    isBattleMetric() {
+      return this.metric === "battle";
     },
     metricLabel() {
-      return this.isBattleMode ? "せんとうりょく" : "ぽいんと";
+      return this.isBattleMetric ? "せんとうりょく" : "ぽいんと";
     },
     unit() {
-      return this.isBattleMode ? "bp" : "pt";
+      return this.isBattleMetric ? "bp" : "pt";
+    },
+    periodLabel() {
+      const found = this.periodOptions.find((p) => p.key === this.period);
+      return found ? found.label : "";
+    },
+    totalRanking() {
+      return this.isBattleMetric ? this.ranking : this.pointsRanking;
+    },
+    // 選択中の期間ランキング(トータル以外)。未集計なら空配列。
+    selectedPeriodRanking() {
+      if (this.period === "total") return this.totalRanking;
+      const p = this.periods[this.metric + "_" + this.period];
+      return (p && p.ranking) || [];
+    },
+    // 週間・月間を選んでいるのに記録がまだ無い状態。この間はトータルを見せる
+    // (せんとうりょくの期間ランキングは基準値が溜まるまで空になるため)。
+    fellBack() {
+      return this.period !== "total" && this.selectedPeriodRanking.length === 0;
     },
     currentRanking() {
-      return this.isBattleMode ? this.ranking : this.pointsRanking;
+      return this.fellBack ? this.totalRanking : this.selectedPeriodRanking;
     },
     myCurrentRanking() {
-      return this.isBattleMode ? this.myRanking : this.myPointRanking;
+      if (this.period === "total" || this.fellBack) {
+        return this.isBattleMetric ? this.myRanking : this.myPointRanking;
+      }
+      const p = this.periods[this.metric + "_" + this.period];
+      return (p && p.my_rank) || null;
     },
     myCurrentValue() {
       if (!this.myCurrentRanking) return "";
-      return this.isBattleMode
-        ? this.myCurrentRanking.battle_point
-        : this.myCurrentRanking.point;
+      return this.itemValue(this.myCurrentRanking);
+    },
+    headerLabel() {
+      const prefix =
+        this.period === "total" || this.fellBack ? "" : this.periodLabel;
+      return prefix + this.metricLabel + "ランキング";
+    },
+    // せんとうりょくの期間ランキングは「伸びた分」なので、絶対値と誤解されない
+    // ように注記する。
+    headerNote() {
+      if (this.fellBack || this.period === "total") return "";
+      return this.isBattleMetric
+        ? this.periodLabel + "で伸びたせんとうりょく"
+        : this.periodLabel + "に獲得したぽいんと";
     },
     rankingView() {
       return this.currentRanking.slice(0, this.max);
     },
   },
   methods: {
+    // トータルは battle_point / point、期間ランキングは value を持つ。
     itemValue(item) {
-      return this.isBattleMode ? item.battle_point : item.point;
+      if (item.value !== undefined) return item.value;
+      return this.isBattleMetric ? item.battle_point : item.point;
     },
   },
 };
@@ -157,6 +230,11 @@ export default {
   color: var(--color-text);
   font-weight: 700;
   border-bottom: 1px solid var(--color-surface-border);
+}
+.ranking-note {
+  color: var(--color-text-muted, #9a9a9a);
+  font-size: 0.78rem;
+  font-weight: 400;
 }
 .ranking-card .list-group-item {
   background-color: transparent;
@@ -172,9 +250,14 @@ export default {
   color: var(--color-text-muted, #9a9a9a);
   font-size: 0.9rem;
 }
+.fallback-note {
+  color: var(--color-text-muted, #9a9a9a);
+  font-size: 0.85rem;
+}
 
-/* せんとうりょく/ぽいんと切替(セグメント型。card-shrineと同じ
-   角丸0.5rem・ボーダー・背景色で、周囲のカードUIと揃える) */
+/* 指標(せんとうりょく/ぽいんと)と期間(トータル/週間/月間)の切替。
+   セグメント型。card-shrineと同じ角丸0.5rem・ボーダー・背景色で、
+   周囲のカードUIと揃える */
 .ranking-seg {
   display: inline-flex;
   border: 1px solid var(--color-surface-border);

@@ -297,3 +297,127 @@ func TestRanking_ScreenNameNotFound(t *testing.T) {
 		t.Errorf("my_rank should be nil when screen_name is not found in ranking, got: %+v", out.MyRank)
 	}
 }
+
+func TestRanking_PeriodsInResponse(t *testing.T) {
+	client := emulatorClient(t)
+	ctx := context.Background()
+
+	// 上位は表示情報つき(*_top)、順位照会は全ユーザー分(*_ranks)。
+	// 圏外のユーザーでも my_rank が引けることを確認する。
+	docID := "ranking_cache_TestRanking_PeriodsInResponse"
+	if _, err := client.Collection("cache_data").Doc(docID).Set(ctx, map[string]interface{}{
+		"ranking": []map[string]interface{}{
+			{"display_name": "a", "screen_name": "a", "image_path": "", "battle_point": int64(1), "rank": int64(1)},
+		},
+		"points_ranking": []map[string]interface{}{},
+		"battle_week_top": []map[string]interface{}{
+			{"display_name": "王者", "screen_name": "winner", "image_path": "https://example.com/w.png", "value": int64(500), "rank": int64(1)},
+		},
+		"battle_week_ranks": []map[string]interface{}{
+			{"screen_name": "winner", "value": int64(500), "rank": int64(1)},
+			{"screen_name": "outsider", "value": int64(3), "rank": int64(120)},
+		},
+		"points_month_top": []map[string]interface{}{
+			{"display_name": "b", "screen_name": "b", "image_path": "", "value": int64(42), "rank": int64(1)},
+		},
+		"points_month_ranks": []map[string]interface{}{
+			{"screen_name": "b", "value": int64(42), "rank": int64(1)},
+		},
+		"latest_update": time.Now(),
+	}); err != nil {
+		t.Fatalf("failed to seed ranking cache: %v", err)
+	}
+
+	out, err := buildRankingResponseFromDoc(ctx, client, docID, "outsider")
+	if err != nil {
+		t.Fatalf("buildRankingResponseFromDoc: %v", err)
+	}
+
+	week, ok := out.Periods["battle_week"]
+	if !ok {
+		t.Fatalf("periods に battle_week が無い: %+v", out.Periods)
+	}
+	if len(week.Ranking) != 1 || week.Ranking[0].ScreenName != "winner" || week.Ranking[0].Value != 500 {
+		t.Errorf("battle_week の上位が違う: %+v", week.Ranking)
+	}
+	if week.MyRank == nil || week.MyRank.Rank != 120 || week.MyRank.Value != 3 {
+		t.Fatalf("圏外(120位)でも my_rank が引けるべき: %+v", week.MyRank)
+	}
+
+	month, ok := out.Periods["points_month"]
+	if !ok || len(month.Ranking) != 1 || month.Ranking[0].Value != 42 {
+		t.Errorf("points_month が違う: %+v", month)
+	}
+	if month.MyRank != nil {
+		t.Errorf("ランキングに居ないユーザーの my_rank は nil であるべき: %+v", month.MyRank)
+	}
+
+	// 未集計の期間はエラーにせず空配列(フロントがトータルへフォールバックする)。
+	empty, ok := out.Periods["battle_month"]
+	if !ok {
+		t.Fatalf("periods に battle_month が無い")
+	}
+	if empty.Ranking == nil || len(empty.Ranking) != 0 {
+		t.Errorf("未集計の期間は空配列であるべき: %+v", empty.Ranking)
+	}
+
+	// JSONでも periods が null ではなくオブジェクト、空配列は [] になること。
+	raw, err := json.Marshal(out)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	var asMap map[string]interface{}
+	if err := json.Unmarshal(raw, &asMap); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	periods, ok := asMap["periods"].(map[string]interface{})
+	if !ok || len(periods) != 4 {
+		t.Fatalf("periods は4キーのオブジェクトであるべき: %v", asMap["periods"])
+	}
+	bm, ok := periods["battle_month"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("battle_month がオブジェクトでない: %v", periods["battle_month"])
+	}
+	if arr, ok := bm["ranking"].([]interface{}); !ok || len(arr) != 0 {
+		t.Errorf("未集計期間の ranking は [] であるべき: %v", bm["ranking"])
+	}
+	if _, exists := bm["my_rank"]; exists {
+		t.Errorf("該当なしの my_rank はキーごと省略されるべき: %v", bm)
+	}
+}
+
+func TestRankingUpdate_WritesPeriodRankings(t *testing.T) {
+	client := emulatorClient(t)
+	ctx := context.Background()
+
+	// 初回実行では基準値が作られるだけで、せんとうりょくの期間ランキングは空。
+	if err := runRankingUpdate(ctx, client); err != nil {
+		t.Fatalf("runRankingUpdate: %v", err)
+	}
+	baseSnap, err := client.Collection("cache_data").Doc(battleBaselineDocID).Get(ctx)
+	if err != nil {
+		t.Fatalf("基準値ドキュメントが作られていない: %v", err)
+	}
+	var baseline battleBaselineDoc
+	if err := baseSnap.DataTo(&baseline); err != nil {
+		t.Fatalf("DataTo: %v", err)
+	}
+	if baseline.WeekKey == "" || baseline.MonthKey == "" {
+		t.Errorf("基準値に期間キーが入るべき: %+v", baseline)
+	}
+
+	snap, err := client.Collection("cache_data").Doc("ranking_cache").Get(ctx)
+	if err != nil {
+		t.Fatalf("failed to read ranking_cache: %v", err)
+	}
+	var out rankingCacheDoc
+	if err := snap.DataTo(&out); err != nil {
+		t.Fatalf("DataTo: %v", err)
+	}
+	if len(out.BattleWeekTop) != 0 {
+		t.Errorf("初回は伸び幅0なので週間せんとうりょくは空であるべき: %+v", out.BattleWeekTop)
+	}
+	if out.Ranking == nil {
+		t.Error("トータルのランキングは従来どおり書かれるべき")
+	}
+}

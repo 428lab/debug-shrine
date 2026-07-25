@@ -75,7 +75,9 @@
         <div class="row flex-row-reverse">
           <div class="col-12 col-md-6 col-lg-4 px-4">
             <h2 class="section-title mb-3"><i class="fas fa-fw fa-trophy"></i> ランキング</h2>
-            <ranking max="10" class="mt-3"></ranking>
+            <!-- 幅が狭いのでタブは出さず週間だけ見せる(未集計の間はトータル
+                 に自動フォールバック)。全期間の切替は /ranking で -->
+            <ranking max="10" :show-tabs="false" class="mt-3"></ranking>
             <div class="text-end px-4 mt-3 mb-4">
               <nuxt-link to="/ranking">
                 ランキングの続き <i class="fas fa-fw fa-chevron-right"></i>
