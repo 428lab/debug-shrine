@@ -12,8 +12,8 @@
       草を数えています<span class="dots"></span>
     </div>
     <div v-else-if="state === 'error'" class="py-2">
-      <span class="grass-sub">参拝履歴を読み込めませんでした。</span>
-      <button class="btn btn-sm btn-outline-light ms-2" @click="fetchRecent">
+      <span class="notice-danger"><i class="fas fa-fw fa-exclamation-triangle"></i> 参拝履歴を読み込めませんでした。</span>
+      <button class="btn btn-sm btn-outline-light mt-2" @click="fetchRecent">
         再読み込み
       </button>
     </div>
@@ -42,8 +42,8 @@
           全期間の参拝を解析しています<span class="dots"></span>
         </div>
         <div v-else-if="allState === 'error'" class="py-2">
-          <span class="grass-sub">全期間の解析に失敗しました。</span>
-          <button class="btn btn-sm btn-outline-light ms-2" @click="loadAll">
+          <span class="notice-danger"><i class="fas fa-fw fa-exclamation-triangle"></i> 全期間の解析に失敗しました。</span>
+          <button class="btn btn-sm btn-outline-light mt-2" @click="loadAll">
             もう一度
           </button>
         </div>

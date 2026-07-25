@@ -13,6 +13,7 @@ colors:
   accent-soft: "#ffcf6b"
   accent-tint: "rgba(255, 196, 120, 0.15)" # 選択状態の面(タブ・ピン選択行など)
   on-accent: "#1a1206" # 琥珀の上に載せる文字色
+  danger: "#ff6b6b" # 注意喚起(エラー・警告)。暗い背景で読めるよう純赤より明るく
 typography:
   font-family-sans: '"Helvetica Neue", Helvetica, Arial, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif'
   font-family-mono: 'SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
@@ -54,6 +55,8 @@ GitHubのダークUIに寄せたカード(`--color-surface: #0d1117`)を置き�
 - 面: `--color-surface`(#0d1117)+ 枠線 `--color-surface-border`(#30363d)
 - アクセント(琥珀): ボタン面は `--color-accent`、hoverは `--color-accent-hover`、
   文字強調は `--color-accent-soft`。琥珀の上の文字は `#1a1206`(焦げ茶)
+- 注意喚起(エラー・警告)は `--color-danger`(#ff6b6b)。読み飛ばされると困る
+  ものは文字色だけでなく、同色のボーダー+薄いティントの面で囲って目立たせる
 - 選択状態の面は琥珀の薄いティント `rgba(255,196,120,.15)`(タブのactive、
   ピン留め候補の選択行などで共通)
 - SNSブランド色は `color.css` の `--color-x` 等を使う(独自の近似色を作らない)
@@ -98,6 +101,9 @@ GitHubのダークUIに寄せたカード(`--color-surface: #0d1117`)を置き�
 - **アイコンはFontAwesome単色**(`fas fa-fw fa-*`)で文字色に追従させる。
   **絵文字は使わない**(機種依存の見た目になる。#182でタブの絵文字を
   fa-fist-raised / fa-coins に置換した経緯)。既存の残存箇所は #183 で置き換える
+- **注意喚起** `.notice-danger`(common.css): 読み込み失敗・保存失敗・表示内容の
+  食い違いなど、読み飛ばされると困る知らせ。赤字+同色ボーダー+薄い面+
+  `fa-exclamation-triangle`。Bootstrapの `alert` は白背景なので使わない
 - **進捗バー**: `.progress-bar` は琥珀
 
 ## Do's and Don'ts

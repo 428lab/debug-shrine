@@ -16,6 +16,9 @@
   --color-accent-hover: #c98f2a;
   --color-accent-soft: #ffcf6b;
 
+  /* 注意喚起(エラー・警告)。暗い背景で読めるよう純赤より明るくする */
+  --color-danger: #ff6b6b;
+
   /* SNSブランド色 */
   --color-x: #000000;
   --color-bluesky: #0085ff;

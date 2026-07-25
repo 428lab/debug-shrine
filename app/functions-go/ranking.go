@@ -50,6 +50,18 @@ type pointsRankingEntry struct {
 type rankingCacheDoc struct {
 	Ranking       []rankingEntry       `firestore:"ranking"`
 	PointsRanking []pointsRankingEntry `firestore:"points_ranking"`
+
+	// 期間ランキング(週間・月間)。*_top は表示情報つきの上位、*_ranks は
+	// 圏外の「あなたの順位」を引くための全ユーザー分の軽量リスト。
+	// いずれも後付けフィールドなので、未集計の間は空のまま返す。
+	BattleWeekTop    []periodEntry     `firestore:"battle_week_top"`
+	BattleWeekRanks  []periodRankEntry `firestore:"battle_week_ranks"`
+	BattleMonthTop   []periodEntry     `firestore:"battle_month_top"`
+	BattleMonthRanks []periodRankEntry `firestore:"battle_month_ranks"`
+	PointsWeekTop    []periodEntry     `firestore:"points_week_top"`
+	PointsWeekRanks  []periodRankEntry `firestore:"points_week_ranks"`
+	PointsMonthTop   []periodEntry     `firestore:"points_month_top"`
+	PointsMonthRanks []periodRankEntry `firestore:"points_month_ranks"`
 }
 
 // firestoreTimestampRaw は Node版の Firestore Timestamp を JSON.stringify した際の
@@ -63,12 +75,21 @@ type firestoreTimestampRaw struct {
 	Nanoseconds int64 `json:"_nanoseconds"`
 }
 
+// periodRankingResponse は1つの期間ランキング(例: 週間せんとうりょく)。
+type periodRankingResponse struct {
+	Ranking []periodEntry    `json:"ranking"`
+	MyRank  *periodRankEntry `json:"my_rank,omitempty"`
+}
+
 type rankingResponse struct {
 	Ranking       []rankingEntry         `json:"ranking"`
 	PointsRanking []pointsRankingEntry   `json:"points_ranking"`
 	LatestUpdate  *firestoreTimestampRaw `json:"latest_update,omitempty"`
 	MyRank        *rankingEntry          `json:"my_rank,omitempty"`
 	MyPointRank   *pointsRankingEntry    `json:"my_point_rank,omitempty"`
+	// Periods のキーは "battle_week" / "battle_month" / "points_week" /
+	// "points_month"。フロントは選択中の指標×期間で引く。
+	Periods map[string]periodRankingResponse `json:"periods"`
 }
 
 func rankingHandler(w http.ResponseWriter, r *http.Request) {
@@ -172,7 +193,16 @@ func buildRankingResponseFromDoc(ctx context.Context, client *firestore.Client, 
 		pointsTop = pointsTop[:100]
 	}
 
-	resp := rankingResponse{Ranking: top, PointsRanking: pointsTop}
+	resp := rankingResponse{
+		Ranking:       top,
+		PointsRanking: pointsTop,
+		Periods: map[string]periodRankingResponse{
+			"battle_week":  buildPeriodResponse(doc.BattleWeekTop, doc.BattleWeekRanks, screenName),
+			"battle_month": buildPeriodResponse(doc.BattleMonthTop, doc.BattleMonthRanks, screenName),
+			"points_week":  buildPeriodResponse(doc.PointsWeekTop, doc.PointsWeekRanks, screenName),
+			"points_month": buildPeriodResponse(doc.PointsMonthTop, doc.PointsMonthRanks, screenName),
+		},
+	}
 	if hasLatestUpdate {
 		resp.LatestUpdate = &firestoreTimestampRaw{Seconds: rawSeconds, Nanoseconds: rawNanos}
 	}
@@ -191,6 +221,30 @@ func buildRankingResponseFromDoc(ctx context.Context, client *firestore.Client, 
 		}
 	}
 	return resp, nil
+}
+
+// buildPeriodResponse は期間ランキングの応答を1つ組む。
+// ranking は常に非nil(未集計の期間は空配列)にして、フロントが「まだ記録が
+// 無い」をそのまま判定してトータル表示にフォールバックできるようにする。
+// my_rank は上位圏外でも引けるよう、全ユーザー分の *_ranks から探す。
+func buildPeriodResponse(top []periodEntry, ranks []periodRankEntry, screenName string) periodRankingResponse {
+	resp := periodRankingResponse{Ranking: top}
+	if resp.Ranking == nil {
+		resp.Ranking = []periodEntry{}
+	}
+	if len(resp.Ranking) > 100 {
+		resp.Ranking = resp.Ranking[:100]
+	}
+	if screenName == "" {
+		return resp
+	}
+	for i := range ranks {
+		if ranks[i].ScreenName == screenName {
+			resp.MyRank = &ranks[i]
+			break
+		}
+	}
+	return resp
 }
 
 // extractTimestampField は DocumentSnapshot から生の Firestore Timestamp
