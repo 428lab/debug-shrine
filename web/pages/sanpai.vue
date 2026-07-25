@@ -134,6 +134,19 @@
         </div>
         <div class="fs-4 mt-4">追加のポイントはありませんでした</div>
       </div>
+      <!-- failed(not registered 等)や未知のステータス。以前は表示分岐が無く
+           真っ白になっていた(#205) -->
+      <div v-else-if="result">
+        <div class="fs-1 mt-5">
+          「ふむ、まだ氏子の登録が済んでおらぬようじゃ。」
+        </div>
+        <div class="fs-4 mt-4">
+          参拝を受け付けられませんでした。トップページからログインし直してください。
+        </div>
+        <nuxt-link class="btn btn-lg btn-accent mt-4" to="/">
+          トップページへ戻る
+        </nuxt-link>
+      </div>
       </transition>
     </div>
     <!-- 通信失敗(ネットワーク瞬断・サーバーエラー)。儀式はやり直させない -->
@@ -150,8 +163,10 @@
         もう一度参拝する
       </button>
     </div>
-    <!-- 参拝前(儀式中)・結果未確定のうちは共有UIや導線を出さない -->
-    <template v-if="!ritual && result">
+    <!-- 参拝前(儀式中)・結果未確定・失敗時は共有UIや導線を出さない -->
+    <template
+      v-if="!ritual && ['success', 'expire', 'noaction'].includes(result)"
+    >
       <div class="my-5">
         <Share
           title="参拝したことをSNSで報告しよう"
