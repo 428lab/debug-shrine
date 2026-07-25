@@ -33,8 +33,10 @@
       </div>
     </template>
 
-    <!-- 期間の記録がまだ無いときは黙って空を出さず、トータルを見せる -->
+    <!-- 期間の記録がまだ無いときは黙って空を出さず、トータルを見せる。
+         見ているものが選択中のタブと違うので、赤字で目立たせる -->
     <div v-if="fellBack" class="fallback-note mb-3">
+      <i class="fas fa-fw fa-exclamation-triangle"></i>
       まだ{{ periodLabel }}の記録が溜まっていないため、トータルを表示しています。
     </div>
 
@@ -251,8 +253,13 @@ export default {
   font-size: 0.9rem;
 }
 .fallback-note {
-  color: var(--color-text-muted, #9a9a9a);
-  font-size: 0.85rem;
+  color: var(--color-danger, #ff6b6b);
+  border: 1px solid var(--color-danger, #ff6b6b);
+  border-radius: 0.5rem;
+  background: rgba(255, 107, 107, 0.1);
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  font-weight: 700;
 }
 
 /* 指標(せんとうりょく/ぽいんと)と期間(トータル/週間/月間)の切替。
