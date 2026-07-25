@@ -41,11 +41,18 @@
             style="max-width: 700px; height: auto"
           />
         </div>
-        <div class="fs-1">「殊勝なことじゃ。きっと良きことがあるぞよ。」</div>
+        <!-- 復元表示(参拝済み)では新規成功と同じ口上・演出を再生しない(#215) -->
+        <div class="fs-1">
+          {{
+            restored
+              ? "「先ほどの参拝の結果じゃ。」"
+              : "「殊勝なことじゃ。きっと良きことがあるぞよ。」"
+          }}
+        </div>
         <div class="fs-4 mt-4">{{ status.msg }}</div>
 
         <LevelUpBanner
-          v-if="isLevelUp"
+          v-if="isLevelUp && !restored"
           :from="status.levelBefore"
           :to="status.levelAfter"
         />
@@ -57,12 +64,14 @@
             <span class="text-muted">{{ status.pointsBefore.toLocaleString() }}</span>
             <span class="result-arrow">→</span>
             <CountUp
+              v-if="!restored"
               :from="status.pointsBefore"
               :value="status.pointsAfter"
               :delay="300"
               suffix=" pt"
             />
-            <span class="badge bg-success ms-2">+{{ status.get }}</span>
+            <span v-else>{{ status.pointsAfter.toLocaleString() }} pt</span>
+            <span v-if="!restored" class="badge bg-success ms-2">+{{ status.get }}</span>
           </div>
         </div>
 
@@ -73,11 +82,13 @@
             <span class="text-muted">{{ status.powerBefore.toLocaleString() }}</span>
             <span class="result-arrow">→</span>
             <CountUp
+              v-if="!restored"
               :from="status.powerBefore"
               :value="status.powerAfter"
               :delay="600"
             />
-            <span v-if="powerDelta > 0" class="badge bg-danger ms-2">
+            <span v-else>{{ status.powerAfter.toLocaleString() }}</span>
+            <span v-if="powerDelta > 0 && !restored" class="badge bg-danger ms-2">
               +{{ powerDelta }}
             </span>
           </div>
@@ -89,16 +100,23 @@
             <div class="mx-3">
               <div class="fs-6">更新リポジトリ</div>
               <div class="fs-3">
-                <CountUp :value="status.updatedRepoCount" :delay="900" />
+                <CountUp v-if="!restored" :value="status.updatedRepoCount" :delay="900" />
+                <span v-else>{{ status.updatedRepoCount }}</span>
               </div>
             </div>
             <div class="mx-3">
               <div class="fs-6">アクション</div>
               <div class="fs-3">
-                <CountUp :value="status.actionCount" :delay="900" />
+                <CountUp v-if="!restored" :value="status.actionCount" :delay="900" />
+                <span v-else>{{ status.actionCount }}</span>
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- 次の参拝までのカウントダウン(復元表示のときだけ) -->
+        <div v-if="restored" class="fs-5 mt-4 text-muted">
+          次の参拝まで あと {{ remainingText }}
         </div>
 
       </div>
@@ -196,6 +214,7 @@ import { mapGetters } from "vuex";
 import {
   saveSanpaiResult,
   loadRestorableSanpaiResult,
+  clearSanpaiResult,
 } from "~/utils/sanpaiSession";
 
 // 認証状態の復元は非同期のため、最初に確定したユーザーを待ち受ける
@@ -222,6 +241,10 @@ export default {
       isLoading: false,
       isError: false,
       result: "",
+      // 復元表示(参拝済みの結果)かどうか。true の間は成功演出を再生しない(#215)
+      restored: false,
+      remainingSeconds: 0,
+      restoreTimerId: null,
       loadingMessages: [
         "ブンセキチュウ...",
         "コミットをかぞえています",
@@ -252,9 +275,13 @@ export default {
     // 戻すと二拍手→サーバー判定でexpireの悪循環になる(#198)
     const saved = loadRestorableSanpaiResult(Date.now());
     if (saved) {
+      // 復元表示は「参拝済みの結果」として見せる。新規成功と同じ演出を
+      // 再生すると、何度でも参拝できているように見えてしまう(#215)
       this.ritual = false;
       this.result = "success";
-      this.status = { ...this.status, ...saved };
+      this.restored = true;
+      this.status = { ...this.status, ...saved.status };
+      this.startRestoreCountdown(saved.remainingSeconds);
       return;
     }
     // 儀式〜参拝完了まではSWの自動リロードを保留させる(#198)
@@ -262,6 +289,7 @@ export default {
   },
   beforeDestroy() {
     if (this.clapTimerId) clearTimeout(this.clapTimerId);
+    if (this.restoreTimerId) clearInterval(this.restoreTimerId);
     this.setSwReloadBlocked(false);
   },
   methods: {
@@ -296,6 +324,23 @@ export default {
       this.isLoading = true;
       this.setSwReloadBlocked(true);
       this.doSanpai();
+    },
+    // 復元表示のカウントダウン。0になったら保存結果を破棄して
+    // 儀式(二拍手)からやり直せる状態に戻す(#215)
+    startRestoreCountdown(seconds) {
+      this.remainingSeconds = seconds;
+      this.restoreTimerId = setInterval(() => {
+        this.remainingSeconds -= 1;
+        if (this.remainingSeconds <= 0) {
+          clearInterval(this.restoreTimerId);
+          this.restoreTimerId = null;
+          clearSanpaiResult();
+          this.restored = false;
+          this.result = "";
+          this.ritual = true;
+          this.setSwReloadBlocked(true);
+        }
+      }, 1000);
     },
     // sw-update.client.js が公開するガード。儀式〜参拝API実行中の
     // SW自動リロードを保留する(#198)
@@ -378,6 +423,12 @@ export default {
     },
     isLevelUp() {
       return this.status.levelAfter > this.status.levelBefore;
+    },
+    remainingText() {
+      const s = Math.max(0, this.remainingSeconds);
+      const m = Math.floor(s / 60);
+      const sec = s % 60;
+      return m > 0 ? `${m}分${sec}秒` : `${sec}秒`;
     },
     shareUrl() {
       return this.$config.baseUrl;
