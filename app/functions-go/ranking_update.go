@@ -12,6 +12,7 @@ package gofunctions
 import (
 	"context"
 	"log"
+	"time"
 
 	"cloud.google.com/go/firestore"
 	"github.com/GoogleCloudPlatform/functions-framework-go/functions"
@@ -33,6 +34,9 @@ func rankingUpdateHandler(ctx context.Context, _ cloudevents.Event) error {
 }
 
 type rankingUpdateUserDoc struct {
+	// ID は users のドキュメントID(github_id)。期間ランキングの基準値や
+	// 参拝ログの突き合わせに使うため、読み取り時に手で入れる。
+	ID          string `firestore:"-"`
 	DisplayName string `firestore:"display_name"`
 	ScreenName  string `firestore:"screen_name"`
 	ImagePath   string `firestore:"image_path"`
@@ -90,12 +94,60 @@ func runRankingUpdate(ctx context.Context, client *firestore.Client) error {
 		}
 	}
 
-	_, err = client.Collection("cache_data").Doc("ranking_cache").Set(ctx, map[string]interface{}{
+	data := map[string]interface{}{
 		"ranking":        ranking,
 		"points_ranking": pointsRanking,
 		"latest_update":  firestore.ServerTimestamp,
-	}, firestore.MergeAll)
+	}
+
+	// 期間ランキング(週間・月間)。失敗してもトータルの更新は止めない
+	// (期間分は前回値がMergeAllで残るため、次の実行で追いつく)。
+	if err := appendPeriodRankings(ctx, client, data, battleUsers, pointUsers, time.Now()); err != nil {
+		log.Printf("rankingUpdate: period rankings skipped: %v", err)
+	}
+
+	_, err = client.Collection("cache_data").Doc("ranking_cache").Set(ctx, data, firestore.MergeAll)
 	return err
+}
+
+// appendPeriodRankings は週間・月間のランキングを data に足す。
+//
+// せんとうりょくは基準値との差分だけで作れるので毎回更新する。ぽいんとは
+// 参拝ログの横断読み取りが要るため3時間ごとに間引く(間引いた回は
+// MergeAll によって前回の値がそのまま残る)。
+func appendPeriodRankings(ctx context.Context, client *firestore.Client, data map[string]interface{}, battleUsers, pointUsers []rankingUpdateUserDoc, now time.Time) error {
+	weekStart, monthStart, weekKey, monthKey := periodBounds(now)
+
+	baseline, err := loadBattleBaseline(ctx, client)
+	if err != nil {
+		return err
+	}
+	weekScores, monthScores := rollBattleBaseline(baseline, battleUsers, weekKey, monthKey)
+	if err := saveBattleBaseline(ctx, client, baseline); err != nil {
+		return err
+	}
+	putPeriodRanking(data, "battle_week", weekScores)
+	putPeriodRanking(data, "battle_month", monthScores)
+
+	if !shouldAggregateSanpaiPoints(now) {
+		return nil
+	}
+
+	// 表示情報は既に読み込み済みのユーザー一覧から引く(追加の読み取りをしない)。
+	profiles := make(map[string]rankingProfile, len(pointUsers)+len(battleUsers))
+	for _, list := range [][]rankingUpdateUserDoc{battleUsers, pointUsers} {
+		for _, u := range list {
+			profiles[u.ID] = rankingProfile{DisplayName: u.DisplayName, ScreenName: u.ScreenName, ImagePath: u.ImagePath}
+		}
+	}
+
+	weekPoints, monthPoints, err := aggregateSanpaiPoints(ctx, client, weekStart, monthStart)
+	if err != nil {
+		return err
+	}
+	putPeriodRanking(data, "points_week", pointScores(weekPoints, profiles))
+	putPeriodRanking(data, "points_month", pointScores(monthPoints, profiles))
+	return nil
 }
 
 // fetchRankingUsers は users コレクションを指定フィールドの降順で全件取得する。
@@ -117,6 +169,7 @@ func fetchRankingUsers(ctx context.Context, client *firestore.Client, orderField
 		if err := doc.DataTo(&u); err != nil {
 			return nil, err
 		}
+		u.ID = doc.Ref.ID
 		users = append(users, u)
 	}
 	return users, nil
