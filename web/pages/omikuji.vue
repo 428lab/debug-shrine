@@ -8,8 +8,8 @@
 
     <!-- エラー -->
     <div v-else-if="state === 'error'" class="my-5">
-      <div class="alert alert-warning">
-        うまく引けませんでした。時間をおいて試してください。
+      <div class="notice-danger">
+        <i class="fas fa-fw fa-exclamation-triangle"></i> うまく引けませんでした。時間をおいて試してください。
       </div>
       <button class="btn btn-outline-secondary" @click="fetchStatus">
         再読み込み

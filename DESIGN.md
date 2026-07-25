@@ -101,6 +101,9 @@ GitHubのダークUIに寄せたカード(`--color-surface: #0d1117`)を置き�
 - **アイコンはFontAwesome単色**(`fas fa-fw fa-*`)で文字色に追従させる。
   **絵文字は使わない**(機種依存の見た目になる。#182でタブの絵文字を
   fa-fist-raised / fa-coins に置換した経緯)。既存の残存箇所は #183 で置き換える
+- **注意喚起** `.notice-danger`(common.css): 読み込み失敗・保存失敗・表示内容の
+  食い違いなど、読み飛ばされると困る知らせ。赤字+同色ボーダー+薄い面+
+  `fa-exclamation-triangle`。Bootstrapの `alert` は白背景なので使わない
 - **進捗バー**: `.progress-bar` は琥珀
 
 ## Do's and Don'ts

@@ -14,8 +14,8 @@
       リポジトリ一覧を取得しています<span class="dots"></span>
     </div>
     <div v-else-if="state === 'error'" class="py-2">
-      <span class="picker-sub">一覧を取得できませんでした(GitHub APIの制限の可能性)。</span>
-      <button class="btn btn-sm btn-outline-light ms-2" @click="fetchCandidates">
+      <span class="notice-danger"><i class="fas fa-fw fa-exclamation-triangle"></i> 一覧を取得できませんでした(GitHub APIの制限の可能性)。</span>
+      <button class="btn btn-sm btn-outline-light mt-2" @click="fetchCandidates">
         もう一度
       </button>
     </div>
@@ -69,9 +69,9 @@
         >
           おまかせ(スター上位)に戻す
         </button>
-        <span v-if="saveState === 'error'" class="picker-error">{{
-          saveError
-        }}</span>
+        <span v-if="saveState === 'error'" class="notice-danger">
+          <i class="fas fa-fw fa-exclamation-triangle"></i> {{ saveError }}
+        </span>
       </div>
     </template>
   </div>
@@ -194,10 +194,6 @@ export default {
 .picker-sub {
   color: var(--color-text-muted, #9a9a9a);
   font-size: 0.82rem;
-}
-.picker-error {
-  color: #ff8080;
-  font-size: 0.85rem;
 }
 
 .candidates {
