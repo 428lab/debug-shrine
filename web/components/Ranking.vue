@@ -33,6 +33,25 @@
       </div>
     </template>
 
+    <!-- 読み込み中。ここで空データを描くと「記録が無い」の赤い注記が一瞬出て
+         しまうため、取得が終わるまでは何も判定しない -->
+    <div v-if="state === 'loading'" class="p-3 text-start card-shrine">
+      <div class="loading-inline">
+        <span class="spinner-border" role="status" aria-hidden="true"></span>
+        ランキングを読み込んでいます
+      </div>
+    </div>
+    <div v-else-if="state === 'error'" class="text-start">
+      <span class="notice-danger">
+        <i class="fas fa-fw fa-exclamation-triangle"></i>
+        ランキングを読み込めませんでした。
+      </span>
+      <button class="btn btn-sm btn-outline-light mt-2" @click="fetchRanking">
+        再読み込み
+      </button>
+    </div>
+
+    <template v-else>
     <!-- 期間の記録がまだ無いときは黙って空を出さず、トータルを見せる。
          見ているものが選択中のタブと違うので、赤字で目立たせる -->
     <div v-if="fellBack" class="notice-danger mb-3">
@@ -95,6 +114,7 @@
         </div>
       </div>
     </div>
+    </template>
   </div>
 </template>
 
@@ -122,6 +142,7 @@ export default {
         { key: "week", label: "週間" },
         { key: "month", label: "月間" },
       ],
+      state: "loading", // loading | loaded | error
       ranking: [],
       pointsRanking: [],
       myRanking: null,
@@ -132,27 +153,7 @@ export default {
     };
   },
   async beforeMount() {
-    let params = {};
-    if (this.isLogin) {
-      params.screen_name = this.user.screen_name;
-    }
-    // Go版(rankingGo)はコールドスタートが短くランキング表示が速くなるため
-    // 使用する(Node版のrankingとレスポンス形式は同一。docs/backend.md参照)。
-    // 取得先は rankingBaseUrl(Hosting CDN オリジン)を優先し、ランキング
-    // レスポンスをエッジでキャッシュさせて関数・Firestoreへの到達を減らす。
-    // 未設定なら従来どおり apiUrl 経由(関数直叩き)にフォールバックする。
-    // トータル・週間・月間の全ランキングを1レスポンスで受け取る(タブ切替は
-    // 取得済みデータの表示切替のみで、再フェッチしない)。
-    let response = await this.$axios.get("/rankingGo", {
-      baseURL: this.$config.rankingBaseUrl || this.$config.apiUrl,
-      params: params,
-    });
-    this.ranking = response.data.ranking;
-    this.pointsRanking = response.data.points_ranking || [];
-    this.myRanking = response.data.my_rank;
-    this.myPointRanking = response.data.my_point_rank;
-    this.periods = response.data.periods || {};
-    this.latestUpdate = response.data.latest_update;
+    await this.fetchRanking();
   },
   computed: {
     ...mapGetters(["isLogin", "user"]),
@@ -215,6 +216,35 @@ export default {
     },
   },
   methods: {
+    // Go版(rankingGo)はコールドスタートが短くランキング表示が速くなるため
+    // 使用する(Node版のrankingとレスポンス形式は同一。docs/backend.md参照)。
+    // 取得先は rankingBaseUrl(Hosting CDN オリジン)を優先し、ランキング
+    // レスポンスをエッジでキャッシュさせて関数・Firestoreへの到達を減らす。
+    // 未設定なら従来どおり apiUrl 経由(関数直叩き)にフォールバックする。
+    // トータル・週間・月間の全ランキングを1レスポンスで受け取る(タブ切替は
+    // 取得済みデータの表示切替のみで、再フェッチしない)。
+    async fetchRanking() {
+      this.state = "loading";
+      try {
+        const params = {};
+        if (this.isLogin) {
+          params.screen_name = this.user.screen_name;
+        }
+        const response = await this.$axios.get("/rankingGo", {
+          baseURL: this.$config.rankingBaseUrl || this.$config.apiUrl,
+          params: params,
+        });
+        this.ranking = response.data.ranking || [];
+        this.pointsRanking = response.data.points_ranking || [];
+        this.myRanking = response.data.my_rank;
+        this.myPointRanking = response.data.my_point_rank;
+        this.periods = response.data.periods || {};
+        this.latestUpdate = response.data.latest_update;
+        this.state = "loaded";
+      } catch (e) {
+        this.state = "error";
+      }
+    },
     // トータルは battle_point / point、期間ランキングは value を持つ。
     itemValue(item) {
       if (item.value !== undefined) return item.value;
