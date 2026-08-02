@@ -47,7 +47,12 @@ func battleLogBackfillHandler(ctx context.Context, _ cloudevents.Event) error {
 	if monthStart.Before(since) {
 		since = monthStart
 	}
-	return runBattleLogBackfill(ctx, client, since, weekKey+"_"+monthKey)
+	return runBattleLogBackfillRange(ctx, client, since, time.Time{}, weekKey+"_"+monthKey)
+}
+
+// runBattleLogBackfill は since 以降を対象にする(上限なし)。
+func runBattleLogBackfill(ctx context.Context, client *firestore.Client, since time.Time, backfillKey string) error {
+	return runBattleLogBackfillRange(ctx, client, since, time.Time{}, backfillKey)
 }
 
 // backfillUserActivityDoc はバックフィルが参照するユーザーのフィールド。
@@ -58,10 +63,14 @@ type backfillUserActivityDoc struct {
 	LastActivityCreatedAt string `firestore:"last_activity_created_at"`
 }
 
-// runBattleLogBackfill は since 以降・取り込み済みまでの活動から獲得ログを作る。
+// runBattleLogBackfillRange は [since, until) の活動から獲得ログを作る。
+// until がゼロ値なら上限なし(取り込み済みの範囲すべて)。
+//
+// 上限を指定できるようにしてあるのは、既にログのある期間と重ねると二重計上に
+// なるため。過去の期間を埋め直すときは、既存のログが始まる時刻を until にする。
 //
 // backfillKey は作った印。同じキーのログが既にあるユーザーは飛ばす。
-func runBattleLogBackfill(ctx context.Context, client *firestore.Client, since time.Time, backfillKey string) error {
+func runBattleLogBackfillRange(ctx context.Context, client *firestore.Client, since, until time.Time, backfillKey string) error {
 	iter := client.Collection("users").Documents(ctx)
 	defer iter.Stop()
 
@@ -99,7 +108,7 @@ func runBattleLogBackfill(ctx context.Context, client *firestore.Client, since t
 		if err != nil {
 			return err
 		}
-		entries := backfillEntries(activities, since, u.LastActivityCreatedAt, u.ScreenName)
+		entries := backfillEntries(activities, since, until, u.LastActivityCreatedAt, u.ScreenName)
 		if len(entries) == 0 {
 			continue
 		}
@@ -141,13 +150,13 @@ type backfillEntry struct {
 }
 
 // backfillEntries は [since, lastCreatedAt] の活動を、1件ずつの伸び幅に分解する
-// (純関数)。
+// (純関数)。until がゼロ値でなければ、そこより後の活動は対象外にする。
 //
 // 能力値の加算は活動ごとの寄与と「直前の活動との間隔」による寄与の和なので、
 // 時刻順に1件ずつ「直前の活動」を渡して計算すれば、合計は範囲全体をまとめて
 // 計算した場合と一致する。範囲の外にある直前の活動との間隔だけは基準が無いので
 // 拾えない(参拝時の全件再計算パスと同じ扱い。battle_logs.go 参照)。
-func backfillEntries(activities []performance.Activity, since time.Time, lastCreatedAt, screenName string) []backfillEntry {
+func backfillEntries(activities []performance.Activity, since, until time.Time, lastCreatedAt, screenName string) []backfillEntry {
 	last := parseActivityTime(lastCreatedAt)
 	if last.IsZero() {
 		return nil
@@ -156,6 +165,9 @@ func backfillEntries(activities []performance.Activity, since time.Time, lastCre
 	for _, a := range activities {
 		t := parseActivityTime(a.CreatedAt)
 		if t.IsZero() || t.Before(since) || t.After(last) {
+			continue
+		}
+		if !until.IsZero() && !t.Before(until) {
 			continue
 		}
 		inRange = append(inRange, a)
