@@ -25,24 +25,42 @@ import (
 // Node版 (app/functions/performance.js) の STATUS_LOGIC_VERSION と必ず一致させること。
 const StatusLogicVersion int64 = 1
 
-// レベルアップに必要な累計ポイントの閾値テーブル。Node版 target_points と同一の値。
+// レベルアップに必要な閾値テーブル(index i の値は Lv(i+1) の上限)。
+// Lv1-50 は移植元(Node版 target_points)の値そのままで、1つも変えていない
+// (既存ユーザーのレベルが下がらないことを TestTargetPoints_Lv1To50Unchanged で担保)。
+//
+// Lv51以降は、実測した増分比(末尾で約1.084倍/Lv)をそのまま延長して Lv100 まで
+// 用意した。Lv50 の上限 39156 を超えた利用者が Lv0 に落ちる不具合(#215)の修正時に
+// 追加したもので、当時の最高位が 3万台だったため頭打ちまでの余裕を大きく取っている。
 var targetPoints = []int{
-	0, 5, 11, 19, 30, 45, 65, 91, 124, 166, 218, 281, 357, 447, 553, 676, 818, 981,
-	1167, 1378, 1616, 1884, 2184, 2519, 2892, 3306, 3764, 4269, 4825, 5436, 6106,
-	6840, 7643, 8520, 9477, 10520, 11656, 12892, 14236, 15696, 17281, 19001, 20867,
-	22891, 25086, 27466, 30046, 32842, 35872, 39156,
+	0, 5, 11, 19, 30, 45, 65, 91, 124, 166, // Lv1-10
+	218, 281, 357, 447, 553, 676, 818, 981, 1167, 1378, // Lv11-20
+	1616, 1884, 2184, 2519, 2892, 3306, 3764, 4269, 4825, 5436, // Lv21-30
+	6106, 6840, 7643, 8520, 9477, 10520, 11656, 12892, 14236, 15696, // Lv31-40
+	17281, 19001, 20867, 22891, 25086, 27466, 30046, 32842, 35872, 39156, // Lv41-50
+	42716, 46575, 50758, 55292, 60206, 65532, 71305, 77562, 84344, 91695, // Lv51-60
+	99663, 108300, 117662, 127809, 138807, 150728, 163649, 177654, 192834, 209288, // Lv61-70
+	227122, 246452, 267404, 290114, 314729, 341409, 370327, 401671, 435645, 472469, // Lv71-80
+	512383, 555646, 602539, 653366, 708457, 768170, 832893, 903046, 979085, 1061504, // Lv81-90
+	1150838, 1247667, 1352620, 1466379, 1589682, 1723330, 1868191, 2025206, 2195395, 2379863, // Lv91-100
 }
 
-// GetLevel は累計ポイントからレベルを算出する(Node版 get_level と同一)。
+// MaxLevel はテーブルで表現できる最高レベル。
+const MaxLevel = 100
+
+// GetLevel は戦闘力からレベルを算出する。
+//
+// 移植元(Node版 get_level)は、どの閾値にも当てはまらない=最高レベルの上限を
+// 超えた場合に level=0 を返していた。実際に Lv50 の上限(39156)を超えた利用者が
+// 「Lv0」と表示される不具合になったため、上限超えは最高レベル扱いにする(#215)。
+// テーブルを延長しても、いつかは超える人が出る前提でここを防波堤にしておく。
 func GetLevel(points int) int {
-	level := 0
 	for i, t := range targetPoints {
 		if points <= t {
-			level = i + 1
-			break
+			return i + 1
 		}
 	}
-	return level
+	return len(targetPoints)
 }
 
 // NextLevelExp は次レベルとその必要経験値。
@@ -51,17 +69,17 @@ type NextLevelExp struct {
 	NextExp   int
 }
 
-// GetNextLevelExp は次レベルに必要な経験値を返す(Node版 get_next_leve_exp と同一)。
-// 最大レベルを超える場合(target_points の範囲外)は NextExp=0 とする
-// (Node版は該当時 undefined になり JSON からフィールドが消えるが、実運用では到達しない
-// 極端な境界のため、Goでは panic を避けて 0 を返す)。
+// GetNextLevelExp は次のレベルとその到達に必要な戦闘力を返す。
+//
+// 最高レベルに到達している場合は次が無いため、そのレベルの上限をそのまま返す
+// (0 を返すとマイページの進捗バーが total/next で0除算になり、「NEXT 0 exp」と
+// 表示されてしまう)。
 func GetNextLevelExp(points int) NextLevelExp {
 	level := GetLevel(points)
-	nextExp := 0
-	if level >= 0 && level < len(targetPoints) {
-		nextExp = targetPoints[level]
+	if level >= len(targetPoints) {
+		return NextLevelExp{NextLevel: len(targetPoints), NextExp: targetPoints[len(targetPoints)-1]}
 	}
-	return NextLevelExp{NextLevel: level + 1, NextExp: nextExp}
+	return NextLevelExp{NextLevel: level + 1, NextExp: targetPoints[level]}
 }
 
 // Activity はGitHub Events APIの1イベント(Firestoreにキャッシュされた raw JSON)を表す。

@@ -38,9 +38,7 @@
                   <div
                     class="progress-bar p-2"
                     role="progressbar"
-                    :style="
-                      `width:` + (profile.total / profile.next) * 100 + `%`
-                    "
+                    :style="`width:` + progressPercent + `%`"
                     :aria-valuenow="profile.total"
                     aria-valuemin="0"
                     :aria-valuemax="profile.next"
@@ -203,6 +201,14 @@ export default {
   },
   computed: {
     ...mapGetters(["user"]),
+    // 進捗バーの割合。next が 0 や未取得でも 0除算・100%超えにしない
+    // (最高レベルでは next が頭打ちになるため)。
+    progressPercent() {
+      const next = Number(this.profile.next);
+      const total = Number(this.profile.total);
+      if (!next || !isFinite(next) || next <= 0) return 100;
+      return Math.max(0, Math.min(100, (total / next) * 100));
+    },
     shareUrl() {
       return this.$config.baseUrl + "u/" + this.user.screen_name;
     },
