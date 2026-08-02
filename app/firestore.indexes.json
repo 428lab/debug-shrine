@@ -1,5 +1,20 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "ranking_archive",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "period_type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "period_key",
+          "order": "DESCENDING"
+        }
+      ]
+    }
+  ],
   "fieldOverrides": [
     {
       "collectionGroup": "sanpai_logs",

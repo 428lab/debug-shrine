@@ -155,7 +155,7 @@ func TestRollBattleBaseline_FirstRunHasNoWinners(t *testing.T) {
 	baseline := &battleBaselineDoc{}
 	users := []rankingUpdateUserDoc{newUser("a", 1000), newUser("b", 500)}
 
-	week, month := rollBattleBaseline(baseline, users, "2026-07-20", "2026-07")
+	week, month := rollBattleBaseline(baseline, users, "2026-07-20", "2026-07", time.Now())
 	if len(week) != 0 || len(month) != 0 {
 		t.Errorf("初回は伸び幅0なので空になるべき: week=%d month=%d", len(week), len(month))
 	}
@@ -180,7 +180,7 @@ func TestRollBattleBaseline_Delta(t *testing.T) {
 		newUser("c", 9999), // 新規: 基準値が無いので差分0
 	}
 
-	week, month := rollBattleBaseline(baseline, users, "2026-07-20", "2026-07")
+	week, month := rollBattleBaseline(baseline, users, "2026-07-20", "2026-07", time.Now())
 
 	if len(week) != 1 || week[0].ID != "a" || week[0].Value != 200 {
 		t.Fatalf("週間の伸び幅が違う: %+v", week)
@@ -207,7 +207,7 @@ func TestRollBattleBaseline_RolloverResets(t *testing.T) {
 	}
 	users := []rankingUpdateUserDoc{newUser("a", 1200)}
 
-	week, month := rollBattleBaseline(baseline, users, "2026-07-20", "2026-07")
+	week, month := rollBattleBaseline(baseline, users, "2026-07-20", "2026-07", time.Now())
 
 	if len(week) != 0 || len(month) != 0 {
 		t.Errorf("期間が変わったら基準値を作り直すので伸び幅は0から: week=%+v month=%+v", week, month)
@@ -228,7 +228,7 @@ func TestRollBattleBaseline_PrunesMissingUsers(t *testing.T) {
 		Week:     map[string]int64{"a": 10, "gone": 999},
 		Month:    map[string]int64{"a": 10, "gone": 999},
 	}
-	rollBattleBaseline(baseline, []rankingUpdateUserDoc{newUser("a", 10)}, "2026-07-20", "2026-07")
+	rollBattleBaseline(baseline, []rankingUpdateUserDoc{newUser("a", 10)}, "2026-07-20", "2026-07", time.Now())
 	if _, ok := baseline.Week["gone"]; ok {
 		t.Errorf("居ないユーザーの基準値は残すべきではない: %+v", baseline.Week)
 	}

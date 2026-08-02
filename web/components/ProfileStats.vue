@@ -38,6 +38,23 @@
         </div>
       </div>
 
+      <!-- ランキング1位の称号。獲得回数つきで、通常の称号より先に見せる -->
+      <template v-if="crowns.length > 0">
+        <div class="stats-sub mt-3 mb-1">ランキング入賞</div>
+        <div class="badges">
+          <span
+            v-for="c in crowns"
+            :key="c.id"
+            class="badge-chip crown-chip"
+            :title="c.desc + '(最新: ' + c.latest_period + ')'"
+          >
+            <i class="fas fa-fw" :class="c.icon"></i>
+            {{ c.label }}
+            <span v-if="c.count > 1" class="crown-count">×{{ c.count }}</span>
+          </span>
+        </div>
+      </template>
+
       <!-- 称号(獲得済みのみ表示。分母は全種数で「まだ先がある」ことは示す) -->
       <template v-if="achievedBadges.length > 0">
         <div class="stats-sub mt-3 mb-1">
@@ -103,6 +120,9 @@ export default {
   computed: {
     achievedBadges() {
       return this.stats.badges.filter((b) => b.achieved);
+    },
+    crowns() {
+      return (this.stats && this.stats.crowns) || [];
     },
   },
   async mounted() {
@@ -183,6 +203,16 @@ export default {
   flex-wrap: wrap;
   gap: 6px;
 }
+/* 入賞称号は琥珀寄りにして通常の称号と区別する */
+.crown-chip {
+  border-color: rgba(255, 196, 120, 0.6);
+  background: rgba(255, 196, 120, 0.12);
+}
+.crown-count {
+  font-weight: 700;
+  color: var(--color-accent-soft);
+}
+
 .badge-chip {
   background: rgba(255, 196, 120, 0.12);
   border: 1px solid rgba(255, 196, 120, 0.4);

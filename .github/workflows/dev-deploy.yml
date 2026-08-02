@@ -277,6 +277,8 @@ jobs:
             --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s
           deploy rankingGo RankingGo \
             --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s
+          deploy rankingArchiveGo RankingArchiveGo \
+            --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s
           deploy sanpaiHistoryGo SanpaiHistoryGo \
             --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s
           deploy profileStatsGo ProfileStatsGo \
