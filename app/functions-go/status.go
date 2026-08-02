@@ -157,6 +157,9 @@ type StatusResponse struct {
 }
 
 func fromFirestoreStatus(fs firestoreStatus) StatusResponse {
+	// レベルと次レベルの閾値は戦闘力(total)の純関数なので、キャッシュに焼き込んだ
+	// 値ではなく毎回引き直す。閾値テーブルを直したときに、キャッシュを作り直すまで
+	// 古い値(Lv50超えが0になっていた等 #215)を返し続けるのを避けるため。
 	return StatusResponse{
 		FormattedPerformance: performance.FormattedPerformance{
 			User:         fs.User,
@@ -167,9 +170,9 @@ func fromFirestoreStatus(fs firestoreStatus) StatusResponse {
 			Defence:      int(fs.Defence),
 			Agility:      int(fs.Agility),
 			Total:        int(fs.Total),
-			Level:        int(fs.Level),
+			Level:        performance.GetLevel(int(fs.Total)),
 			Exp:          int(fs.Exp),
-			NextExp:      int(fs.NextExp),
+			NextExp:      performance.GetNextLevelExp(int(fs.Total)).NextExp,
 			Chart:        fs.Chart,
 		},
 		LastSanpai: fs.LastSanpai,

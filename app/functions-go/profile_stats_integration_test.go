@@ -18,7 +18,9 @@ func TestProfileStats_Basic(t *testing.T) {
 	userRef := client.Collection("users").Doc(uid)
 	if _, err := userRef.Set(ctx, map[string]interface{}{
 		"screen_name": "stats-tester",
-		"status":      map[string]interface{}{"level": int64(12)},
+		// level ではなく total からレベルを引き直す(#215)。
+		// 250 は Lv12 の範囲(218 < total <= 281)。
+		"status": map[string]interface{}{"level": int64(12), "total": int64(250)},
 	}); err != nil {
 		t.Fatalf("seed user: %v", err)
 	}

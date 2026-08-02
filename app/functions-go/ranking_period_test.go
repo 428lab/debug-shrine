@@ -272,13 +272,17 @@ func TestAggregateSanpaiPoints(t *testing.T) {
 		at    time.Time
 	}
 
-	// 今週の中(週初+1時間)、今月だが先週(月初と週初の間があるとは限らないので
-	// 週初の1分前=先週扱い)、そして期間外(2年前)を混ぜる。
-	inWeek := weekStart.Add(time.Hour)
+	// 週が月をまたぐ日(月初が週の途中)もあるため、期待値が境界に依存しないよう
+	// 「週初と月初の遅い方」を基準にする。ここより後のログは週間・月間の両方に入る。
+	inBoth := weekStart
+	if monthStart.After(inBoth) {
+		inBoth = monthStart
+	}
+	inBoth = inBoth.Add(time.Hour)
 	beforeWeek := weekStart.Add(-time.Minute)
 	longAgo := now.AddDate(-2, 0, 0)
 
-	seed("a", []logSeed{{10, inWeek}, {5, inWeek.Add(time.Minute)}, {999, longAgo}})
+	seed("a", []logSeed{{10, inBoth}, {5, inBoth.Add(time.Minute)}, {999, longAgo}})
 	seed("b", []logSeed{{7, beforeWeek}})
 
 	week, month, err := aggregateSanpaiPoints(ctx, client, weekStart, monthStart)
@@ -288,6 +292,9 @@ func TestAggregateSanpaiPoints(t *testing.T) {
 
 	if got := week[prefix+"a"]; got != 15 {
 		t.Errorf("週間のaの合計 = %d, want 15(期間外の999は入らない)", got)
+	}
+	if got := month[prefix+"a"]; got != 15 {
+		t.Errorf("月間のaの合計 = %d, want 15", got)
 	}
 	if got := week[prefix+"b"]; got != 0 {
 		t.Errorf("週初より前のログは週間に入らないべき: %d", got)
@@ -300,8 +307,5 @@ func TestAggregateSanpaiPoints(t *testing.T) {
 	}
 	if got := month[prefix+"b"]; got != wantMonthB {
 		t.Errorf("月間のbの合計 = %d, want %d", got, wantMonthB)
-	}
-	if got := month[prefix+"a"]; got != 15 {
-		t.Errorf("月間のaの合計 = %d, want 15", got)
 	}
 }

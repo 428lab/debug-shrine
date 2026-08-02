@@ -46,7 +46,9 @@ func TestBadge_Variants(t *testing.T) {
 	userRef := client.Collection("users").Doc(uid)
 	if _, err := userRef.Set(ctx, map[string]interface{}{
 		"screen_name": "badge-tester",
-		"status":      map[string]interface{}{"level": int64(42), "total": int64(9999)},
+		// level はキャッシュに残るが表示には使わない(total から引き直す #215)。
+		// 18000 は Lv42 の範囲(17281 < total <= 19001)。
+		"status": map[string]interface{}{"level": int64(42), "total": int64(18000)},
 	}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -59,7 +61,7 @@ func TestBadge_Variants(t *testing.T) {
 	if ct := rec.Header().Get("Content-Type"); ct != "image/svg+xml; charset=utf-8" {
 		t.Errorf("Content-Type = %q", ct)
 	}
-	if !strings.Contains(rec.Body.String(), "Lv.42 戦闘力 9999") {
+	if !strings.Contains(rec.Body.String(), "Lv.42 戦闘力 18000") {
 		t.Errorf("badge body = %s", rec.Body.String())
 	}
 	if !strings.Contains(rec.Header().Get("Cache-Control"), "s-maxage=3600") {
@@ -88,5 +90,34 @@ func TestBadge_Variants(t *testing.T) {
 	}
 	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "未登録") {
 		t.Errorf("unknown badge: code=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestBadge_LevelComesFromTotalNotStaleCache(t *testing.T) {
+	// Lv50の上限(39156)超えで level=0 が焼き付いたキャッシュでも、
+	// バッジは total から引き直した正しいレベルを出す(#215)。
+	client := emulatorClient(t)
+	ctx := context.Background()
+
+	uid := "badge-test-stale-level"
+	userRef := client.Collection("users").Doc(uid)
+	if _, err := userRef.Set(ctx, map[string]interface{}{
+		"screen_name": "badge-stale",
+		"status":      map[string]interface{}{"level": int64(0), "total": int64(45000)},
+	}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	t.Cleanup(func() { userRef.Delete(context.Background()) })
+
+	rec := httptest.NewRecorder()
+	if err := runBadge(ctx, rec, client, "badge-stale"); err != nil {
+		t.Fatalf("runBadge: %v", err)
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, "Lv.0") || strings.Contains(body, "参拝求ム") {
+		t.Errorf("キャッシュのlevel=0をそのまま出してはいけない: %s", body)
+	}
+	if !strings.Contains(body, "戦闘力 45000") {
+		t.Errorf("badge body = %s", body)
 	}
 }
