@@ -1,0 +1,76 @@
+# Cloud Run functions のログを Actions のログに出す。
+#
+# HTTPエンドポイント(rankingArchiveGo 等)が期待どおり動かないとき、原因は
+# Cloud Logging にしか出ない。GCPコンソールを開かずに切り分けられるようにする。
+#
+# セキュリティ: workflow_dispatch はリポジトリのwrite権限を持つメンバーしか
+# 実行できない。読み取りのみで副作用は無い。
+name: Show function logs
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '対象環境'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+      function:
+        description: '関数名(Cloud Run のサービス名。例: rankingArchiveGo)'
+        required: true
+        type: string
+      freshness:
+        description: 'さかのぼる時間(例: 30m, 2h)'
+        required: false
+        type: string
+        default: '30m'
+      probe_url:
+        description: '先に叩いて応答を見るURL(任意)'
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  logs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: ${{ inputs.environment == 'prod' && secrets.PROD_GCLOUD_SERVICE_KEY || secrets.DEV_GCLOUD_SERVICE_KEY }}
+
+      - name: 'Set up Cloud SDK'
+        uses: 'google-github-actions/setup-gcloud@v2'
+
+      # 「関数にリクエストが届いていない」ときは、どこで止まっているかを
+      # 実際に叩いて確かめるのが早い(Hosting のrewriteが効いていない、
+      # SPAのHTMLが返っている、等はここで一目で分かる)。
+      - name: Probe URL
+        if: inputs.probe_url != ''
+        run: |
+          set -eo pipefail
+          echo "=== GET ${{ inputs.probe_url }} ==="
+          curl -sS -D - -o /tmp/body "${{ inputs.probe_url }}" | head -20
+          echo "--- body (先頭400文字) ---"
+          head -c 400 /tmp/body
+          echo
+          echo "--- body size: $(wc -c < /tmp/body) bytes ---"
+
+      - name: Read logs
+        run: |
+          set -eo pipefail
+          if [ "${{ inputs.environment }}" = "prod" ]; then
+            PROJECT=d-shrine
+          else
+            PROJECT=d-shrine-dev
+          fi
+          echo "=== ${{ inputs.function }} in $PROJECT (直近 ${{ inputs.freshness }}) ==="
+          # Cloud Run のログは、アプリの出力(textPayload)とリクエストログ
+          # (httpRequest)が混ざる。4xx/5xx はリクエストログ側にしか出ないので
+          # ステータスとURLも必ず出す。
+          gcloud logging read \
+            "resource.type=cloud_run_revision AND resource.labels.service_name=${{ inputs.function }}" \
+            --project="$PROJECT" --limit=100 --freshness="${{ inputs.freshness }}" \
+            --format='value(timestamp, severity, httpRequest.status, httpRequest.requestMethod, httpRequest.requestUrl, textPayload, jsonPayload.message, protoPayload.status.message)' \
+            | tac || echo "(ログを取得できませんでした)"
