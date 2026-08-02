@@ -390,20 +390,21 @@ func TestRankingUpdate_WritesPeriodRankings(t *testing.T) {
 	client := emulatorClient(t)
 	ctx := context.Background()
 
-	// 初回実行では基準値が作られるだけで、せんとうりょくの期間ランキングは空。
+	// 獲得ログが無い状態では、せんとうりょくの期間ランキングは空。
+	// 期間状態(締めの検出用)は書かれる。
 	if err := runRankingUpdate(ctx, client); err != nil {
 		t.Fatalf("runRankingUpdate: %v", err)
 	}
-	baseSnap, err := client.Collection("cache_data").Doc(battleBaselineDocID).Get(ctx)
+	stateSnap, err := client.Collection("cache_data").Doc(periodStateDocID).Get(ctx)
 	if err != nil {
-		t.Fatalf("基準値ドキュメントが作られていない: %v", err)
+		t.Fatalf("期間状態ドキュメントが作られていない: %v", err)
 	}
-	var baseline battleBaselineDoc
-	if err := baseSnap.DataTo(&baseline); err != nil {
+	var state periodStateDoc
+	if err := stateSnap.DataTo(&state); err != nil {
 		t.Fatalf("DataTo: %v", err)
 	}
-	if baseline.WeekKey == "" || baseline.MonthKey == "" {
-		t.Errorf("基準値に期間キーが入るべき: %+v", baseline)
+	if state.WeekKey == "" || state.MonthKey == "" {
+		t.Errorf("期間状態にキーが入るべき: %+v", state)
 	}
 
 	snap, err := client.Collection("cache_data").Doc("ranking_cache").Get(ctx)
@@ -415,7 +416,7 @@ func TestRankingUpdate_WritesPeriodRankings(t *testing.T) {
 		t.Fatalf("DataTo: %v", err)
 	}
 	if len(out.BattleWeekTop) != 0 {
-		t.Errorf("初回は伸び幅0なので週間せんとうりょくは空であるべき: %+v", out.BattleWeekTop)
+		t.Errorf("獲得ログが無ければ週間せんとうりょくは空であるべき: %+v", out.BattleWeekTop)
 	}
 	if out.Ranking == nil {
 		t.Error("トータルのランキングは従来どおり書かれるべき")

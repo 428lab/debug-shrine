@@ -1,15 +1,14 @@
 // 期間ランキング(週間・月間)の集計。
 //
 // トータルのランキング(ranking_update.go)に加えて、暦週・暦月(JST)で区切った
-// ランキングを作る。指標ごとに出し方が違う:
+// ランキングを作る。どちらの指標も「参拝1回で得た量」のログを期間で合計する:
 //
-//   - ぽいんと: users/{id}/sanpai_logs の add_point を期間で合計する。ログは
-//     参拝成功のたびに残っているので、過去に遡って正確な値が出せる。
-//   - せんとうりょく: status.total は現在値しか保存しておらず過去を復元できない
-//     (GitHub Events APIも90日制限)。そこで期間開始時点のスナップショットを
-//     cache_data/battle_baseline に持ち、現在値との差分=「期間中に伸びた分」で
-//     ランキングする。基準値が無いユーザー(新規・初回観測)はその場の値で
-//     初期化して差分0から始める(現在値まるごとで1位になる事故を防ぐ)。
+//   - ぽいんと: users/{id}/sanpai_logs の add_point
+//   - せんとうりょく: users/{id}/battle_logs の add_point(battle_logs.go 参照)
+//
+// せんとうりょくは以前 status.total のスナップショットとの差分で出していたが、
+// status.total は表示用キャッシュでもあり参拝と無関係に書き直されるため、その
+// 再計算が「期間中に伸びた分」に混ざっていた。ログ方式にはその問題が無い。
 package gofunctions
 
 import (
@@ -31,8 +30,9 @@ var jst = time.FixedZone("JST", 9*60*60)
 // 早く到達するため、上位のみに絞る(圏外の順位は periodRankEntry で引ける)。
 const periodTopLimit = 100
 
-// battleBaselineDocID はせんとうりょくの期間開始時点スナップショットの置き場所。
-const battleBaselineDocID = "battle_baseline"
+// periodStateDocID は期間ランキングの状態(いま集計している週・月)の置き場所。
+// 期間の変わり目を検出して締めを走らせるためだけに使う。
+const periodStateDocID = "ranking_period_state"
 
 // periodEntry は期間ランキング上位の1件(表示情報つき)。
 type periodEntry struct {
@@ -51,37 +51,16 @@ type periodRankEntry struct {
 	Rank       int64  `firestore:"rank" json:"rank"`
 }
 
-// battleBaselineDoc は cache_data/battle_baseline の形状。
-// week/month は github_id -> 期間開始時点の status.total。
-type battleBaselineDoc struct {
-	WeekKey  string           `firestore:"week_key"`
-	MonthKey string           `firestore:"month_key"`
-	Week     map[string]int64 `firestore:"week"`
-	Month    map[string]int64 `firestore:"month"`
-	// 基準値を作った時刻。期間の開始よりだいぶ後なら、その期間の集計は
-	// 途中から始まったことになる(締めのアーカイブに partial として記録する)。
-	WeekBaseAt  time.Time `firestore:"week_base_at"`
-	MonthBaseAt time.Time `firestore:"month_base_at"`
+// periodStateDoc は cache_data/ranking_period_state の形状。
+type periodStateDoc struct {
+	WeekKey  string `firestore:"week_key"`
+	MonthKey string `firestore:"month_key"`
 }
 
 // periodWindow は集計対象の期間1つ(キーと開始時刻)。
 type periodWindow struct {
 	Key   string
 	Start time.Time
-}
-
-// sanpaiedSince はその期間に参拝したかを返す(純関数)。
-//
-// せんとうりょく(status.total)は参拝でしか伸びない。一方でこの値は
-// マイページ表示用のキャッシュでもあり、キャッシュが古いユーザーの
-// プロフィールが開かれたとき(statusGo)や statusCacheBackfillGo によって
-// 参拝と無関係に書き直される。基準値との単純な差を伸び幅にすると、その
-// 再計算がそのまま「期間中に伸びた」ことになってしまう(何年も参拝して
-// いないユーザーが週間ランキングに現れる)。
-//
-// 期間中に参拝していないユーザーの増分は再計算によるものなので載せない。
-func sanpaiedSince(u rankingUpdateUserDoc, start time.Time) bool {
-	return !u.LastSanpai.IsZero() && !u.LastSanpai.Before(start)
 }
 
 // periodScore は期間ランキングを組む前の中間表現。
@@ -110,10 +89,12 @@ func periodBounds(now time.Time) (weekStart, monthStart time.Time, weekKey, mont
 	return weekStart, monthStart, weekStart.Format("2006-01-02"), monthStart.Format("2006-01")
 }
 
-// shouldAggregateSanpaiPoints は参拝ログの期間集計を行う実行回かを返す。
-// この集計だけはコレクショングループの読み取り件数が期間中の参拝数に比例する
-// ため、毎時ではなく3時間ごとに間引く(せんとうりょくの期間ランキングは
-// 基準値の差分だけで作れるので毎時更新する)。
+// shouldAggregateSanpaiPoints はぽいんとの期間集計を行う実行回かを返す。
+// コレクショングループの読み取り件数が期間中の参拝数に比例するため、毎時ではなく
+// 3時間ごとに間引く(間引いた回は MergeAll によって前回値がそのまま残る)。
+//
+// せんとうりょくは同じ形のログを読むが、参拝直後にランキングへ反映されないと
+// 体験が悪いので毎時のまま維持する。読み取り件数はぽいんとと同じ order。
 func shouldAggregateSanpaiPoints(now time.Time) bool {
 	return now.In(jst).Hour()%3 == 0
 }
@@ -153,76 +134,25 @@ func buildPeriodRanking(scores []periodScore) ([]periodEntry, []periodRankEntry)
 	return top, ranks
 }
 
-// rollBattleBaseline は基準値を現在の期間に合わせ、期間中の伸び幅を返す(純関数)。
-//
-//   - 期間キーが変わっていたら、その時点の total で基準値を作り直す(=全員0から)
-//   - 基準値に居ないユーザー(新規・初回観測)は現在値で初期化する(差分0)
-//   - 現在居ないユーザーの基準値は捨てる(ドキュメントサイズを抑える)
-//   - 伸び幅0以下はランキングに載せない
-//   - その期間に参拝していないユーザーは載せない(sanpaiedSince 参照)。
-//     基準値そのものは全員分を持ち続ける(次に参拝したときの差が正しく出るように)
-func rollBattleBaseline(baseline *battleBaselineDoc, users []rankingUpdateUserDoc, week, month periodWindow, now time.Time) (weekScores, monthScores []periodScore) {
-	if baseline.Week == nil || baseline.WeekKey != week.Key {
-		baseline.Week = map[string]int64{}
-		baseline.WeekKey = week.Key
-		baseline.WeekBaseAt = now
-	}
-	if baseline.Month == nil || baseline.MonthKey != month.Key {
-		baseline.Month = map[string]int64{}
-		baseline.MonthKey = month.Key
-		baseline.MonthBaseAt = now
-	}
-
-	nextWeek := make(map[string]int64, len(users))
-	nextMonth := make(map[string]int64, len(users))
-	for _, u := range users {
-		profile := rankingProfile{DisplayName: u.DisplayName, ScreenName: u.ScreenName, ImagePath: u.ImagePath}
-
-		base, ok := baseline.Week[u.ID]
-		if !ok {
-			base = u.Status.Total
-		}
-		nextWeek[u.ID] = base
-		if d := u.Status.Total - base; d > 0 && sanpaiedSince(u, week.Start) {
-			weekScores = append(weekScores, periodScore{ID: u.ID, Profile: profile, Value: d})
-		}
-
-		base, ok = baseline.Month[u.ID]
-		if !ok {
-			base = u.Status.Total
-		}
-		nextMonth[u.ID] = base
-		if d := u.Status.Total - base; d > 0 && sanpaiedSince(u, month.Start) {
-			monthScores = append(monthScores, periodScore{ID: u.ID, Profile: profile, Value: d})
-		}
-	}
-	baseline.Week = nextWeek
-	baseline.Month = nextMonth
-	return weekScores, monthScores
-}
-
-// loadBattleBaseline は基準値ドキュメントを読む。未作成なら空の基準値を返す
-// (初回はこの後の rollBattleBaseline で全ユーザーが現在値で初期化される)。
-func loadBattleBaseline(ctx context.Context, client *firestore.Client) (*battleBaselineDoc, error) {
-	snap, err := client.Collection("cache_data").Doc(battleBaselineDocID).Get(ctx)
+// loadPeriodState は期間状態を読む。未作成なら空を返す(初回は締めを走らせない)。
+func loadPeriodState(ctx context.Context, client *firestore.Client) (*periodStateDoc, error) {
+	snap, err := client.Collection("cache_data").Doc(periodStateDocID).Get(ctx)
 	if err != nil {
 		if grpcstatus.Code(err) == codes.NotFound {
-			return &battleBaselineDoc{}, nil
+			return &periodStateDoc{}, nil
 		}
 		return nil, err
 	}
-	var doc battleBaselineDoc
+	var doc periodStateDoc
 	if err := snap.DataTo(&doc); err != nil {
 		return nil, err
 	}
 	return &doc, nil
 }
 
-// saveBattleBaseline は基準値ドキュメントを丸ごと書き直す。
-// MergeAll を使わないのは、github_id をキーにしたマップがフィールドパスとして
-// 解釈されるのを避けるため(ドキュメント専用なので全置換で正しい)。
-func saveBattleBaseline(ctx context.Context, client *firestore.Client, baseline *battleBaselineDoc) error {
-	_, err := client.Collection("cache_data").Doc(battleBaselineDocID).Set(ctx, baseline)
+// savePeriodState は期間状態を書き直す。
+func savePeriodState(ctx context.Context, client *firestore.Client, state *periodStateDoc) error {
+	_, err := client.Collection("cache_data").Doc(periodStateDocID).Set(ctx, state)
 	return err
 }
 
@@ -256,8 +186,47 @@ func aggregateSanpaiPoints(ctx context.Context, client *firestore.Client, weekSt
 // aggregateSanpaiPointsRange は [start, end) の範囲だけを集計する。
 // 締めたばかりの期間の確定値を出すのに使う(週/月ごとに1回だけ走る)。
 func aggregateSanpaiPointsRange(ctx context.Context, client *firestore.Client, start, end time.Time) (map[string]int64, error) {
+	return aggregatePeriodLogRange(ctx, client, "sanpai_logs", start, end)
+}
+
+// aggregateBattlePoints は獲得ログから期間中に伸びたせんとうりょくを合計する。
+// 集計の形は参拝ログ(ぽいんと)と同じ。
+func aggregateBattlePoints(ctx context.Context, client *firestore.Client, weekStart, monthStart time.Time) (week, month map[string]int64, err error) {
+	since := weekStart
+	if monthStart.Before(since) {
+		since = monthStart
+	}
+
+	week = map[string]int64{}
+	month = map[string]int64{}
+	err = eachPeriodLogSince(ctx, client, battleLogsCollection, since, func(id string, point int64, ts time.Time) {
+		if !ts.Before(monthStart) {
+			month[id] += point
+		}
+		if !ts.Before(weekStart) {
+			week[id] += point
+		}
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return week, month, nil
+}
+
+// aggregateBattlePointsRange は [start, end) の範囲だけを集計する(締めの確定値用)。
+func aggregateBattlePointsRange(ctx context.Context, client *firestore.Client, start, end time.Time) (map[string]int64, error) {
+	return aggregatePeriodLogRange(ctx, client, battleLogsCollection, start, end)
+}
+
+// eachSanpaiLogSince は since 以降の参拝ログを横断する。
+func eachSanpaiLogSince(ctx context.Context, client *firestore.Client, since time.Time, fn func(userID string, point int64, ts time.Time)) error {
+	return eachPeriodLogSince(ctx, client, "sanpai_logs", since, fn)
+}
+
+// aggregatePeriodLogRange は [start, end) の範囲を github_id ごとに合計する。
+func aggregatePeriodLogRange(ctx context.Context, client *firestore.Client, collection string, start, end time.Time) (map[string]int64, error) {
 	totals := map[string]int64{}
-	err := eachSanpaiLogSince(ctx, client, start, func(id string, point int64, ts time.Time) {
+	err := eachPeriodLogSince(ctx, client, collection, start, func(id string, point int64, ts time.Time) {
 		if ts.Before(end) {
 			totals[id] += point
 		}
@@ -268,11 +237,14 @@ func aggregateSanpaiPointsRange(ctx context.Context, client *firestore.Client, s
 	return totals, nil
 }
 
-// eachSanpaiLogSince は since 以降の参拝ログをコレクショングループで横断し、
+// eachPeriodLogSince は since 以降の獲得ログをコレクショングループで横断し、
 // 1件ずつコールバックする。上限は呼び出し側でフィルタする(同一フィールドの
 // 範囲指定を2つ重ねるより、読み取り件数が同じで扱いが簡単なため)。
-func eachSanpaiLogSince(ctx context.Context, client *firestore.Client, since time.Time, fn func(userID string, point int64, ts time.Time)) error {
-	iter := client.CollectionGroup("sanpai_logs").Where("timestamp", ">=", since).Documents(ctx)
+//
+// collection は sanpai_logs(ぽいんと)か battle_logs(せんとうりょく)。
+// どちらも {add_point, timestamp} の形で、親の親がユーザードキュメント。
+func eachPeriodLogSince(ctx context.Context, client *firestore.Client, collection string, since time.Time, fn func(userID string, point int64, ts time.Time)) error {
+	iter := client.CollectionGroup(collection).Where("timestamp", ">=", since).Documents(ctx)
 	defer iter.Stop()
 	for {
 		doc, err := iter.Next()

@@ -70,10 +70,6 @@
         </button>
       </div>
       <template v-else-if="detail">
-        <div v-if="detail.partial" class="notice-danger mb-3">
-          <i class="fas fa-fw fa-exclamation-triangle"></i>
-          この期間は途中から集計を始めたため、期間全体の記録ではありません。
-        </div>
         <div class="row">
           <div class="col-12 col-lg-6 mb-3">
             <ArchiveBoard
