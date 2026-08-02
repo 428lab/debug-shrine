@@ -135,6 +135,9 @@ func loadArchiveList(ctx context.Context, client *firestore.Client, periodType s
 		}
 		var d rankingArchiveDoc
 		if err := doc.DataTo(&d); err != nil {
+			// 1件の形が想定外でも一覧全体は返す。ただし黙って消すと
+			// 「締めたのに履歴に出ない」の原因が分からなくなるので必ず残す。
+			log.Printf("rankingArchive: skip %s: %v", doc.Ref.ID, err)
 			continue
 		}
 		resp.Periods = append(resp.Periods, archivePeriodSummary{
