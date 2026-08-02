@@ -36,7 +36,6 @@ type archivePeriodSummary struct {
 	PeriodType string `json:"period_type"`
 	PeriodKey  string `json:"period_key"`
 	Label      string `json:"label"`
-	Partial    bool   `json:"partial"`
 }
 
 type archiveListResponse struct {
@@ -48,7 +47,6 @@ type archiveDetailResponse struct {
 	PeriodType string        `json:"period_type"`
 	PeriodKey  string        `json:"period_key"`
 	Label      string        `json:"label"`
-	Partial    bool          `json:"partial"`
 	BattleTop  []periodEntry `json:"battle_top"`
 	PointsTop  []periodEntry `json:"points_top"`
 }
@@ -143,7 +141,6 @@ func loadArchiveList(ctx context.Context, client *firestore.Client, periodType s
 			PeriodType: d.PeriodType,
 			PeriodKey:  d.PeriodKey,
 			Label:      periodLabel(d.PeriodType, d.StartsAt, d.EndsAt),
-			Partial:    d.Partial,
 		})
 	}
 }
@@ -165,7 +162,6 @@ func loadArchiveDetail(ctx context.Context, client *firestore.Client, periodType
 		PeriodType: d.PeriodType,
 		PeriodKey:  d.PeriodKey,
 		Label:      periodLabel(d.PeriodType, d.StartsAt, d.EndsAt),
-		Partial:    d.Partial,
 		BattleTop:  d.BattleTop,
 		PointsTop:  d.PointsTop,
 	}
