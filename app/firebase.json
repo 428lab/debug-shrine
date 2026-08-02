@@ -36,6 +36,10 @@
         "function": "badgeGo"
       },
       {
+        "source": "/rankingArchiveGo",
+        "function": "rankingArchiveGo"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

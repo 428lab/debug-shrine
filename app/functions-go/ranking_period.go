@@ -58,6 +58,10 @@ type battleBaselineDoc struct {
 	MonthKey string           `firestore:"month_key"`
 	Week     map[string]int64 `firestore:"week"`
 	Month    map[string]int64 `firestore:"month"`
+	// 基準値を作った時刻。期間の開始よりだいぶ後なら、その期間の集計は
+	// 途中から始まったことになる(締めのアーカイブに partial として記録する)。
+	WeekBaseAt  time.Time `firestore:"week_base_at"`
+	MonthBaseAt time.Time `firestore:"month_base_at"`
 }
 
 // periodScore は期間ランキングを組む前の中間表現。
@@ -135,14 +139,16 @@ func buildPeriodRanking(scores []periodScore) ([]periodEntry, []periodRankEntry)
 //   - 基準値に居ないユーザー(新規・初回観測)は現在値で初期化する(差分0)
 //   - 現在居ないユーザーの基準値は捨てる(ドキュメントサイズを抑える)
 //   - 伸び幅0以下はランキングに載せない
-func rollBattleBaseline(baseline *battleBaselineDoc, users []rankingUpdateUserDoc, weekKey, monthKey string) (weekScores, monthScores []periodScore) {
+func rollBattleBaseline(baseline *battleBaselineDoc, users []rankingUpdateUserDoc, weekKey, monthKey string, now time.Time) (weekScores, monthScores []periodScore) {
 	if baseline.Week == nil || baseline.WeekKey != weekKey {
 		baseline.Week = map[string]int64{}
 		baseline.WeekKey = weekKey
+		baseline.WeekBaseAt = now
 	}
 	if baseline.Month == nil || baseline.MonthKey != monthKey {
 		baseline.Month = map[string]int64{}
 		baseline.MonthKey = monthKey
+		baseline.MonthBaseAt = now
 	}
 
 	nextWeek := make(map[string]int64, len(users))
@@ -211,15 +217,48 @@ func aggregateSanpaiPoints(ctx context.Context, client *firestore.Client, weekSt
 
 	week = map[string]int64{}
 	month = map[string]int64{}
+	err = eachSanpaiLogSince(ctx, client, since, func(id string, point int64, ts time.Time) {
+		if !ts.Before(monthStart) {
+			month[id] += point
+		}
+		if !ts.Before(weekStart) {
+			week[id] += point
+		}
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return week, month, nil
+}
+
+// aggregateSanpaiPointsRange は [start, end) の範囲だけを集計する。
+// 締めたばかりの期間の確定値を出すのに使う(週/月ごとに1回だけ走る)。
+func aggregateSanpaiPointsRange(ctx context.Context, client *firestore.Client, start, end time.Time) (map[string]int64, error) {
+	totals := map[string]int64{}
+	err := eachSanpaiLogSince(ctx, client, start, func(id string, point int64, ts time.Time) {
+		if ts.Before(end) {
+			totals[id] += point
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+	return totals, nil
+}
+
+// eachSanpaiLogSince は since 以降の参拝ログをコレクショングループで横断し、
+// 1件ずつコールバックする。上限は呼び出し側でフィルタする(同一フィールドの
+// 範囲指定を2つ重ねるより、読み取り件数が同じで扱いが簡単なため)。
+func eachSanpaiLogSince(ctx context.Context, client *firestore.Client, since time.Time, fn func(userID string, point int64, ts time.Time)) error {
 	iter := client.CollectionGroup("sanpai_logs").Where("timestamp", ">=", since).Documents(ctx)
 	defer iter.Stop()
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
-			break
+			return nil
 		}
 		if err != nil {
-			return nil, nil, err
+			return err
 		}
 		var log sanpaiLogEntry
 		if err := doc.DataTo(&log); err != nil {
@@ -230,16 +269,8 @@ func aggregateSanpaiPoints(ctx context.Context, client *firestore.Client, weekSt
 		if doc.Ref.Parent == nil || doc.Ref.Parent.Parent == nil {
 			continue
 		}
-		id := doc.Ref.Parent.Parent.ID
-		ts := log.Timestamp.In(jst)
-		if !ts.Before(monthStart) {
-			month[id] += log.AddPoint
-		}
-		if !ts.Before(weekStart) {
-			week[id] += log.AddPoint
-		}
+		fn(doc.Ref.Parent.Parent.ID, log.AddPoint, log.Timestamp.In(jst))
 	}
-	return week, month, nil
 }
 
 // pointScores は集計結果を、表示情報を引き当ててスコア列にする(純関数)。

@@ -122,7 +122,26 @@ func appendPeriodRankings(ctx context.Context, client *firestore.Client, data ma
 	if err != nil {
 		return err
 	}
-	weekScores, monthScores := rollBattleBaseline(baseline, battleUsers, weekKey, monthKey)
+
+	// 表示情報は既に読み込み済みのユーザー一覧から引く(追加の読み取りをしない)。
+	profiles := make(map[string]rankingProfile, len(pointUsers)+len(battleUsers))
+	for _, list := range [][]rankingUpdateUserDoc{battleUsers, pointUsers} {
+		for _, u := range list {
+			profiles[u.ID] = rankingProfile{DisplayName: u.DisplayName, ScreenName: u.ScreenName, ImagePath: u.ImagePath}
+		}
+	}
+
+	// 期間が変わっていたら、基準値を作り直す前に閉じた期間を確定させる
+	// (作り直すと戦闘力の伸び幅が復元できなくなる)。締めは間引きに関係なく走る。
+	for _, c := range detectClosings(baseline, battleUsers, weekKey, monthKey) {
+		if err := closePeriod(ctx, client, c.Type, c.Key, c.Start, c.End, c.Scores, profiles, c.Partial); err != nil {
+			// 締めに失敗しても基準値の更新は続ける(次の実行では旧期間の
+			// 差分が取れないため、ここで止めると延々と締められなくなる)。
+			log.Printf("rankingUpdate: close %s %s failed: %v", c.Type, c.Key, err)
+		}
+	}
+
+	weekScores, monthScores := rollBattleBaseline(baseline, battleUsers, weekKey, monthKey, now)
 	if err := saveBattleBaseline(ctx, client, baseline); err != nil {
 		return err
 	}
@@ -131,14 +150,6 @@ func appendPeriodRankings(ctx context.Context, client *firestore.Client, data ma
 
 	if !shouldAggregateSanpaiPoints(now) {
 		return nil
-	}
-
-	// 表示情報は既に読み込み済みのユーザー一覧から引く(追加の読み取りをしない)。
-	profiles := make(map[string]rankingProfile, len(pointUsers)+len(battleUsers))
-	for _, list := range [][]rankingUpdateUserDoc{battleUsers, pointUsers} {
-		for _, u := range list {
-			profiles[u.ID] = rankingProfile{DisplayName: u.DisplayName, ScreenName: u.ScreenName, ImagePath: u.ImagePath}
-		}
 	}
 
 	weekPoints, monthPoints, err := aggregateSanpaiPoints(ctx, client, weekStart, monthStart)
