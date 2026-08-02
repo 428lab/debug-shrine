@@ -40,22 +40,23 @@ func rankingCloseRetryHandler(ctx context.Context, _ cloudevents.Event) error {
 }
 
 // runRankingCloseRetry は「直前の週」を、まだアーカイブが無ければ締める。
-//
-// 月を対象にしないのは、獲得ログの無い過去の月まで締めると、ぽいんとだけが
-// 入ったアーカイブができて実態と食い違うため。月の取りこぼしが起きた場合は
-// 対象期間を見て個別に判断する。
 func runRankingCloseRetry(ctx context.Context, client *firestore.Client, now time.Time) error {
 	weekStart, _, _, _ := periodBounds(now)
 	prevStart := weekStart.AddDate(0, 0, -7)
-	prevEnd := weekStart
-	periodKey := prevStart.Format("2006-01-02")
+	return closePeriodIfMissing(ctx, client, "week", prevStart, weekStart)
+}
 
-	exists, err := archiveExists(ctx, client, "week", periodKey)
+// closePeriodIfMissing は指定した期間を、まだアーカイブが無ければ締める。
+// 既にあれば何もしない(称号の二重付与も起きない)。
+func closePeriodIfMissing(ctx context.Context, client *firestore.Client, periodType string, start, end time.Time) error {
+	periodKey := start.Format(periodKeyLayout(periodType))
+
+	exists, err := archiveExists(ctx, client, periodType, periodKey)
 	if err != nil {
 		return err
 	}
 	if exists {
-		log.Printf("rankingCloseRetry: week %s は既に締め済み。何もしない", periodKey)
+		log.Printf("rankingCloseRetry: %s %s は既に締め済み。何もしない", periodType, periodKey)
 		return nil
 	}
 
@@ -63,11 +64,19 @@ func runRankingCloseRetry(ctx context.Context, client *firestore.Client, now tim
 	if err != nil {
 		return err
 	}
-	if err := closePeriod(ctx, client, "week", periodKey, prevStart, prevEnd, profiles); err != nil {
+	if err := closePeriod(ctx, client, periodType, periodKey, start, end, profiles); err != nil {
 		return err
 	}
-	log.Printf("rankingCloseRetry: week %s を締めた(%v 〜 %v)", periodKey, prevStart, prevEnd)
+	log.Printf("rankingCloseRetry: %s %s を締めた(%v 〜 %v)", periodType, periodKey, start, end)
 	return nil
+}
+
+// periodKeyLayout は期間キーの書式(純関数)。週は日付、月は年月。
+func periodKeyLayout(periodType string) string {
+	if periodType == "month" {
+		return "2006-01"
+	}
+	return "2006-01-02"
 }
 
 // archiveExists はその期間のアーカイブが既にあるかを返す。

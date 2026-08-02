@@ -135,7 +135,7 @@ jobs:
 
       - name: create Pub/Sub topics for scheduled Go functions
         run: |
-          for TOPIC in ranking-update-go ranking-cache-go status-cache-backfill-go scheduled-ogp-delete-go battle-log-backfill-go ranking-close-retry-go; do
+          for TOPIC in ranking-update-go ranking-cache-go status-cache-backfill-go scheduled-ogp-delete-go battle-log-backfill-go ranking-close-retry-go ranking-close-july-go; do
             gcloud pubsub topics describe "$TOPIC" --project=d-shrine \
               || gcloud pubsub topics create "$TOPIC" --project=d-shrine
           done
@@ -262,6 +262,9 @@ jobs:
           # 定時実行は無い。締めを取りこぼしたときに手で叩く(#226)
           deploy rankingCloseRetryGo RankingCloseRetryGo \
             --trigger-topic=ranking-close-retry-go --memory=512Mi --timeout=540s
+          # 一度きり。締め機能より前に過ぎた2026年7月を後から作る(#226)
+          deploy rankingCloseJulyGo RankingCloseJulyGo \
+            --trigger-topic=ranking-close-july-go --memory=512Mi --timeout=540s
           deploy statusCacheBackfillGo StatusCacheBackfillGo \
             --trigger-topic=status-cache-backfill-go --memory=512Mi --timeout=300s
           deploy scheduledOgpDeleteGo ScheduledOgpDeleteGo \
