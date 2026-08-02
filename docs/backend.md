@@ -727,6 +727,16 @@ kudaがAPIキー認証を導入(移行期間中は `REQUIRE_API_KEY=0` でキー
 - 定時実行は無い。Pub/Sub トピック `battle-log-backfill-go` へ手で publish する
   (`.github/workflows/kick-scheduled-function.yml`)
 
+### 締めを取りこぼさない
+
+締めは期間キーの変化で検出するため、**失敗したまま状態のキーを進めると、その
+期間は二度と締められない**。そこで失敗した期間はキーを据え置き、次の実行で
+自動的に再試行する(値はログの範囲集計なので、いつ締めても結果は同じ)。
+
+既にキーが進んでしまった期間を後から締め直すために `rankingCloseRetryGo`
+(Pub/Sub トピック `ranking-close-retry-go`、定時実行なし)を用意している。
+直前の週にアーカイブが無ければ締める。既にあれば何もしないので冪等。
+
 ### 実行頻度
 
 `rankingUpdateGo`(毎時)に相乗りする。usersの全件スキャンは既存のものを
