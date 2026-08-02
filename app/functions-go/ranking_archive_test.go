@@ -118,6 +118,20 @@ func TestDetectClosings_PartialWhenBaselineIsLate(t *testing.T) {
 	}
 }
 
+func TestDetectClosings_NotPartialWhenBaseAtIsMissing(t *testing.T) {
+	// base_at は締め機能と同時に足したフィールド。期間ランキングはそれより
+	// 前から動いているので、記録が無い基準値は「途中から始めた」ではない。
+	// ここで partial にすると最初の週・月に誤った注意書きが出る。
+	baseline := &battleBaselineDoc{
+		WeekKey: "2026-07-13",
+		Week:    map[string]int64{"a": 10},
+	}
+	closings := detectClosings(baseline, []rankingUpdateUserDoc{newUser("a", 20)}, "2026-07-20", "2026-07")
+	if len(closings) != 1 || closings[0].Partial {
+		t.Errorf("base_at が無いだけで partial にしてはいけない: %+v", closings)
+	}
+}
+
 func TestBaselineDeltas_SkipsUsersWithoutBaseline(t *testing.T) {
 	// 期間の途中から参加したユーザーは差分を出せないので載せない
 	// (現在値まるごとで1位になる事故を防ぐ)。
