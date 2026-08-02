@@ -64,6 +64,26 @@ type battleBaselineDoc struct {
 	MonthBaseAt time.Time `firestore:"month_base_at"`
 }
 
+// periodWindow は集計対象の期間1つ(キーと開始時刻)。
+type periodWindow struct {
+	Key   string
+	Start time.Time
+}
+
+// sanpaiedSince はその期間に参拝したかを返す(純関数)。
+//
+// せんとうりょく(status.total)は参拝でしか伸びない。一方でこの値は
+// マイページ表示用のキャッシュでもあり、キャッシュが古いユーザーの
+// プロフィールが開かれたとき(statusGo)や statusCacheBackfillGo によって
+// 参拝と無関係に書き直される。基準値との単純な差を伸び幅にすると、その
+// 再計算がそのまま「期間中に伸びた」ことになってしまう(何年も参拝して
+// いないユーザーが週間ランキングに現れる)。
+//
+// 期間中に参拝していないユーザーの増分は再計算によるものなので載せない。
+func sanpaiedSince(u rankingUpdateUserDoc, start time.Time) bool {
+	return !u.LastSanpai.IsZero() && !u.LastSanpai.Before(start)
+}
+
 // periodScore は期間ランキングを組む前の中間表現。
 type periodScore struct {
 	ID      string
@@ -139,15 +159,17 @@ func buildPeriodRanking(scores []periodScore) ([]periodEntry, []periodRankEntry)
 //   - 基準値に居ないユーザー(新規・初回観測)は現在値で初期化する(差分0)
 //   - 現在居ないユーザーの基準値は捨てる(ドキュメントサイズを抑える)
 //   - 伸び幅0以下はランキングに載せない
-func rollBattleBaseline(baseline *battleBaselineDoc, users []rankingUpdateUserDoc, weekKey, monthKey string, now time.Time) (weekScores, monthScores []periodScore) {
-	if baseline.Week == nil || baseline.WeekKey != weekKey {
+//   - その期間に参拝していないユーザーは載せない(sanpaiedSince 参照)。
+//     基準値そのものは全員分を持ち続ける(次に参拝したときの差が正しく出るように)
+func rollBattleBaseline(baseline *battleBaselineDoc, users []rankingUpdateUserDoc, week, month periodWindow, now time.Time) (weekScores, monthScores []periodScore) {
+	if baseline.Week == nil || baseline.WeekKey != week.Key {
 		baseline.Week = map[string]int64{}
-		baseline.WeekKey = weekKey
+		baseline.WeekKey = week.Key
 		baseline.WeekBaseAt = now
 	}
-	if baseline.Month == nil || baseline.MonthKey != monthKey {
+	if baseline.Month == nil || baseline.MonthKey != month.Key {
 		baseline.Month = map[string]int64{}
-		baseline.MonthKey = monthKey
+		baseline.MonthKey = month.Key
 		baseline.MonthBaseAt = now
 	}
 
@@ -161,7 +183,7 @@ func rollBattleBaseline(baseline *battleBaselineDoc, users []rankingUpdateUserDo
 			base = u.Status.Total
 		}
 		nextWeek[u.ID] = base
-		if d := u.Status.Total - base; d > 0 {
+		if d := u.Status.Total - base; d > 0 && sanpaiedSince(u, week.Start) {
 			weekScores = append(weekScores, periodScore{ID: u.ID, Profile: profile, Value: d})
 		}
 
@@ -170,7 +192,7 @@ func rollBattleBaseline(baseline *battleBaselineDoc, users []rankingUpdateUserDo
 			base = u.Status.Total
 		}
 		nextMonth[u.ID] = base
-		if d := u.Status.Total - base; d > 0 {
+		if d := u.Status.Total - base; d > 0 && sanpaiedSince(u, month.Start) {
 			monthScores = append(monthScores, periodScore{ID: u.ID, Profile: profile, Value: d})
 		}
 	}

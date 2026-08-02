@@ -44,6 +44,9 @@ type rankingUpdateUserDoc struct {
 	Status      struct {
 		Total int64 `firestore:"total"`
 	} `firestore:"status"`
+	// LastSanpai は最後に参拝した時刻。期間ランキングで「その期間に本当に
+	// 参拝したか」を判定するのに使う(sanpaiedSince 参照)。
+	LastSanpai time.Time `firestore:"last_sanpai"`
 }
 
 func runRankingUpdate(ctx context.Context, client *firestore.Client) error {
@@ -141,7 +144,10 @@ func appendPeriodRankings(ctx context.Context, client *firestore.Client, data ma
 		}
 	}
 
-	weekScores, monthScores := rollBattleBaseline(baseline, battleUsers, weekKey, monthKey, now)
+	weekScores, monthScores := rollBattleBaseline(baseline, battleUsers,
+		periodWindow{Key: weekKey, Start: weekStart},
+		periodWindow{Key: monthKey, Start: monthStart},
+		now)
 	if err := saveBattleBaseline(ctx, client, baseline); err != nil {
 		return err
 	}
