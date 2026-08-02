@@ -47,8 +47,15 @@ func runRankingCloseJuly(ctx context.Context, client *firestore.Client) error {
 	// 移行時のバックフィルが作ったログの開始。ここより後は積み直さない。
 	existingLogsFrom := time.Date(2026, 7, 27, 0, 0, 0, 0, jst)
 
-	if err := runBattleLogBackfillRange(ctx, client, monthStart, existingLogsFrom, julyBackfillKey); err != nil {
+	done, err := runBattleLogBackfillRange(ctx, client, monthStart, existingLogsFrom, julyBackfillKey)
+	if err != nil {
 		return err
+	}
+	// 全ユーザーを見終える前に締めると、まだ積んでいないぶんが欠けた
+	// アーカイブで確定してしまう。続きは再キックで進む。
+	if !done {
+		log.Printf("rankingCloseJuly: ログの復元が途中のため締めは見送り(もう一度キックしてください)")
+		return nil
 	}
 	return closePeriodIfMissing(ctx, client, "month", monthStart, monthEnd)
 }

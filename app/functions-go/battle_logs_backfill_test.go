@@ -89,8 +89,8 @@ func TestRunBattleLogBackfill_CreatesLogOnceAndIsIdempotent(t *testing.T) {
 		}
 	}
 
-	if err := runBattleLogBackfill(ctx, client, since, key); err != nil {
-		t.Fatalf("runBattleLogBackfill: %v", err)
+	if done, err := runBattleLogBackfill(ctx, client, since, key); err != nil || !done {
+		t.Fatalf("runBattleLogBackfill: done=%v err=%v", done, err)
 	}
 	docs, err := userRef.Collection(battleLogsCollection).Documents(ctx).GetAll()
 	if err != nil {
@@ -107,8 +107,8 @@ func TestRunBattleLogBackfill_CreatesLogOnceAndIsIdempotent(t *testing.T) {
 	before := len(docs)
 
 	// 2度目は積み直さない(冪等)。
-	if err := runBattleLogBackfill(ctx, client, since, key); err != nil {
-		t.Fatalf("runBattleLogBackfill 2: %v", err)
+	if done, err := runBattleLogBackfill(ctx, client, since, key); err != nil || !done {
+		t.Fatalf("runBattleLogBackfill 2: done=%v err=%v", done, err)
 	}
 	docs, err = userRef.Collection(battleLogsCollection).Documents(ctx).GetAll()
 	if err != nil {
@@ -116,6 +116,62 @@ func TestRunBattleLogBackfill_CreatesLogOnceAndIsIdempotent(t *testing.T) {
 	}
 	if len(docs) != before {
 		t.Errorf("2度目で増えてはいけない: %d件 (1度目 %d件)", len(docs), before)
+	}
+}
+
+// 書き込み途中で強制終了されたユーザー(ログはあるが完了印が無い)は、
+// 残骸を消して積み直す。残したまま積むと二重計上になり、飛ばすと欠けたまま
+// 確定してしまう。
+func TestRunBattleLogBackfill_RewritesInterruptedUser(t *testing.T) {
+	client := emulatorClient(t)
+	ctx := context.Background()
+
+	since := time.Now().In(jst).Truncate(time.Hour).Add(-24 * time.Hour)
+	key := fmt.Sprintf("test_%d", time.Now().UnixNano())
+	githubID := "TestBattleBackfillPartial_" + key
+
+	userRef := client.Collection("users").Doc(githubID)
+	if _, err := userRef.Set(ctx, map[string]interface{}{
+		"screen_name":              "partialuser",
+		"last_activity_created_at": since.Add(2 * time.Hour).UTC().Format(time.RFC3339),
+	}); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	for i := 0; i < 3; i++ {
+		created := since.Add(time.Duration(i+1) * 10 * time.Minute).UTC().Format(time.RFC3339)
+		if _, err := userRef.Collection("github_activities").Doc(fmt.Sprintf("a%d", i)).Set(ctx, map[string]interface{}{
+			"raw": fmt.Sprintf(`{"id":"a%d","type":"PushEvent","created_at":%q,"payload":{"commits":[{"sha":"x"}]}}`, i, created),
+		}); err != nil {
+			t.Fatalf("seed activity: %v", err)
+		}
+	}
+	// 途中まで書けた状態を作る(完了印は無い)。
+	if _, err := userRef.Collection(battleLogsCollection).Doc("partial").Set(ctx, map[string]interface{}{
+		"add_point":    int64(999),
+		"timestamp":    since.Add(10 * time.Minute),
+		"backfill_key": key,
+	}); err != nil {
+		t.Fatalf("seed partial log: %v", err)
+	}
+
+	if done, err := runBattleLogBackfill(ctx, client, since, key); err != nil || !done {
+		t.Fatalf("runBattleLogBackfill: done=%v err=%v", done, err)
+	}
+
+	docs, err := userRef.Collection(battleLogsCollection).Documents(ctx).GetAll()
+	if err != nil {
+		t.Fatalf("GetAll: %v", err)
+	}
+	if len(docs) != 3 {
+		t.Fatalf("書きかけを消して活動3件ぶんに作り直すべき: %d件", len(docs))
+	}
+	for _, d := range docs {
+		if got, _ := d.Data()["add_point"].(int64); got == 999 {
+			t.Errorf("書きかけのログが残っている")
+		}
+	}
+	if _, err := userRef.Collection(battleBackfillsCollection).Doc(key).Get(ctx); err != nil {
+		t.Errorf("完了印が書かれていない: %v", err)
 	}
 }
 
