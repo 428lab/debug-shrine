@@ -175,7 +175,7 @@ jobs:
       # (既に存在すれば describe が成功するのでスキップする、冪等な実装)。
       - name: create Pub/Sub topics for scheduled Go functions
         run: |
-          for TOPIC in ranking-update-go ranking-cache-go status-cache-backfill-go scheduled-ogp-delete-go; do
+          for TOPIC in ranking-update-go ranking-cache-go status-cache-backfill-go scheduled-ogp-delete-go battle-log-backfill-go; do
             gcloud pubsub topics describe "$TOPIC" --project=d-shrine-dev \
               || gcloud pubsub topics create "$TOPIC" --project=d-shrine-dev
           done
@@ -310,6 +310,9 @@ jobs:
             --trigger-topic=ranking-update-go --memory=256Mi --timeout=300s
           deploy rankingCacheGo RankingCacheGo \
             --trigger-topic=ranking-cache-go --memory=256Mi --timeout=300s
+          # 定時実行は無い。ログ方式への移行時に手で1度だけ叩く(#226)
+          deploy battleLogBackfillGo BattleLogBackfillGo \
+            --trigger-topic=battle-log-backfill-go --memory=512Mi --timeout=540s
           deploy statusCacheBackfillGo StatusCacheBackfillGo \
             --trigger-topic=status-cache-backfill-go --memory=512Mi --timeout=300s
           deploy scheduledOgpDeleteGo ScheduledOgpDeleteGo \
