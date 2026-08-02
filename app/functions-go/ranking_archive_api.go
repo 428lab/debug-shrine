@@ -92,14 +92,27 @@ func rankingArchiveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Cache-Control", "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400")
 	resp, err := loadArchiveList(ctx, client, periodType, archiveListLimit(r))
 	if err != nil {
 		log.Printf("rankingArchive: loadArchiveList error: %v", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
+	w.Header().Set("Cache-Control", archiveListCacheControl(len(resp.Periods)))
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// archiveListCacheControl は一覧のキャッシュ指定を返す(純関数)。
+//
+// 空の一覧は「まだ1件も締めていない」という一時的な状態で、次の締めで必ず
+// 変わる。これを長く持たせると、締めが成功しても画面が空のまま居座る
+// (実際、機能の投入直後に空をキャッシュしてしまい、締めた後も履歴ページが
+// 空に見え続けた)。空のときは短く、1件でもあるときだけ長く持たせる。
+func archiveListCacheControl(count int) string {
+	if count == 0 {
+		return "public, max-age=30, s-maxage=30"
+	}
+	return "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400"
 }
 
 // archiveListLimit は ?limit= を読み取る(範囲外・不正は既定値)。
@@ -135,6 +148,9 @@ func loadArchiveList(ctx context.Context, client *firestore.Client, periodType s
 		}
 		var d rankingArchiveDoc
 		if err := doc.DataTo(&d); err != nil {
+			// 1件の形が想定外でも一覧全体は返す。ただし黙って消すと
+			// 「締めたのに履歴に出ない」の原因が分からなくなるので必ず残す。
+			log.Printf("rankingArchive: skip %s: %v", doc.Ref.ID, err)
 			continue
 		}
 		resp.Periods = append(resp.Periods, archivePeriodSummary{
