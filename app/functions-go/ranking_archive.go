@@ -144,9 +144,15 @@ func baselineDeltas(base map[string]int64, users []rankingUpdateUserDoc) []perio
 // isPartialPeriod は基準値の作成が期間開始よりだいぶ後だったかを判定する。
 // ロールオーバーは期間開始直後の実行で起きるので、大きくずれているのは
 // 機能の導入直後や関数の長時間停止に限られる。
+//
+// 記録が無い(ゼロ値)場合は partial としない。base_at は締め機能と同時に
+// 足したフィールドで、期間ランキング自体はそれより前から動いている。つまり
+// ゼロ値は「途中から始めた」ではなく「フィールドを持つ前に作られた基準値」を
+// 意味する。ここで true にすると、頭から記録できている最初の週・月に
+// 誤った注意書きが出てしまう。
 func isPartialPeriod(baseAt, start time.Time) bool {
 	if baseAt.IsZero() {
-		return true
+		return false
 	}
 	return baseAt.After(start.Add(90 * time.Minute))
 }
