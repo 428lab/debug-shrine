@@ -708,6 +708,21 @@ kudaがAPIキー認証を導入(移行期間中は `REQUIRE_API_KEY=0` でキー
 参拝していないユーザーが週間ランキングに現れていた。ログ方式はイベントを
 合計するだけなのでこの問題が原理的に起きない(詳細は `battle_logs.go`)。
 
+### 移行時の遡り作成 (`battleLogBackfillGo`)
+
+`battle_logs` はログ方式への切り替え以降の参拝でしか積まれないため、切り替え
+直前の期間は実際には伸びているのに記録が無く、ランキングから抜け落ちる。
+せんとうりょくは `github_activities` の純関数なので、期間内の活動の寄与を
+計算すれば伸び幅を復元できる。
+
+- 対象は `期間開始 <= created_at <= last_activity_created_at` の活動。
+  `last_activity_created_at` までの活動は既に `status.total` に取り込み済みで、
+  今後の参拝でライブにログへ積まれることがないため、二重計上にならない
+- 作ったログには `backfill_key` を刻む。同じキーのログがあるユーザーは飛ばす
+  ので冪等
+- 定時実行は無い。Pub/Sub トピック `battle-log-backfill-go` へ手で publish する
+  (`.github/workflows/kick-scheduled-function.yml`)
+
 ### 実行頻度
 
 `rankingUpdateGo`(毎時)に相乗りする。usersの全件スキャンは既存のものを

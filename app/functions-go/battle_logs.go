@@ -28,12 +28,8 @@ import (
 // battleLogsCollection は獲得ログのサブコレクション名。
 const battleLogsCollection = "battle_logs"
 
-// battleLogEntry は battle_logs の1件。sanpai_logs と同じ形にしてある
-// (期間集計のコードを同じ形で書けるようにするため)。
-type battleLogEntry struct {
-	AddPoint  int64 `firestore:"add_point"`
-	Timestamp any   `firestore:"timestamp"`
-}
+// battle_logs の1件は {add_point, timestamp} で、sanpai_logs と同じ形にしてある
+// (期間集計を同じコードで賄えるようにするため。読み出しは sanpaiLogEntry を使う)。
 
 // battleTotal はせんとうりょくの合計(純関数)。
 // UserFormattedPerformance の total と同じ式。Dex は合計に含めない。
