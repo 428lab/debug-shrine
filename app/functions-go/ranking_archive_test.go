@@ -136,9 +136,22 @@ func TestBaselineDeltas_SkipsUsersWithoutBaseline(t *testing.T) {
 	// 期間の途中から参加したユーザーは差分を出せないので載せない
 	// (現在値まるごとで1位になる事故を防ぐ)。
 	base := map[string]int64{"a": 100}
-	got := baselineDeltas(base, []rankingUpdateUserDoc{newUser("a", 150), newUser("newbie", 99999)})
+	got := baselineDeltas(base, []rankingUpdateUserDoc{newUser("a", 150), newUser("newbie", 99999)}, testMonth.Start)
 	if len(got) != 1 || got[0].ID != "a" || got[0].Value != 50 {
 		t.Errorf("基準値のあるユーザーだけが対象: %+v", got)
+	}
+}
+
+func TestBaselineDeltas_SkipsDormantUsers(t *testing.T) {
+	// 締めの確定値でも、参拝していないユーザーのキャッシュ再計算分は載せない
+	// (アーカイブと称号は後から直せないので、ここで弾く)。
+	base := map[string]int64{"active": 100, "dormant": 588}
+	got := baselineDeltas(base, []rankingUpdateUserDoc{
+		newUser("active", 150),
+		newDormantUser("dormant", 633),
+	}, testMonth.Start)
+	if len(got) != 1 || got[0].ID != "active" {
+		t.Errorf("参拝していないユーザーは確定値にも載せない: %+v", got)
 	}
 }
 

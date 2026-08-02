@@ -101,7 +101,7 @@ func detectClosings(baseline *battleBaselineDoc, users []rankingUpdateUserDoc, w
 				Key:     baseline.WeekKey,
 				Start:   start,
 				End:     start.AddDate(0, 0, 7),
-				Scores:  baselineDeltas(baseline.Week, users),
+				Scores:  baselineDeltas(baseline.Week, users, start),
 				Partial: isPartialPeriod(baseline.WeekBaseAt, start),
 			})
 		}
@@ -113,7 +113,7 @@ func detectClosings(baseline *battleBaselineDoc, users []rankingUpdateUserDoc, w
 				Key:     baseline.MonthKey,
 				Start:   start,
 				End:     start.AddDate(0, 1, 0),
-				Scores:  baselineDeltas(baseline.Month, users),
+				Scores:  baselineDeltas(baseline.Month, users, start),
 				Partial: isPartialPeriod(baseline.MonthBaseAt, start),
 			})
 		}
@@ -123,11 +123,15 @@ func detectClosings(baseline *battleBaselineDoc, users []rankingUpdateUserDoc, w
 
 // baselineDeltas は基準値と現在値の差分を出す(純関数)。
 // 基準値に居ないユーザー(期間の途中から参加)は差分を出せないので載せない。
-func baselineDeltas(base map[string]int64, users []rankingUpdateUserDoc) []periodScore {
+// その期間に参拝していないユーザーも載せない(sanpaiedSince 参照)。
+func baselineDeltas(base map[string]int64, users []rankingUpdateUserDoc, start time.Time) []periodScore {
 	scores := make([]periodScore, 0, len(users))
 	for _, u := range users {
 		b, ok := base[u.ID]
 		if !ok {
+			continue
+		}
+		if !sanpaiedSince(u, start) {
 			continue
 		}
 		if d := u.Status.Total - b; d > 0 {
