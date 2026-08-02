@@ -1,8 +1,41 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "ranking_archive",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "period_type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "period_key",
+          "order": "DESCENDING"
+        }
+      ]
+    }
+  ],
   "fieldOverrides": [
     {
       "collectionGroup": "sanpai_logs",
+      "fieldPath": "timestamp",
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "DESCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "battle_logs",
       "fieldPath": "timestamp",
       "indexes": [
         {

@@ -406,6 +406,11 @@ func runSanpai(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 
 	var rawUserData performance.RawUserData
 	var lastActivityCreatedAt string
+	// battleBase はこの参拝で伸びた分を測る基準(増分パスで基準にしたキャッシュの合計)。
+	// 全件再計算パスでは基準が無いので incrementalBase を false にする。
+	// 詳細は battleGain のコメントを参照。
+	battleBase := 0
+	incrementalBase := false
 	if statusCacheIsCurrent(cachedStatus, userData.StatusVersion) && userData.LastActivityCreatedAt != "" {
 		// 保存済みステータスに新着分だけを加算(全件再集計しない)。
 		// splited は「created_at > last_sanpai」で抽出した未集計イベントのみ、
@@ -419,6 +424,8 @@ func runSanpai(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 		inc := performance.ComputePerformanceIncrement(baseUserData, activities, userData.LastActivityCreatedAt)
 		rawUserData = inc.UserData
 		lastActivityCreatedAt = inc.LastCreatedAt
+		battleBase = battleTotal(baseUserData)
+		incrementalBase = true
 	} else {
 		// 初回(status未保存)は全アクティビティから計算し、増分計算の基準を初期化する
 		allActivities, err := loadActivities(ctx, userRef)
@@ -427,6 +434,21 @@ func runSanpai(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 		}
 		rawUserData = performance.UserPerformance(allActivities, userData.ScreenName)
 		lastActivityCreatedAt = performance.LatestActivityCreatedAt(allActivities)
+	}
+
+	// この参拝で伸びたせんとうりょく。期間ランキングはこのログの合計で作るので、
+	// 「参拝で稼いだ量」だけを記録する必要がある(battle_logs.go 参照)。
+	//
+	// 全件再計算パスでは、キャッシュとの差はキャッシュの誤りの訂正や、過去の全活動を
+	// 初めて集計した分まで含んでしまう。そこでゼロ基準に今回の新着イベントだけを渡し、
+	// 新着イベント自身の寄与を測る。累積分との境界ペアの寄与は基準が無いので拾えないが、
+	// 誤った大きな値を記録するよりよい。
+	battleGain := 0
+	if incrementalBase {
+		battleGain = battleTotal(rawUserData) - battleBase
+	} else {
+		battleGain = battleTotal(performance.ComputePerformanceIncrement(
+			performance.RawUserData{User: userData.ScreenName}, activities, "").UserData)
 	}
 
 	formatted := performance.UserFormattedPerformance(rawUserData, performance.AppendData{
@@ -445,6 +467,10 @@ func runSanpai(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 		{Path: "status_version", Value: performance.StatusLogicVersion},
 		{Path: "last_activity_created_at", Value: lastActivityCreatedAt},
 	}); err != nil {
+		return err
+	}
+
+	if err := appendBattleLog(ctx, userRef, battleGain); err != nil {
 		return err
 	}
 

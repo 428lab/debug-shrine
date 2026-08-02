@@ -44,6 +44,9 @@ type rankingUpdateUserDoc struct {
 	Status      struct {
 		Total int64 `firestore:"total"`
 	} `firestore:"status"`
+	// LastSanpai は最後に参拝した時刻。期間ランキングで「その期間に本当に
+	// 参拝したか」を判定するのに使う(sanpaiedSince 参照)。
+	LastSanpai time.Time `firestore:"last_sanpai"`
 }
 
 func runRankingUpdate(ctx context.Context, client *firestore.Client) error {
@@ -112,25 +115,14 @@ func runRankingUpdate(ctx context.Context, client *firestore.Client) error {
 
 // appendPeriodRankings は週間・月間のランキングを data に足す。
 //
-// せんとうりょくは基準値との差分だけで作れるので毎回更新する。ぽいんとは
-// 参拝ログの横断読み取りが要るため3時間ごとに間引く(間引いた回は
-// MergeAll によって前回の値がそのまま残る)。
+// どちらの指標も獲得ログの合計。せんとうりょくは参拝直後の反映を優先して毎回、
+// ぽいんとは3時間ごとに間引く(間引いた回は MergeAll によって前回の値が残る)。
 func appendPeriodRankings(ctx context.Context, client *firestore.Client, data map[string]interface{}, battleUsers, pointUsers []rankingUpdateUserDoc, now time.Time) error {
 	weekStart, monthStart, weekKey, monthKey := periodBounds(now)
 
-	baseline, err := loadBattleBaseline(ctx, client)
+	state, err := loadPeriodState(ctx, client)
 	if err != nil {
 		return err
-	}
-	weekScores, monthScores := rollBattleBaseline(baseline, battleUsers, weekKey, monthKey)
-	if err := saveBattleBaseline(ctx, client, baseline); err != nil {
-		return err
-	}
-	putPeriodRanking(data, "battle_week", weekScores)
-	putPeriodRanking(data, "battle_month", monthScores)
-
-	if !shouldAggregateSanpaiPoints(now) {
-		return nil
 	}
 
 	// 表示情報は既に読み込み済みのユーザー一覧から引く(追加の読み取りをしない)。
@@ -139,6 +131,34 @@ func appendPeriodRankings(ctx context.Context, client *firestore.Client, data ma
 		for _, u := range list {
 			profiles[u.ID] = rankingProfile{DisplayName: u.DisplayName, ScreenName: u.ScreenName, ImagePath: u.ImagePath}
 		}
+	}
+
+	// 期間が変わっていたら閉じた期間を確定させる。締めは間引きに関係なく走る。
+	closings := detectClosings(state, weekKey, monthKey)
+	for _, c := range closings {
+		if err := closePeriod(ctx, client, c.Type, c.Key, c.Start, c.End, profiles); err != nil {
+			// 締めに失敗しても状態の更新は続ける。ここで止めると毎時同じ期間の
+			// 締めを試み続けることになるため(ログは範囲集計なので、後から手で
+			// 締め直せる)。
+			log.Printf("rankingUpdate: close %s %s failed: %v", c.Type, c.Key, err)
+		}
+	}
+	if len(closings) > 0 || state.WeekKey != weekKey || state.MonthKey != monthKey {
+		state.WeekKey, state.MonthKey = weekKey, monthKey
+		if err := savePeriodState(ctx, client, state); err != nil {
+			return err
+		}
+	}
+
+	weekBattle, monthBattle, err := aggregateBattlePoints(ctx, client, weekStart, monthStart)
+	if err != nil {
+		return err
+	}
+	putPeriodRanking(data, "battle_week", pointScores(weekBattle, profiles))
+	putPeriodRanking(data, "battle_month", pointScores(monthBattle, profiles))
+
+	if !shouldAggregateSanpaiPoints(now) {
+		return nil
 	}
 
 	weekPoints, monthPoints, err := aggregateSanpaiPoints(ctx, client, weekStart, monthStart)

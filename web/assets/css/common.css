@@ -89,3 +89,18 @@ code {
     font-size: 0.9rem;
     font-weight: 700;
 }
+
+/* カード内の読み込み中表示(スピナー+文言)。全画面の Loading コンポーネントは
+   演出が重いので、部分的な読み込みにはこちらを使う */
+.loading-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+}
+.loading-inline .spinner-border {
+    width: 1.1rem;
+    height: 1.1rem;
+    border-width: 0.15em;
+}
