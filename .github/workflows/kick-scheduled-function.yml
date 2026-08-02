@@ -33,6 +33,8 @@ on:
           - scheduled-ogp-delete-go
           # 定時実行の無い一度きりの処理。ログ方式への移行時に叩く(#226)
           - battle-log-backfill-go
+          # 締めを取りこぼしたときのやり直し(#226)
+          - ranking-close-retry-go
 
 jobs:
   kick:
