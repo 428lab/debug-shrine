@@ -19,6 +19,7 @@ package gofunctions
 import (
 	"context"
 	"log"
+	"sort"
 	"time"
 
 	"cloud.google.com/go/firestore"
@@ -39,9 +40,14 @@ func battleLogBackfillHandler(ctx context.Context, _ cloudevents.Event) error {
 		log.Printf("battleLogBackfill: getFirestoreClient error: %v", err)
 		return err
 	}
-	// 対象は「実行時点の月初」。当月をまるごと埋めれば、その中にある当週も埋まる。
-	_, monthStart, _, monthKey := periodBounds(time.Now())
-	return runBattleLogBackfill(ctx, client, monthStart, "month_"+monthKey)
+	// 進行中の週と月の両方を埋めたいので、早い方を起点にする
+	// (週が月をまたぐ場合は週初が月初より前になる)。
+	weekStart, monthStart, weekKey, monthKey := periodBounds(time.Now())
+	since := weekStart
+	if monthStart.Before(since) {
+		since = monthStart
+	}
+	return runBattleLogBackfill(ctx, client, since, weekKey+"_"+monthKey)
 }
 
 // backfillUserActivityDoc はバックフィルが参照するユーザーのフィールド。
@@ -93,22 +99,26 @@ func runBattleLogBackfill(ctx context.Context, client *firestore.Client, since t
 		if err != nil {
 			return err
 		}
-		gain := backfillGain(activities, since, u.LastActivityCreatedAt, u.ScreenName)
-		if gain <= 0 {
+		entries := backfillEntries(activities, since, u.LastActivityCreatedAt, u.ScreenName)
+		if len(entries) == 0 {
 			continue
 		}
 
-		// timestamp は期間開始にする。この伸び幅がいつ稼がれたかは活動ごとに
-		// ばらけるが、期間内であることだけが集計に効くので開始に寄せる。
-		if _, _, err := doc.Ref.Collection(battleLogsCollection).Add(ctx, map[string]interface{}{
-			"add_point":    int64(gain),
-			"timestamp":    since,
-			"backfill_key": backfillKey,
-		}); err != nil {
-			return err
+		// 活動1件ごとに、その活動が起きた時刻で積む。どの期間で切っても
+		// 正しく振り分けられるようにするため。
+		total := 0
+		for _, e := range entries {
+			if _, _, err := doc.Ref.Collection(battleLogsCollection).Add(ctx, map[string]interface{}{
+				"add_point":    int64(e.Gain),
+				"timestamp":    e.At,
+				"backfill_key": backfillKey,
+			}); err != nil {
+				return err
+			}
+			total += e.Gain
 		}
 		created++
-		log.Printf("battleLogBackfill: %s +%d (%s)", u.ScreenName, gain, backfillKey)
+		log.Printf("battleLogBackfill: %s +%d (%d件, %s)", u.ScreenName, total, len(entries), backfillKey)
 	}
 	log.Printf("battleLogBackfill: done key=%s created=%d skipped=%d", backfillKey, created, skipped)
 	return nil
@@ -124,15 +134,23 @@ func hasBackfillLog(ctx context.Context, userRef *firestore.DocumentRef, backfil
 	return len(docs) > 0, nil
 }
 
-// backfillGain は [since, lastCreatedAt] の活動の寄与を返す(純関数)。
+// backfillEntry は遡って作る獲得ログ1件(活動1件ぶんの伸び幅とその時刻)。
+type backfillEntry struct {
+	Gain int
+	At   time.Time
+}
+
+// backfillEntries は [since, lastCreatedAt] の活動を、1件ずつの伸び幅に分解する
+// (純関数)。
 //
-// ゼロ基準に対象の活動だけを渡すことで、その活動自身の寄与を測る。累積分との
-// 境界ペアの寄与は基準が無いので拾えないが、伸び幅の桁を誤るよりよい
-// (参拝時の全件再計算パスと同じ扱い。battle_logs.go 参照)。
-func backfillGain(activities []performance.Activity, since time.Time, lastCreatedAt, screenName string) int {
+// 能力値の加算は活動ごとの寄与と「直前の活動との間隔」による寄与の和なので、
+// 時刻順に1件ずつ「直前の活動」を渡して計算すれば、合計は範囲全体をまとめて
+// 計算した場合と一致する。範囲の外にある直前の活動との間隔だけは基準が無いので
+// 拾えない(参拝時の全件再計算パスと同じ扱い。battle_logs.go 参照)。
+func backfillEntries(activities []performance.Activity, since time.Time, lastCreatedAt, screenName string) []backfillEntry {
 	last := parseActivityTime(lastCreatedAt)
 	if last.IsZero() {
-		return 0
+		return nil
 	}
 	inRange := make([]performance.Activity, 0, len(activities))
 	for _, a := range activities {
@@ -142,11 +160,22 @@ func backfillGain(activities []performance.Activity, since time.Time, lastCreate
 		}
 		inRange = append(inRange, a)
 	}
-	if len(inRange) == 0 {
-		return 0
+	sort.SliceStable(inRange, func(i, j int) bool {
+		return parseActivityTime(inRange[i].CreatedAt).Before(parseActivityTime(inRange[j].CreatedAt))
+	})
+
+	entries := make([]backfillEntry, 0, len(inRange))
+	prev := ""
+	for _, a := range inRange {
+		gain := battleTotal(performance.ComputePerformanceIncrement(
+			performance.RawUserData{User: screenName}, []performance.Activity{a}, prev).UserData)
+		prev = a.CreatedAt
+		if gain <= 0 {
+			continue
+		}
+		entries = append(entries, backfillEntry{Gain: gain, At: parseActivityTime(a.CreatedAt)})
 	}
-	return battleTotal(performance.ComputePerformanceIncrement(
-		performance.RawUserData{User: screenName}, inRange, "").UserData)
+	return entries
 }
 
 // parseActivityTime は GitHub の created_at を読む。読めなければゼロ値。

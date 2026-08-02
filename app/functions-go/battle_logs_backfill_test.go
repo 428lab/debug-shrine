@@ -27,17 +27,28 @@ func TestBackfillGain_OnlyCountsAbsorbedActivitiesInPeriod(t *testing.T) {
 		act("broken", "not-a-timestamp"),      // 壊れた値は無視
 	}
 
-	gain := backfillGain(activities, since, lastCreatedAt, "u")
-	if gain <= 0 {
-		t.Fatalf("対象の活動があるので伸び幅が出るべき: %d", gain)
+	entries := backfillEntries(activities, since, lastCreatedAt, "u")
+	if len(entries) == 0 {
+		t.Fatalf("対象の活動があるので伸び幅が出るべき")
+	}
+	// 活動ごとに、その活動の時刻で積まれること。
+	for _, e := range entries {
+		if e.At.Before(since) || e.At.After(parseActivityTime(lastCreatedAt)) {
+			t.Errorf("範囲外の時刻が混ざっている: %v", e.At)
+		}
 	}
 
-	// 対象2件だけを渡した場合と一致すること(期間外・未取り込みが混ざっていない)。
+	// 合計は、対象2件をまとめて計算した場合と一致すること
+	// (期間外・未取り込みが混ざっておらず、間隔の寄与も取りこぼしていない)。
+	var got int
+	for _, e := range entries {
+		got += e.Gain
+	}
 	want := battleTotal(performance.ComputePerformanceIncrement(
 		performance.RawUserData{User: "u"},
 		[]performance.Activity{activities[1], activities[2]}, "").UserData)
-	if gain != want {
-		t.Errorf("gain = %d, want %d(期間外・未取り込みが混ざっている)", gain, want)
+	if got != want {
+		t.Errorf("合計 = %d, want %d", got, want)
 	}
 }
 
@@ -45,12 +56,12 @@ func TestBackfillGain_ZeroWhenNothingAbsorbed(t *testing.T) {
 	since := time.Date(2026, 8, 1, 0, 0, 0, 0, jst)
 	activities := []performance.Activity{act("old", "2026-07-01T00:00:00Z")}
 
-	if got := backfillGain(activities, since, "2026-08-02T10:00:00Z", "u"); got != 0 {
-		t.Errorf("期間内の活動が無ければ0: %d", got)
+	if got := backfillEntries(activities, since, "2026-08-02T10:00:00Z", "u"); len(got) != 0 {
+		t.Errorf("期間内の活動が無ければ空: %+v", got)
 	}
 	// 取り込み済みの記録が無いユーザーは対象外。
-	if got := backfillGain(activities, since, "", "u"); got != 0 {
-		t.Errorf("last_activity_created_at が無ければ0: %d", got)
+	if got := backfillEntries(activities, since, "", "u"); len(got) != 0 {
+		t.Errorf("last_activity_created_at が無ければ空: %+v", got)
 	}
 }
 
@@ -85,12 +96,15 @@ func TestRunBattleLogBackfill_CreatesLogOnceAndIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetAll: %v", err)
 	}
-	if len(docs) != 1 {
-		t.Fatalf("ログが1件作られるべき: %d件", len(docs))
+	if len(docs) != 5 {
+		t.Fatalf("活動1件につきログ1件が作られるべき: %d件", len(docs))
 	}
-	if got, _ := docs[0].Data()["add_point"].(int64); got <= 0 {
-		t.Errorf("add_point = %v, want > 0", docs[0].Data()["add_point"])
+	for _, d := range docs {
+		if got, _ := d.Data()["add_point"].(int64); got <= 0 {
+			t.Errorf("add_point = %v, want > 0", d.Data()["add_point"])
+		}
 	}
+	before := len(docs)
 
 	// 2度目は積み直さない(冪等)。
 	if err := runBattleLogBackfill(ctx, client, since, key); err != nil {
@@ -100,7 +114,7 @@ func TestRunBattleLogBackfill_CreatesLogOnceAndIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetAll 2: %v", err)
 	}
-	if len(docs) != 1 {
-		t.Errorf("2度目で増えてはいけない: %d件", len(docs))
+	if len(docs) != before {
+		t.Errorf("2度目で増えてはいけない: %d件 (1度目 %d件)", len(docs), before)
 	}
 }
