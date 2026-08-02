@@ -26,6 +26,11 @@ on:
         required: false
         type: string
         default: '30m'
+      probe_url:
+        description: '先に叩いて応答を見るURL(任意)'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   logs:
@@ -37,6 +42,20 @@ jobs:
 
       - name: 'Set up Cloud SDK'
         uses: 'google-github-actions/setup-gcloud@v2'
+
+      # 「関数にリクエストが届いていない」ときは、どこで止まっているかを
+      # 実際に叩いて確かめるのが早い(Hosting のrewriteが効いていない、
+      # SPAのHTMLが返っている、等はここで一目で分かる)。
+      - name: Probe URL
+        if: inputs.probe_url != ''
+        run: |
+          set -eo pipefail
+          echo "=== GET ${{ inputs.probe_url }} ==="
+          curl -sS -D - -o /tmp/body "${{ inputs.probe_url }}" | head -20
+          echo "--- body (先頭400文字) ---"
+          head -c 400 /tmp/body
+          echo
+          echo "--- body size: $(wc -c < /tmp/body) bytes ---"
 
       - name: Read logs
         run: |
