@@ -59,3 +59,21 @@ jobs:
             --project="$PROJECT" \
             --message='{"kick":"manual","source":"github-actions"}'
           echo "published to ${{ inputs.topic }} in $PROJECT"
+          echo "PROJECT=$PROJECT" >> "$GITHUB_ENV"
+
+      # publish は「メッセージを置いた」ことしか示さない。関数が実際に何をしたか
+      # (特に失敗した理由)はCloud Loggingにしか出ないため、ここで拾って
+      # Actionsのログに出す。これが無いと、キックしたのに結果が変わらないとき
+      # GCPコンソールを開くまで原因が分からない。
+      - name: Show function logs
+        run: |
+          set -eo pipefail
+          # トピック名(kebab)から関数名(camel)へ。ranking-update-go → rankingUpdateGo
+          FUNC=$(echo "${{ inputs.topic }}" | awk -F- '{printf "%s", $1; for(i=2;i<=NF;i++) printf "%s%s", toupper(substr($i,1,1)), substr($i,2)}')
+          echo "waiting for $FUNC to run..."
+          sleep 45
+          gcloud logging read \
+            "resource.type=cloud_run_revision AND resource.labels.service_name=$FUNC" \
+            --project="$PROJECT" --limit=50 --freshness=10m \
+            --format='value(timestamp, severity, textPayload)' \
+            | tac || echo "(ログを取得できませんでした)"
