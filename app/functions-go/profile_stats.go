@@ -49,11 +49,24 @@ type profileBadge struct {
 	Achieved bool   `json:"achieved"`
 }
 
+// profileCrown はランキング1位で得た称号(入賞アチーブメント)。
+// 既存の称号(事実から毎回判定できる)と違い、過去のイベントなので獲得を
+// users/{id}.crowns に記録しておき、獲得回数つきで見せる。
+type profileCrown struct {
+	ID           string `json:"id"`
+	Label        string `json:"label"`
+	Icon         string `json:"icon"`
+	Desc         string `json:"desc"`
+	Count        int64  `json:"count"`
+	LatestPeriod string `json:"latest_period"`
+}
+
 type profileStatsResponse struct {
 	Sanpai  sanpaiStats    `json:"sanpai"`
 	Omikuji omikujiStats   `json:"omikuji"`
 	Level   int            `json:"level"`
 	Badges  []profileBadge `json:"badges"`
+	Crowns  []profileCrown `json:"crowns"`
 }
 
 func profileStatsHandler(w http.ResponseWriter, r *http.Request) {
@@ -124,6 +137,7 @@ func runProfileStats(ctx context.Context, w http.ResponseWriter, client *firesto
 		Sanpai:  stats,
 		Omikuji: omStats,
 		Level:   level,
+		Crowns:  readCrowns(userDoc),
 		Badges: computeBadges(profileFacts{
 			SanpaiTotal:   stats.TotalCount,
 			CurrentStreak: stats.CurrentStreak,
@@ -228,6 +242,40 @@ func loadOmikujiStats(ctx context.Context, userDoc *firestore.DocumentSnapshot) 
 // キャッシュされた status.level ではなく status.total から引き直すのは、
 // 閾値テーブルを直したときにキャッシュ作り直しを待たずに正しいレベルを出すため
 // (Lv50超えが0になっていた #215)。レベルは total の純関数なので等価。
+// readCrowns は users/{id}.crowns(ランキング1位の獲得記録)を、定義順に並べて
+// 返す。未獲得のものは載せない(称号一覧と同じく獲得済みだけ見せる #195)。
+func readCrowns(userDoc *firestore.DocumentSnapshot) []profileCrown {
+	crowns := make([]profileCrown, 0, len(crownDefs))
+	v, err := userDoc.DataAt("crowns")
+	if err != nil {
+		return crowns
+	}
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return crowns
+	}
+	for _, def := range crownDefs {
+		raw, ok := m[def.ID].(map[string]interface{})
+		if !ok {
+			continue
+		}
+		count, _ := raw["count"].(int64)
+		if count <= 0 {
+			continue
+		}
+		latest, _ := raw["latest_period"].(string)
+		crowns = append(crowns, profileCrown{
+			ID:           def.ID,
+			Label:        def.Label,
+			Icon:         def.Icon,
+			Desc:         def.Desc,
+			Count:        count,
+			LatestPeriod: latest,
+		})
+	}
+	return crowns
+}
+
 func readCachedLevel(userDoc *firestore.DocumentSnapshot) int {
 	v, err := userDoc.DataAt("status.total")
 	if err != nil {
@@ -278,9 +326,14 @@ var badgeDefs = []badgeDef{
 	{"streak7", "七日詣", "🕯️", "fa-moon", "7日連続参拝", func(f profileFacts) bool { return f.LongestStreak >= 7 }},
 	{"streak30", "皆勤賞", "🎖️", "fa-medal", "30日連続参拝", func(f profileFacts) bool { return f.LongestStreak >= 30 }},
 	{"streak100", "求道者", "⚡", "fa-bolt", "100日連続参拝", func(f profileFacts) bool { return f.LongestStreak >= 100 }},
+	{"lv5", "氏子", "🙇", "fa-user", "レベル5到達", func(f profileFacts) bool { return f.Level >= 5 }},
 	{"lv10", "見習い神主", "🌱", "fa-seedling", "レベル10到達", func(f profileFacts) bool { return f.Level >= 10 }},
+	{"lv15", "宮守", "🏯", "fa-place-of-worship", "レベル15到達", func(f profileFacts) bool { return f.Level >= 15 }},
 	{"lv25", "本殿の主", "🛠️", "fa-tools", "レベル25到達", func(f profileFacts) bool { return f.Level >= 25 }},
+	{"lv35", "大神主", "⛩️", "fa-gopuram", "レベル35到達", func(f profileFacts) bool { return f.Level >= 35 }},
 	{"lv50", "生き神", "👑", "fa-crown", "レベル50到達", func(f profileFacts) bool { return f.Level >= 50 }},
+	{"lv75", "神域の主", "🗻", "fa-mountain", "レベル75到達", func(f profileFacts) bool { return f.Level >= 75 }},
+	{"lv100", "露御読把和流の化身", "☯️", "fa-yin-yang", "レベル100到達", func(f profileFacts) bool { return f.Level >= 100 }},
 	{"omikuji10", "おみくじ好き", "🎋", "fa-scroll", "おみくじ10回", func(f profileFacts) bool { return f.OmikujiTotal >= 10 }},
 	{"chokichi", "天に選ばれし者", "🌈", "fa-rainbow", "超吉を引いた", func(f profileFacts) bool { return f.ChokichiCount >= 1 }},
 	{"daikyo", "受難の日", "💀", "fa-skull", "大凶を引いた", func(f profileFacts) bool { return f.DaikyoCount >= 1 }},
