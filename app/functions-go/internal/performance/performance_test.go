@@ -320,3 +320,83 @@ func TestUserFormattedPerformance(t *testing.T) {
 		t.Errorf("User.DisplayName = %q, want %q", fmt_.User.DisplayName, "d")
 	}
 }
+
+func TestTargetPoints_Lv1To50Unchanged(t *testing.T) {
+	// Lv51以降を足すときに既存の閾値を触ると、既存ユーザーのレベルが下がる。
+	// 移植元(Node版 target_points)の50件をそのまま持っていることを固定する。
+	want := []int{
+		0, 5, 11, 19, 30, 45, 65, 91, 124, 166, 218, 281, 357, 447, 553, 676, 818, 981,
+		1167, 1378, 1616, 1884, 2184, 2519, 2892, 3306, 3764, 4269, 4825, 5436, 6106,
+		6840, 7643, 8520, 9477, 10520, 11656, 12892, 14236, 15696, 17281, 19001, 20867,
+		22891, 25086, 27466, 30046, 32842, 35872, 39156,
+	}
+	if len(targetPoints) < len(want) {
+		t.Fatalf("targetPoints が短い: %d", len(targetPoints))
+	}
+	for i, w := range want {
+		if targetPoints[i] != w {
+			t.Errorf("targetPoints[%d](Lv%d) = %d, want %d", i, i+1, targetPoints[i], w)
+		}
+	}
+}
+
+func TestTargetPoints_IsIncreasing(t *testing.T) {
+	if len(targetPoints) != MaxLevel {
+		t.Fatalf("len(targetPoints) = %d, want MaxLevel(%d)", len(targetPoints), MaxLevel)
+	}
+	for i := 1; i < len(targetPoints); i++ {
+		if targetPoints[i] <= targetPoints[i-1] {
+			t.Fatalf("閾値は単調増加であるべき: [%d]=%d [%d]=%d", i-1, targetPoints[i-1], i, targetPoints[i])
+		}
+	}
+}
+
+func TestGetLevel_Boundaries(t *testing.T) {
+	for _, tc := range []struct {
+		points int
+		want   int
+	}{
+		{0, 1},      // 閾値ちょうどはそのレベル
+		{5, 2},      // targetPoints[1]=5 → Lv2
+		{6, 3},      // 5超えは次のレベル
+		{39156, 50}, // 旧テーブルの上限。Lv50のまま
+		{39157, 51}, // ここが Lv0 になっていた(#215)
+		{99663, 61}, // Lv61の上限ちょうど
+		{99664, 62}, // 1超えると次のレベル
+	} {
+		if got := GetLevel(tc.points); got != tc.want {
+			t.Errorf("GetLevel(%d) = %d, want %d", tc.points, got, tc.want)
+		}
+	}
+}
+
+func TestGetLevel_NeverZeroAboveMax(t *testing.T) {
+	// テーブルの上限を超えても 0 に落ちない(最高レベルで頭打ちにする)。
+	max := targetPoints[len(targetPoints)-1]
+	for _, p := range []int{max, max + 1, max * 10, 1 << 40} {
+		got := GetLevel(p)
+		if got < 1 || got > MaxLevel {
+			t.Errorf("GetLevel(%d) = %d, want 1..%d", p, got, MaxLevel)
+		}
+	}
+	if got := GetLevel(1 << 40); got != MaxLevel {
+		t.Errorf("上限超えは最高レベルであるべき: %d", got)
+	}
+}
+
+func TestGetNextLevelExp_HighAndMaxLevel(t *testing.T) {
+	// 途中のレベルは「次の閾値」を返す。
+	got := GetNextLevelExp(39157) // Lv51
+	if got.NextLevel != 52 || got.NextExp != targetPoints[51] {
+		t.Errorf("GetNextLevelExp(39157) = %+v, want NextLevel=52 NextExp=%d", got, targetPoints[51])
+	}
+	// 最高レベルでは 0 を返さない(進捗バーが0除算になるため)。
+	max := targetPoints[len(targetPoints)-1]
+	atMax := GetNextLevelExp(max + 1)
+	if atMax.NextExp == 0 {
+		t.Errorf("最高レベルで NextExp=0 を返してはいけない: %+v", atMax)
+	}
+	if atMax.NextLevel != MaxLevel {
+		t.Errorf("最高レベルの NextLevel = %d, want %d", atMax.NextLevel, MaxLevel)
+	}
+}
