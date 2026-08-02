@@ -35,6 +35,8 @@ on:
           - battle-log-backfill-go
           # 締めを取りこぼしたときのやり直し(#226)
           - ranking-close-retry-go
+          # 一度きり。2026年7月の月間ランキングを後から作る(#226)
+          - ranking-close-july-go
 
 jobs:
   kick:
