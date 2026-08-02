@@ -134,18 +134,27 @@ func appendPeriodRankings(ctx context.Context, client *firestore.Client, data ma
 	}
 
 	// 期間が変わっていたら閉じた期間を確定させる。締めは間引きに関係なく走る。
+	//
+	// 締めに失敗した期間はキーを進めない。進めてしまうと次の実行では期間の
+	// 変化が検出されず、その期間は二度と締められなくなる。据え置けば次の実行で
+	// 自動的に再試行される(値はログの範囲集計なので、いつ締めても同じ結果)。
 	closings := detectClosings(state, weekKey, monthKey)
+	failed := make(map[string]bool, len(closings))
 	for _, c := range closings {
 		if err := closePeriod(ctx, client, c.Type, c.Key, c.Start, c.End, profiles); err != nil {
-			// 締めに失敗しても状態の更新は続ける。ここで止めると毎時同じ期間の
-			// 締めを試み続けることになるため(ログは範囲集計なので、後から手で
-			// 締め直せる)。
-			log.Printf("rankingUpdate: close %s %s failed: %v", c.Type, c.Key, err)
+			log.Printf("rankingUpdate: close %s %s failed (次の実行で再試行): %v", c.Type, c.Key, err)
+			failed[c.Type] = true
 		}
 	}
-	if len(closings) > 0 || state.WeekKey != weekKey || state.MonthKey != monthKey {
-		state.WeekKey, state.MonthKey = weekKey, monthKey
-		if err := savePeriodState(ctx, client, state); err != nil {
+	next := *state
+	if !failed["week"] {
+		next.WeekKey = weekKey
+	}
+	if !failed["month"] {
+		next.MonthKey = monthKey
+	}
+	if next != *state {
+		if err := savePeriodState(ctx, client, &next); err != nil {
 			return err
 		}
 	}
