@@ -31,6 +31,11 @@ on:
         required: false
         type: string
         default: ''
+      grep:
+        description: 'probe_url がHTMLのとき、読み込まれるJSから探す文字列(任意)'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   logs:
@@ -56,6 +61,36 @@ jobs:
           head -c 400 /tmp/body
           echo
           echo "--- body size: $(wc -c < /tmp/body) bytes ---"
+
+      # HTMLを返すURLを叩いたときは、そこから読み込まれるJSまで追って中身を
+      # 確かめる。「APIは正しいのに画面に出ない」ときは、配信されている
+      # バンドルが古い(その画面のコードが載っていない)ことがあるため。
+      - name: Inspect served bundles
+        if: inputs.probe_url != '' && inputs.grep != ''
+        run: |
+          set -eo pipefail
+          ORIGIN=$(echo "${{ inputs.probe_url }}" | sed -E 's#^(https?://[^/]+).*#\1#')
+          echo "=== ${{ inputs.probe_url }} が読み込むJSを ${{ inputs.grep }} で検索 ==="
+          SRCS=$(grep -oE 'src="[^"]+\.js"' /tmp/body | sed 's/src="//; s/"$//' || true)
+          if [ -z "$SRCS" ]; then
+            echo "(JSの参照が見つかりません。HTMLではない可能性)"
+            exit 0
+          fi
+          FOUND=0
+          for S in $SRCS; do
+            case "$S" in
+              http*) U="$S" ;;
+              /*)    U="$ORIGIN$S" ;;
+              *)     U="$ORIGIN/$S" ;;
+            esac
+            if curl -sS "$U" | grep -q -- "${{ inputs.grep }}"; then
+              echo "HIT  $U"
+              FOUND=1
+            else
+              echo "miss $U"
+            fi
+          done
+          echo "--- ${{ inputs.grep }} を含むJS: $([ $FOUND -eq 1 ] && echo あり || echo なし) ---"
 
       - name: Read logs
         run: |
