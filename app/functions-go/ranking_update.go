@@ -115,13 +115,12 @@ func runRankingUpdate(ctx context.Context, client *firestore.Client) error {
 
 // appendPeriodRankings は週間・月間のランキングを data に足す。
 //
-// せんとうりょくは基準値との差分だけで作れるので毎回更新する。ぽいんとは
-// 参拝ログの横断読み取りが要るため3時間ごとに間引く(間引いた回は
-// MergeAll によって前回の値がそのまま残る)。
+// どちらの指標も獲得ログの合計。せんとうりょくは参拝直後の反映を優先して毎回、
+// ぽいんとは3時間ごとに間引く(間引いた回は MergeAll によって前回の値が残る)。
 func appendPeriodRankings(ctx context.Context, client *firestore.Client, data map[string]interface{}, battleUsers, pointUsers []rankingUpdateUserDoc, now time.Time) error {
 	weekStart, monthStart, weekKey, monthKey := periodBounds(now)
 
-	baseline, err := loadBattleBaseline(ctx, client)
+	state, err := loadPeriodState(ctx, client)
 	if err != nil {
 		return err
 	}
@@ -134,25 +133,29 @@ func appendPeriodRankings(ctx context.Context, client *firestore.Client, data ma
 		}
 	}
 
-	// 期間が変わっていたら、基準値を作り直す前に閉じた期間を確定させる
-	// (作り直すと戦闘力の伸び幅が復元できなくなる)。締めは間引きに関係なく走る。
-	for _, c := range detectClosings(baseline, battleUsers, weekKey, monthKey) {
-		if err := closePeriod(ctx, client, c.Type, c.Key, c.Start, c.End, c.Scores, profiles, c.Partial); err != nil {
-			// 締めに失敗しても基準値の更新は続ける(次の実行では旧期間の
-			// 差分が取れないため、ここで止めると延々と締められなくなる)。
+	// 期間が変わっていたら閉じた期間を確定させる。締めは間引きに関係なく走る。
+	closings := detectClosings(state, weekKey, monthKey)
+	for _, c := range closings {
+		if err := closePeriod(ctx, client, c.Type, c.Key, c.Start, c.End, profiles); err != nil {
+			// 締めに失敗しても状態の更新は続ける。ここで止めると毎時同じ期間の
+			// 締めを試み続けることになるため(ログは範囲集計なので、後から手で
+			// 締め直せる)。
 			log.Printf("rankingUpdate: close %s %s failed: %v", c.Type, c.Key, err)
 		}
 	}
+	if len(closings) > 0 || state.WeekKey != weekKey || state.MonthKey != monthKey {
+		state.WeekKey, state.MonthKey = weekKey, monthKey
+		if err := savePeriodState(ctx, client, state); err != nil {
+			return err
+		}
+	}
 
-	weekScores, monthScores := rollBattleBaseline(baseline, battleUsers,
-		periodWindow{Key: weekKey, Start: weekStart},
-		periodWindow{Key: monthKey, Start: monthStart},
-		now)
-	if err := saveBattleBaseline(ctx, client, baseline); err != nil {
+	weekBattle, monthBattle, err := aggregateBattlePoints(ctx, client, weekStart, monthStart)
+	if err != nil {
 		return err
 	}
-	putPeriodRanking(data, "battle_week", weekScores)
-	putPeriodRanking(data, "battle_month", monthScores)
+	putPeriodRanking(data, "battle_week", pointScores(weekBattle, profiles))
+	putPeriodRanking(data, "battle_month", pointScores(monthBattle, profiles))
 
 	if !shouldAggregateSanpaiPoints(now) {
 		return nil
