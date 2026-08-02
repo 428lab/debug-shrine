@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/firestore"
+	"github.com/428lab/debug-shrine/functions-go/internal/performance"
 	"github.com/GoogleCloudPlatform/functions-framework-go/functions"
 )
 
@@ -221,17 +222,24 @@ func loadOmikujiStats(ctx context.Context, userDoc *firestore.DocumentSnapshot) 
 	return stats, nil
 }
 
-// readCachedLevel は statusGo が書く status キャッシュからレベルを取り出す。
+// readCachedLevel は statusGo が書く status キャッシュからレベルを求める。
 // 未計算・型不一致は 0(バッジ判定でレベル条件が付かないだけで害はない)。
+//
+// キャッシュされた status.level ではなく status.total から引き直すのは、
+// 閾値テーブルを直したときにキャッシュ作り直しを待たずに正しいレベルを出すため
+// (Lv50超えが0になっていた #215)。レベルは total の純関数なので等価。
 func readCachedLevel(userDoc *firestore.DocumentSnapshot) int {
-	v, err := userDoc.DataAt("status.level")
+	v, err := userDoc.DataAt("status.total")
 	if err != nil {
+		// status 未計算。GetLevel(0) は Lv1 を返すため、ここで 0 を返さないと
+		// 未参拝ユーザーのバッジが「参拝求ム」ではなく Lv.1 になってしまう。
 		return 0
 	}
-	if n, ok := v.(int64); ok {
-		return int(n)
+	n, ok := v.(int64)
+	if !ok {
+		return 0
 	}
-	return 0
+	return performance.GetLevel(int(n))
 }
 
 // profileFacts は称号判定に使う事実の集合。
