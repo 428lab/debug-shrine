@@ -144,9 +144,27 @@ func TestBuildPeriodRanking_Empty(t *testing.T) {
 	}
 }
 
+// テストで使う期間。newUser の参拝時刻はこの両方の内側にある。
+var (
+	testWeek  = periodWindow{Key: "2026-07-20", Start: time.Date(2026, 7, 20, 0, 0, 0, 0, jst)}
+	testMonth = periodWindow{Key: "2026-07", Start: time.Date(2026, 7, 1, 0, 0, 0, 0, jst)}
+)
+
 func newUser(id string, total int64) rankingUpdateUserDoc {
-	u := rankingUpdateUserDoc{ID: id, ScreenName: "screen" + id, DisplayName: "name" + id}
+	u := rankingUpdateUserDoc{
+		ID: id, ScreenName: "screen" + id, DisplayName: "name" + id,
+		// 期間中に参拝している(伸び幅がランキングに載る)ユーザー。
+		LastSanpai: time.Date(2026, 7, 22, 12, 0, 0, 0, jst),
+	}
 	u.Status.Total = total
+	return u
+}
+
+// newDormantUser は長らく参拝していないユーザー。status.total はキャッシュ
+// 再計算で動くことがあるが、伸び幅としては載せない。
+func newDormantUser(id string, total int64) rankingUpdateUserDoc {
+	u := newUser(id, total)
+	u.LastSanpai = time.Date(2022, 1, 3, 1, 19, 0, 0, jst)
 	return u
 }
 
@@ -155,7 +173,7 @@ func TestRollBattleBaseline_FirstRunHasNoWinners(t *testing.T) {
 	baseline := &battleBaselineDoc{}
 	users := []rankingUpdateUserDoc{newUser("a", 1000), newUser("b", 500)}
 
-	week, month := rollBattleBaseline(baseline, users, "2026-07-20", "2026-07", time.Now())
+	week, month := rollBattleBaseline(baseline, users, testWeek, testMonth, time.Now())
 	if len(week) != 0 || len(month) != 0 {
 		t.Errorf("初回は伸び幅0なので空になるべき: week=%d month=%d", len(week), len(month))
 	}
@@ -180,7 +198,7 @@ func TestRollBattleBaseline_Delta(t *testing.T) {
 		newUser("c", 9999), // 新規: 基準値が無いので差分0
 	}
 
-	week, month := rollBattleBaseline(baseline, users, "2026-07-20", "2026-07", time.Now())
+	week, month := rollBattleBaseline(baseline, users, testWeek, testMonth, time.Now())
 
 	if len(week) != 1 || week[0].ID != "a" || week[0].Value != 200 {
 		t.Fatalf("週間の伸び幅が違う: %+v", week)
@@ -207,7 +225,7 @@ func TestRollBattleBaseline_RolloverResets(t *testing.T) {
 	}
 	users := []rankingUpdateUserDoc{newUser("a", 1200)}
 
-	week, month := rollBattleBaseline(baseline, users, "2026-07-20", "2026-07", time.Now())
+	week, month := rollBattleBaseline(baseline, users, testWeek, testMonth, time.Now())
 
 	if len(week) != 0 || len(month) != 0 {
 		t.Errorf("期間が変わったら基準値を作り直すので伸び幅は0から: week=%+v month=%+v", week, month)
@@ -228,9 +246,60 @@ func TestRollBattleBaseline_PrunesMissingUsers(t *testing.T) {
 		Week:     map[string]int64{"a": 10, "gone": 999},
 		Month:    map[string]int64{"a": 10, "gone": 999},
 	}
-	rollBattleBaseline(baseline, []rankingUpdateUserDoc{newUser("a", 10)}, "2026-07-20", "2026-07", time.Now())
+	rollBattleBaseline(baseline, []rankingUpdateUserDoc{newUser("a", 10)}, testWeek, testMonth, time.Now())
 	if _, ok := baseline.Week["gone"]; ok {
 		t.Errorf("居ないユーザーの基準値は残すべきではない: %+v", baseline.Week)
+	}
+}
+
+func TestRollBattleBaseline_SkipsDormantUsers(t *testing.T) {
+	// status.total は表示用キャッシュでもあり、プロフィール閲覧(statusGo)や
+	// statusCacheBackfillGo による再計算で参拝と無関係に動く。その増分を
+	// 「期間中に伸びた」として載せると、何年も参拝していないユーザーが
+	// 週間・月間ランキングに現れてしまう。
+	baseline := &battleBaselineDoc{
+		WeekKey:  "2026-07-20",
+		MonthKey: "2026-07",
+		Week:     map[string]int64{"active": 100, "dormant": 588},
+		Month:    map[string]int64{"active": 100, "dormant": 588},
+	}
+	users := []rankingUpdateUserDoc{
+		newUser("active", 140),         // 参拝して +40
+		newDormantUser("dormant", 633), // 参拝せず、キャッシュ再計算で +45
+	}
+
+	week, month := rollBattleBaseline(baseline, users, testWeek, testMonth, time.Now())
+
+	for _, scores := range [][]periodScore{week, month} {
+		if len(scores) != 1 || scores[0].ID != "active" || scores[0].Value != 40 {
+			t.Errorf("参拝していないユーザーの再計算分は載せない: %+v", scores)
+		}
+	}
+	// 基準値は捨てない。次に参拝したときの差が正しく出る必要がある。
+	if baseline.Week["dormant"] != 588 {
+		t.Errorf("参拝していなくても基準値は保持するべき: %+v", baseline.Week)
+	}
+}
+
+func TestSanpaiedSince(t *testing.T) {
+	start := time.Date(2026, 7, 20, 0, 0, 0, 0, jst)
+	cases := []struct {
+		name string
+		last time.Time
+		want bool
+	}{
+		{"期間中", time.Date(2026, 7, 22, 0, 0, 0, 0, jst), true},
+		{"期間開始ちょうど", start, true},
+		{"期間前", time.Date(2026, 7, 19, 23, 59, 0, 0, jst), false},
+		{"未参拝(ゼロ値)", time.Time{}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			u := rankingUpdateUserDoc{ID: "u", LastSanpai: c.last}
+			if got := sanpaiedSince(u, start); got != c.want {
+				t.Errorf("sanpaiedSince = %v, want %v", got, c.want)
+			}
+		})
 	}
 }
 
