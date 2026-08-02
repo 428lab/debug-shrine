@@ -77,13 +77,14 @@ func rankingArchiveHandler(w http.ResponseWriter, r *http.Request) {
 	// 締め済みの内容は変わらないので、共有キャッシュに長く置く。
 	// 一覧は新しい期間が増えるため、詳細より短くしておく。
 	if period := r.URL.Query().Get("period"); period != "" {
-		w.Header().Set("Cache-Control", "public, max-age=600, s-maxage=86400, stale-while-revalidate=86400")
 		resp, err := loadArchiveDetail(ctx, client, periodType, period)
 		if err != nil {
 			log.Printf("rankingArchive: loadArchiveDetail error: %v", err)
 			writeError(w, http.StatusInternalServerError, "internal error")
 			return
 		}
+		// キャッシュ指定は中身が分かってから。見つかったかどうかで長さが違う。
+		w.Header().Set("Cache-Control", archiveDetailCacheControl(resp != nil))
 		if resp == nil {
 			writeError(w, http.StatusNotFound, "period not found")
 			return
@@ -100,6 +101,20 @@ func rankingArchiveHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", archiveListCacheControl(len(resp.Periods)))
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// archiveDetailCacheControl は詳細のキャッシュ指定を返す(純関数)。
+//
+// 締め済みの内容は変わらないので長く置いてよいが、「まだ無い」は一時的な状態で、
+// 締めれば必ず変わる。以前は中身を見る前にヘッダを立てていたため、未作成の期間を
+// 引いた 404 が s-maxage=86400 で共有キャッシュに載り、後から締めても丸一日
+// 「無い」と返り続ける状態になっていた(2026-07 を遡って作ったときに踏んだ)。
+// 一覧が空のときと同じ扱いにする。
+func archiveDetailCacheControl(found bool) string {
+	if !found {
+		return "public, max-age=30, s-maxage=30"
+	}
+	return "public, max-age=600, s-maxage=86400, stale-while-revalidate=86400"
 }
 
 // archiveListCacheControl は一覧のキャッシュ指定を返す(純関数)。
