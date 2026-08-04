@@ -87,7 +87,11 @@ import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { mapGetters } from "vuex";
 import ResultCard from "@/components/OmikujiResult";
 import OmikujiScene from "@/components/OmikujiScene";
-import { saveOmikujiState, loadOmikujiState } from "@/utils/omikujiCooldown";
+import {
+  saveOmikujiState,
+  loadOmikujiState,
+  formatOmikujiRemaining,
+} from "@/utils/omikujiCooldown";
 
 function resolveCurrentUser(auth) {
   return new Promise((resolve) => {
@@ -254,8 +258,16 @@ export default {
     },
     startTimer() {
       if (this.timerId) clearInterval(this.timerId);
+      // 残り秒を1秒ずつ引くのではなく、明ける時刻を決めて毎回そこから計算する。
+      // タブが背面にあると setInterval は間引かれる(止まることもある)ため、
+      // 引き算だと戻ってきたときに実際より長い残り時間を表示してしまい、
+      // 「引けるのに引けないと見える」という直したかった症状が再発する。
+      const deadline = Date.now() + this.remaining * 1000;
       this.timerId = setInterval(() => {
-        this.remaining -= 1;
+        this.remaining = Math.max(
+          0,
+          Math.ceil((deadline - Date.now()) / 1000)
+        );
         if (this.remaining <= 0) {
           clearInterval(this.timerId);
           this.timerId = null;
@@ -275,13 +287,8 @@ export default {
   computed: {
     ...mapGetters(["user"]),
     remainingText() {
-      const s = Math.max(0, this.remaining);
-      const h = Math.floor(s / 3600);
-      const m = Math.floor((s % 3600) / 60);
-      const sec = s % 60;
-      if (h > 0) return `${h}時間${m}分`;
-      if (m > 0) return `${m}分${sec}秒`;
-      return `${sec}秒`;
+      // トップページと同じ表記にする(整形は omikujiCooldown.js に一本化)。
+      return formatOmikujiRemaining(this.remaining);
     },
     shareUrl() {
       return this.$config.baseUrl;

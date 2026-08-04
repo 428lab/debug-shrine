@@ -182,10 +182,10 @@ export default {
   mounted() {
     this.pickLabomiLine();
     this.refreshOmikuji();
-    // 1秒ごとに減らす。0になったらボタンの文言が「おみくじを引く」に戻る。
-    this.omikujiTimerId = setInterval(() => {
-      if (this.omikujiRemaining > 0) this.omikujiRemaining -= 1;
-    }, 1000);
+    // 1秒ごとに保存済みの「次に引ける時刻」から計算し直す。残り秒を引き算で
+    // 減らすと、タブが背面のとき setInterval が間引かれて実際より長い残り時間を
+    // 表示してしまい、引けるのに「前回のおみくじ」のままになる。
+    this.omikujiTimerId = setInterval(this.refreshOmikuji, 1000);
   },
   beforeDestroy() {
     if (this.omikujiTimerId) clearInterval(this.omikujiTimerId);
