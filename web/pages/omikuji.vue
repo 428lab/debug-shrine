@@ -87,6 +87,11 @@ import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { mapGetters } from "vuex";
 import ResultCard from "@/components/OmikujiResult";
 import OmikujiScene from "@/components/OmikujiScene";
+import {
+  saveOmikujiState,
+  loadOmikujiState,
+  formatOmikujiRemaining,
+} from "@/utils/omikujiCooldown";
 
 function resolveCurrentUser(auth) {
   return new Promise((resolve) => {
@@ -110,6 +115,24 @@ export default {
     };
   },
   async mounted() {
+    // 覚えているものがあれば、通信を待たずにその場で出す。ここで待たせると
+    // 「押してから待たされた末に引けないと分かる」になる。
+    // サーバーの応答が来たら上書きされる(正はあくまでサーバー)。
+    const saved = loadOmikujiState(
+      this.user && this.user.github_id,
+      Date.now()
+    );
+    if (saved) {
+      this.result = saved.result;
+      if (saved.remainingSeconds > 0) {
+        this.remaining = saved.remainingSeconds;
+        this.state = "cooldown";
+        this.startTimer();
+      } else if (saved.result) {
+        // 引ける。前回の結果を添えてボタンを出す。
+        this.state = "available";
+      }
+    }
     await this.fetchStatus();
   },
   beforeDestroy() {
@@ -129,7 +152,11 @@ export default {
     },
     // 引かずに現在の状態(引ける/クールダウン+前回結果)を取得する。
     async fetchStatus() {
-      this.state = "loading";
+      // 既に出せるものがあるなら、確認中もそれを出したままにする。
+      // ローディングに戻すと、せっかく即表示した意味が無くなる。
+      if (this.state !== "cooldown" && this.state !== "available") {
+        this.state = "loading";
+      }
       const token = await this.getToken();
       if (!token) return;
       try {
@@ -182,6 +209,12 @@ export default {
         this.remaining = this._pendingRemaining || 0;
         this.pendingResult = null;
         this.state = "cooldown";
+        saveOmikujiState(
+          this.user && this.user.github_id,
+          this.remaining,
+          this.result,
+          Date.now()
+        );
         this.startTimer();
       } else {
         // 演出が結果より先に終わった(スキップ等)→ サーバー状態を取り直す
@@ -189,6 +222,19 @@ export default {
       }
     },
     applyResponse(d) {
+      // 次に引ける時刻と前回の結果を覚えておく(次に開いたとき待たせないため)。
+      if (
+        d.status === "success" ||
+        d.status === "cooldown" ||
+        d.status === "available"
+      ) {
+        saveOmikujiState(
+          this.user && this.user.github_id,
+          d.remaining_seconds || 0,
+          d.result || this.result,
+          Date.now()
+        );
+      }
       if (d.status === "success") {
         this.result = d.result;
         this.remaining = d.remaining_seconds || 0;
@@ -212,14 +258,28 @@ export default {
     },
     startTimer() {
       if (this.timerId) clearInterval(this.timerId);
+      // 残り秒を1秒ずつ引くのではなく、明ける時刻を決めて毎回そこから計算する。
+      // タブが背面にあると setInterval は間引かれる(止まることもある)ため、
+      // 引き算だと戻ってきたときに実際より長い残り時間を表示してしまい、
+      // 「引けるのに引けないと見える」という直したかった症状が再発する。
+      const deadline = Date.now() + this.remaining * 1000;
       this.timerId = setInterval(() => {
-        this.remaining -= 1;
+        this.remaining = Math.max(
+          0,
+          Math.ceil((deadline - Date.now()) / 1000)
+        );
         if (this.remaining <= 0) {
           clearInterval(this.timerId);
           this.timerId = null;
           this.remaining = 0;
           // 引ける状態へ。前回結果は残しつつボタンを出す。
           this.state = "available";
+          saveOmikujiState(
+            this.user && this.user.github_id,
+            0,
+            this.result,
+            Date.now()
+          );
         }
       }, 1000);
     },
@@ -227,13 +287,8 @@ export default {
   computed: {
     ...mapGetters(["user"]),
     remainingText() {
-      const s = Math.max(0, this.remaining);
-      const h = Math.floor(s / 3600);
-      const m = Math.floor((s % 3600) / 60);
-      const sec = s % 60;
-      if (h > 0) return `${h}時間${m}分`;
-      if (m > 0) return `${m}分${sec}秒`;
-      return `${sec}秒`;
+      // トップページと同じ表記にする(整形は omikujiCooldown.js に一本化)。
+      return formatOmikujiRemaining(this.remaining);
     },
     shareUrl() {
       return this.$config.baseUrl;
