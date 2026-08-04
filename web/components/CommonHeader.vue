@@ -38,7 +38,9 @@
         </ul>
         <ul class="navbar-nav mb-2 mb-lg-0" v-if="isLogin">
           <li class="nav-item">
-            <nuxt-link class="nav-link active" to="/omikuji">おみくじ</nuxt-link>
+            <nuxt-link class="nav-link active" to="/omikuji">{{
+              omikujiLabel
+            }}</nuxt-link>
           </li>
           <li class="nav-item">
             <nuxt-link
@@ -61,19 +63,54 @@
 
 <script>
 import { mapGetters } from "vuex";
+import { loadOmikujiRemaining } from "@/utils/omikujiCooldown";
 
 export default {
   data() {
-    return {};
+    return {
+      // おみくじの残り秒(0なら引ける)。開く前に分かるようにリンクの文言へ出す。
+      omikujiRemaining: 0,
+      omikujiTimerId: null,
+    };
   },
-  mounted() {},
+  mounted() {
+    this.refreshOmikuji();
+    // 残り時間はページを開かなくても減っていく。30秒ごとに見直して、
+    // 引けるようになったらリンクの文言を戻す。
+    this.omikujiTimerId = setInterval(this.refreshOmikuji, 30 * 1000);
+  },
+  beforeDestroy() {
+    if (this.omikujiTimerId) clearInterval(this.omikujiTimerId);
+  },
   methods: {
     logout() {
       this.$store.dispatch("logout");
     },
+    refreshOmikuji() {
+      this.omikujiRemaining = loadOmikujiRemaining(
+        this.user && this.user.github_id,
+        Date.now()
+      );
+    },
   },
   computed: {
-    ...mapGetters(["isLogin"]),
+    ...mapGetters(["isLogin", "user"]),
+    // 引けないと分かっているときは「前回のおみくじ」。押す前に、引けるのか
+    // 前回の結果を見に行くだけなのかが分かる。
+    omikujiLabel() {
+      return this.omikujiRemaining > 0 ? "前回のおみくじ" : "おみくじ";
+    },
+  },
+  watch: {
+    // ログイン直後やアカウント切替でユーザーが変わったら取り直す
+    // (キーに github_id が入っているため)。
+    user() {
+      this.refreshOmikuji();
+    },
+    // ページ遷移のたびに見直す(おみくじを引いた直後に文言が変わる)。
+    $route() {
+      this.refreshOmikuji();
+    },
   },
 };
 </script>
