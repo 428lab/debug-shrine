@@ -43,9 +43,15 @@
               >
                 参拝する
               </button>
+              <!-- 引けないと分かっているときは「前回のおみくじ」。押せば
+                   前回の結果がその場で出る(通信を待たない)。 -->
               <nuxt-link to="/omikuji" class="btn btn-lg btn-outline-light">
-                おみくじを引く
+                {{ omikujiRemaining > 0 ? "前回のおみくじ" : "おみくじを引く" }}
               </nuxt-link>
+            </div>
+            <div v-if="omikujiRemaining > 0" class="mt-2 small text-muted">
+              次のおみくじまで
+              <span class="fw-bold">{{ omikujiRemainingText }}</span>
             </div>
             <div class="mt-4 p-2 d-inline-block">
               <div class="rounded border p-2 w-100 mb-2" v-if="isLogin">
@@ -148,6 +154,10 @@ import {
 } from "firebase/auth";
 import { mapGetters } from "vuex";
 import Ranking from "@/components/Ranking";
+import {
+  loadOmikujiRemaining,
+  formatOmikujiRemaining,
+} from "@/utils/omikujiCooldown";
 
 export default {
   layout: "single",
@@ -163,15 +173,32 @@ export default {
       registerError: false,
       // らぼみの吹き出し。SSR/CSRの差異を避けるため mounted で選ぶ(初期は空)。
       labomiLine: "",
+      // 次のおみくじまでの残り秒(0なら引ける)。localStorage から読むだけで、
+      // サーバーには問い合わせない(引けるかは前回いつ引いたかだけで決まる)。
+      omikujiRemaining: 0,
+      omikujiTimerId: null,
     };
   },
   mounted() {
     this.pickLabomiLine();
+    this.refreshOmikuji();
+    // 1秒ごとに減らす。0になったらボタンの文言が「おみくじを引く」に戻る。
+    this.omikujiTimerId = setInterval(() => {
+      if (this.omikujiRemaining > 0) this.omikujiRemaining -= 1;
+    }, 1000);
+  },
+  beforeDestroy() {
+    if (this.omikujiTimerId) clearInterval(this.omikujiTimerId);
   },
   watch: {
     // ログイン状態が変わったら(認証復元含む)セリフプールを切り替える
     isLogin() {
       this.pickLabomiLine();
+    },
+    // 認証復元でユーザーが入ったら残り時間を読み直す
+    // (保存キーに github_id が入っているため)。
+    user() {
+      this.refreshOmikuji();
     },
   },
   async beforeMount() {
@@ -186,6 +213,12 @@ export default {
     });
   },
   methods: {
+    refreshOmikuji() {
+      this.omikujiRemaining = loadOmikujiRemaining(
+        this.user && this.user.github_id,
+        Date.now()
+      );
+    },
     // らぼみのセリフ(オタクに優しいギャル。口調は docs/character.md 準拠)。
     // 表示のたびにランダムで1つ選び、再訪の楽しみにする。
     pickLabomiLine() {
@@ -274,6 +307,9 @@ export default {
   },
   computed: {
     ...mapGetters(["isLogin", "user"]),
+    omikujiRemainingText() {
+      return formatOmikujiRemaining(this.omikujiRemaining);
+    },
   },
 };
 </script>

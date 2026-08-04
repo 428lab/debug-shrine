@@ -75,9 +75,9 @@ export default {
   },
   mounted() {
     this.refreshOmikuji();
-    // 残り時間はページを開かなくても減っていく。1分ごとに見直して、
+    // 残り時間はページを開かなくても減っていく。30秒ごとに見直して、
     // 引けるようになったらリンクの文言を戻す。
-    this.omikujiTimerId = setInterval(this.refreshOmikuji, 60 * 1000);
+    this.omikujiTimerId = setInterval(this.refreshOmikuji, 30 * 1000);
   },
   beforeDestroy() {
     if (this.omikujiTimerId) clearInterval(this.omikujiTimerId);
