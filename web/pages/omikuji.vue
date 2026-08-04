@@ -87,6 +87,10 @@ import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { mapGetters } from "vuex";
 import ResultCard from "@/components/OmikujiResult";
 import OmikujiScene from "@/components/OmikujiScene";
+import {
+  saveOmikujiCooldown,
+  loadOmikujiRemaining,
+} from "@/utils/omikujiCooldown";
 
 function resolveCurrentUser(auth) {
   return new Promise((resolve) => {
@@ -110,6 +114,18 @@ export default {
     };
   },
   async mounted() {
+    // 覚えている残り時間があれば、通信を待たずにクールダウン表示から始める。
+    // ここで待たせると「押してから待たされた末に引けないと分かる」になる。
+    // サーバーの応答が来たら上書きされる(正はあくまでサーバー)。
+    const remaining = loadOmikujiRemaining(
+      this.user && this.user.github_id,
+      Date.now()
+    );
+    if (remaining > 0) {
+      this.remaining = remaining;
+      this.state = "cooldown";
+      this.startTimer();
+    }
     await this.fetchStatus();
   },
   beforeDestroy() {
@@ -129,7 +145,9 @@ export default {
     },
     // 引かずに現在の状態(引ける/クールダウン+前回結果)を取得する。
     async fetchStatus() {
-      this.state = "loading";
+      // 既に出せるものがあるなら、確認中もそれを出したままにする。
+      // ローディングに戻すと、せっかく即表示した意味が無くなる。
+      if (this.state !== "cooldown") this.state = "loading";
       const token = await this.getToken();
       if (!token) return;
       try {
@@ -182,6 +200,11 @@ export default {
         this.remaining = this._pendingRemaining || 0;
         this.pendingResult = null;
         this.state = "cooldown";
+        saveOmikujiCooldown(
+          this.user && this.user.github_id,
+          this.remaining,
+          Date.now()
+        );
         this.startTimer();
       } else {
         // 演出が結果より先に終わった(スキップ等)→ サーバー状態を取り直す
@@ -189,6 +212,17 @@ export default {
       }
     },
     applyResponse(d) {
+      // 次に引ける時刻を覚えておく(次に開いたとき待たせないため)。
+      // 引ける状態なら記録を消す。
+      if (d.status === "success" || d.status === "cooldown") {
+        saveOmikujiCooldown(
+          this.user && this.user.github_id,
+          d.remaining_seconds || 0,
+          Date.now()
+        );
+      } else if (d.status === "available") {
+        saveOmikujiCooldown(this.user && this.user.github_id, 0, Date.now());
+      }
       if (d.status === "success") {
         this.result = d.result;
         this.remaining = d.remaining_seconds || 0;
@@ -220,6 +254,7 @@ export default {
           this.remaining = 0;
           // 引ける状態へ。前回結果は残しつつボタンを出す。
           this.state = "available";
+          saveOmikujiCooldown(this.user && this.user.github_id, 0, Date.now());
         }
       }, 1000);
     },
