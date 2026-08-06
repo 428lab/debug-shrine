@@ -860,6 +860,12 @@ kudaがAPIキー認証を導入(移行期間中は `REQUIRE_API_KEY=0` でキー
 いずれも `total` の純関数なので、`fromFirestoreStatus` がキャッシュではなく
 `total` から引き直す。status キャッシュの作り直しは不要。
 
+Node版(`app/functions/performance.js`)にも同じずれがあるため併せて直したが、
+Node版は Go へ全面移植済みで**一切デプロイされていない**(`index.js` は関数を
+何も export しない)。Lv50超えの扱い(#215)のように Go だけに入っている修正が
+既にあるため、**食い違ったときは Go を正とする**。Node版のテストはテーブル内
+(Lv1-50)の範囲だけを検証する。
+
 ## レベル計算の上限(#215)
 
 `GetLevel` は閾値テーブル `targetPoints` を先頭から見て「戦闘力 <= 閾値」の

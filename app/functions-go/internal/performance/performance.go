@@ -2,8 +2,13 @@
 // app/functions/performance.js (Node版)と同一の計算結果を返すことを目的としたポートであり、
 // 副作用(Firestore/HTTP)を持たずユニットテスト可能な単位として切り出している。
 //
-// 値を変更する場合は必ず Node版(app/functions/performance.js)と同時に更新し、
+// 値を変更する場合は Node版(app/functions/performance.js)も併せて更新し、
 // 両実装のテスト(performance_test.go / performance.test.js)で等価性を確認すること。
+//
+// ただし Node版は既に全面移植済みで一切デプロイされていない(app/functions/index.js は
+// 関数を何も export しない)。実装の正はこちらで、Lv50超えの扱い(#215: テーブルの
+// Lv100延長・上限超えのクランプ)のように Go だけに入っている修正がある。
+// 食い違ったときは Go を正とすること。
 package performance
 
 import (

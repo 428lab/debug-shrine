@@ -29,13 +29,32 @@ function get_level(points) {
   return level
 }
 
+// get_level は `points <= target_points[i]` で判定するため、Lv L の範囲は
+// (target_points[L-2], target_points[L-1]] であり、target_points[L-1] を1でも
+// 超えれば Lv L+1 になる。以前は target_points[level](= Lv L+1 の上限)を返して
+// おり、表示より手前でレベルが上がっていた
+// (5exp は Lv2 だが 6exp で Lv3 になるのに「NEXT 11 exp」と出ていた)。
+// Go版(internal/performance/performance.go)と同じ値を返すこと。
 function get_next_leve_exp(points) {
   let level = get_level(points)
+  if (level >= target_points.length) {
+    return { next_level: target_points.length, next_exp: target_points[target_points.length - 1] }
+  }
   let return_data = {
     next_level: level + 1,
-    next_exp: target_points[level]
+    next_exp: target_points[level - 1] + 1
   }
   return return_data
+}
+
+// get_level_start_exp は今のレベルの下限(進捗バーの起点)。
+// バーは「今のレベルの中でどこまで進んだか」であって累計/次レベルではない。
+function get_level_start_exp(points) {
+  let level = get_level(points)
+  if (level <= 1) {
+    return 0
+  }
+  return target_points[level - 2] + 1
 }
 
 function user_performance(items, username) {
@@ -140,6 +159,7 @@ function user_formatted_performance(user_data, append_data={}) {
     level: 0,
     exp: 0,
     next_exp: 0,
+    level_start_exp: 0,
     chart: {
       hp: 0,
       power: 0,
@@ -165,6 +185,7 @@ function user_formatted_performance(user_data, append_data={}) {
 
   return_Data.level = get_level(return_Data.total)
   return_Data.next_exp = get_next_leve_exp(return_Data.total).next_exp
+  return_Data.level_start_exp = get_level_start_exp(return_Data.total)
   return return_Data
 }
 
@@ -290,6 +311,7 @@ module.exports = {
   target_points,
   get_level,
   get_next_leve_exp,
+  get_level_start_exp,
   user_performance,
   user_formatted_performance,
   raw_user_data_from_status,
