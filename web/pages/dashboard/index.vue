@@ -241,9 +241,6 @@ export default {
     badgeMarkdown() {
       return `[![でばっぐ神社](${this.badgeUrl})](${this.shareUrl})`;
     },
-    progressWidth() {
-      return this.profile.exp.total / this.profile.next;
-    },
   },
 };
 </script>
