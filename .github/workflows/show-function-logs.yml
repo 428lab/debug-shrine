@@ -65,17 +65,32 @@ jobs:
       # HTMLを返すURLを叩いたときは、そこから読み込まれるJSまで追って中身を
       # 確かめる。「APIは正しいのに画面に出ない」ときは、配信されている
       # バンドルが古い(その画面のコードが載っていない)ことがあるため。
+      #
+      # src= だけでなく link rel=preload/prefetch の href= も追う。Nuxt の SPA は
+      # 各ページのコードを実行時に読む別チャンクにしており、HTML の <script src>
+      # には載らない(ランタイムと共通チャンクだけ)。src= しか見ないと、その画面の
+      # コードを一度も検査せずに「なし」と結論してしまう。
       - name: Inspect served bundles
         if: inputs.probe_url != '' && inputs.grep != ''
         run: |
           set -eo pipefail
           ORIGIN=$(echo "${{ inputs.probe_url }}" | sed -E 's#^(https?://[^/]+).*#\1#')
           echo "=== ${{ inputs.probe_url }} が読み込むJSを ${{ inputs.grep }} で検索 ==="
-          SRCS=$(grep -oE 'src="[^"]+\.js"' /tmp/body | sed 's/src="//; s/"$//' || true)
+          # HTML に載るのはランタイムと共通チャンクだけ。各ページのコードは
+          # 実行時に読まれる別チャンクで、名前は webpack のマニフェスト内にしか
+          # 無いため HTML からは辿れない。このアプリは PWA なので、Service Worker の
+          # プリキャッシュ manifest(/sw.js)に全アセットが列挙される。そこからも
+          # 拾って、目的の画面のコードを確実に検査対象に含める。
+          curl -sS "$ORIGIN/sw.js" -o /tmp/sw.js || : > /tmp/sw.js
+          SRCS=$( { grep -oE 'src="[^"]+\.js"' /tmp/body | sed 's/src="//; s/"$//';
+                    grep -oE 'href="[^"]+\.js"' /tmp/body | sed 's/href="//; s/"$//';
+                    grep -oE '"[^"]*/_nuxt/[^"]+\.js"' /tmp/sw.js | tr -d '"'; } \
+                  | sort -u || true)
           if [ -z "$SRCS" ]; then
             echo "(JSの参照が見つかりません。HTMLではない可能性)"
             exit 0
           fi
+          echo "(検査対象 $(echo "$SRCS" | wc -l) 件)"
           FOUND=0
           for S in $SRCS; do
             case "$S" in
