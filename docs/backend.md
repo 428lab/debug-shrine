@@ -834,6 +834,38 @@ kudaがAPIキー認証を導入(移行期間中は `REQUIRE_API_KEY=0` でキー
 キーも増えない)。トップページは幅が狭いので `:show-tabs="false"` でタブを
 出さず、既定(週間、空ならトータル)だけを見せる。
 
+## 進捗バーと NEXT exp
+
+マイページの exp バーが、レベルが上がるほど常に満タンに見える不具合があった。
+原因は2つで、どちらも `targetPoints` の意味の取り違え。
+
+`GetLevel` は「戦闘力 <= 閾値」で判定するため、**Lv L の範囲は
+(targetPoints[L-2], targetPoints[L-1]]**。つまり `targetPoints[L-1]` を1でも
+超えれば Lv L+1 になる。
+
+- **NEXT exp が1レベルぶん先だった**。`GetNextLevelExp` が `targetPoints[level]`
+  (= Lv L+1 の**上限**)を返しており、そこに届く前にレベルが上がっていた。
+  例: 5exp は Lv2 だが 6exp で Lv3 になるのに「NEXT 11 exp」と表示。
+  正しくは `targetPoints[level-1] + 1`(到達したら実際に上がる値)。
+  `TestGetNextLevelExp_ReachingItLevelsUp` が、NEXT に到達したらレベルが上がり、
+  その1手前では上がらないことを全域で担保する。
+- **バーが 累計 / 次レベル だった**。レベルが上がるほど分子と分母が近づくため、
+  レベル帯の先頭にいてもほぼ満タンに見える(Lv54 の下限 50759 でも
+  50759/55293 = 92%)。正しくは**今のレベルの中での進み具合**
+  `(total - 下限) / (次レベル - 下限)`。下限は `GetLevelStartExp` が返し、
+  API は `level_start_exp` として渡す。
+
+報告例(Lv54 / 戦闘力 51217)では 85% → 10.1% になる。
+
+いずれも `total` の純関数なので、`fromFirestoreStatus` がキャッシュではなく
+`total` から引き直す。status キャッシュの作り直しは不要。
+
+Node版(`app/functions/performance.js`)にも同じずれがあるため併せて直したが、
+Node版は Go へ全面移植済みで**一切デプロイされていない**(`index.js` は関数を
+何も export しない)。Lv50超えの扱い(#215)のように Go だけに入っている修正が
+既にあるため、**食い違ったときは Go を正とする**。Node版のテストはテーブル内
+(Lv1-50)の範囲だけを検証する。
+
 ## レベル計算の上限(#215)
 
 `GetLevel` は閾値テーブル `targetPoints` を先頭から見て「戦闘力 <= 閾値」の

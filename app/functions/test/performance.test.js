@@ -33,10 +33,25 @@ test("get_level: しきい値の境界", () => {
   assert.strictEqual(get_level(12), 4)  // 12<=19
 })
 
-test("get_next_leve_exp: 次レベルと必要経験値", () => {
-  const r = get_next_leve_exp(0) // level=1 -> target_points[1]=5
+test("get_next_leve_exp: 次レベルと、そこへ上がる経験値", () => {
+  // 0exp は Lv1。target_points[0]=0 を1でも超えた 1exp で Lv2 になる。
+  const r = get_next_leve_exp(0)
   assert.strictEqual(r.next_level, 2)
-  assert.strictEqual(r.next_exp, 5)
+  assert.strictEqual(r.next_exp, 1)
+})
+
+// 注: Node版は Lv50超えの扱い(#215: テーブルのLv100延長・上限超えのクランプ)を
+// 取り込んでいないため、テーブル内(Lv1-50)の範囲だけを検証する。
+// Node版は Go へ全面移植済みで一切デプロイされていない(index.js は何も export
+// しない)。Lv50超えを含む全域の検証は Go 側
+// (TestGetNextLevelExp_ReachingItLevelsUp)で行う。
+test("get_next_leve_exp: そこに到達したら実際にレベルが上がる", () => {
+  for (const points of [0, 1, 5, 6, 100, 1000, 30000]) {
+    const level = get_level(points)
+    const next = get_next_leve_exp(points).next_exp
+    assert.strictEqual(get_level(next), level + 1, `${points}exp(Lv${level}) の NEXT ${next}`)
+    assert.strictEqual(get_level(next - 1), level, `${points}exp(Lv${level}) の NEXT-1 ${next - 1}`)
+  }
 })
 
 // ============================================================

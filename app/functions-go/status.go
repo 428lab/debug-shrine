@@ -173,7 +173,9 @@ func fromFirestoreStatus(fs firestoreStatus) StatusResponse {
 			Level:        performance.GetLevel(int(fs.Total)),
 			Exp:          int(fs.Exp),
 			NextExp:      performance.GetNextLevelExp(int(fs.Total)).NextExp,
-			Chart:        fs.Chart,
+			// 進捗バーの起点。これもキャッシュせず total から引き直す。
+			LevelStartExp: performance.GetLevelStartExp(int(fs.Total)),
+			Chart:         fs.Chart,
 		},
 		LastSanpai: fs.LastSanpai,
 	}
