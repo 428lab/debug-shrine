@@ -2,8 +2,13 @@
 // app/functions/performance.js (Node版)と同一の計算結果を返すことを目的としたポートであり、
 // 副作用(Firestore/HTTP)を持たずユニットテスト可能な単位として切り出している。
 //
-// 値を変更する場合は必ず Node版(app/functions/performance.js)と同時に更新し、
+// 値を変更する場合は Node版(app/functions/performance.js)も併せて更新し、
 // 両実装のテスト(performance_test.go / performance.test.js)で等価性を確認すること。
+//
+// ただし Node版は既に全面移植済みで一切デプロイされていない(app/functions/index.js は
+// 関数を何も export しない)。実装の正はこちらで、Lv50超えの扱い(#215: テーブルの
+// Lv100延長・上限超えのクランプ)のように Go だけに入っている修正がある。
+// 食い違ったときは Go を正とすること。
 package performance
 
 import (
@@ -69,17 +74,36 @@ type NextLevelExp struct {
 	NextExp   int
 }
 
-// GetNextLevelExp は次のレベルとその到達に必要な戦闘力を返す。
+// GetNextLevelExp は次のレベルと、そこへ上がる戦闘力を返す。
+//
+// GetLevel は `points <= targetPoints[i]` で判定するため、Lv L の範囲は
+// (targetPoints[L-2], targetPoints[L-1]] であり、**targetPoints[L-1] を1でも
+// 超えれば Lv L+1 になる**。以前はここで targetPoints[level](= Lv L+1 の上限)を
+// 返しており、1レベルぶん先の値を「NEXT」として表示していた。
+// 例: 5exp は Lv2 だが 6exp で Lv3 になる。それを「NEXT 11 exp」と出していた。
 //
 // 最高レベルに到達している場合は次が無いため、そのレベルの上限をそのまま返す
-// (0 を返すとマイページの進捗バーが total/next で0除算になり、「NEXT 0 exp」と
-// 表示されてしまう)。
+// (0 を返すと「NEXT 0 exp」と表示され、進捗バーも0除算になる)。
 func GetNextLevelExp(points int) NextLevelExp {
 	level := GetLevel(points)
 	if level >= len(targetPoints) {
 		return NextLevelExp{NextLevel: len(targetPoints), NextExp: targetPoints[len(targetPoints)-1]}
 	}
-	return NextLevelExp{NextLevel: level + 1, NextExp: targetPoints[level]}
+	return NextLevelExp{NextLevel: level + 1, NextExp: targetPoints[level-1] + 1}
+}
+
+// GetLevelStartExp は今のレベルに上がった時点の戦闘力(そのレベルの下限)を返す。
+//
+// 進捗バーに必要。バーは「今のレベルの中でどこまで進んだか」であって、
+// 累計 / 次レベル ではない。累計で割ると、レベルが上がるほど分子と分母が
+// 近づくため、レベル帯の先頭にいてもバーがほぼ満タンに見えてしまう
+// (Lv54 の下限 50759 でも 50759/55293 = 92%)。
+func GetLevelStartExp(points int) int {
+	level := GetLevel(points)
+	if level <= 1 {
+		return 0
+	}
+	return targetPoints[level-2] + 1
 }
 
 // Activity はGitHub Events APIの1イベント(Firestoreにキャッシュされた raw JSON)を表す。
@@ -230,7 +254,10 @@ type FormattedPerformance struct {
 	Level        int      `json:"level"`
 	Exp          int      `json:"exp"`
 	NextExp      int      `json:"next_exp"`
-	Chart        Chart    `json:"chart"`
+	// LevelStartExp は今のレベルの下限。進捗バーの起点(バーは累計ではなく
+	// 「今のレベルの中でどこまで進んだか」を出すため)。
+	LevelStartExp int   `json:"level_start_exp"`
+	Chart         Chart `json:"chart"`
 }
 
 // AppendData は user_formatted_performance の第2引数(append_data)相当。
@@ -366,17 +393,18 @@ func ComputePerformanceIncrement(baseUserData RawUserData, newItems []Activity, 
 func UserFormattedPerformance(data RawUserData, append AppendData) FormattedPerformance {
 	total := data.HP + data.Power + data.Intelligence + data.Defence + data.Agility
 	return FormattedPerformance{
-		User:         append.User,
-		Points:       append.Exp,
-		HP:           data.HP,
-		Power:        data.Power,
-		Intelligence: data.Intelligence,
-		Defence:      data.Defence,
-		Agility:      data.Agility,
-		Total:        total,
-		Level:        GetLevel(total),
-		Exp:          append.Exp,
-		NextExp:      GetNextLevelExp(total).NextExp,
+		User:          append.User,
+		Points:        append.Exp,
+		HP:            data.HP,
+		Power:         data.Power,
+		Intelligence:  data.Intelligence,
+		Defence:       data.Defence,
+		Agility:       data.Agility,
+		Total:         total,
+		Level:         GetLevel(total),
+		Exp:           append.Exp,
+		NextExp:       GetNextLevelExp(total).NextExp,
+		LevelStartExp: GetLevelStartExp(total),
 		Chart: Chart{
 			HP:           data.HP,
 			Power:        data.Power,
