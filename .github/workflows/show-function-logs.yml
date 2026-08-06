@@ -76,8 +76,15 @@ jobs:
           set -eo pipefail
           ORIGIN=$(echo "${{ inputs.probe_url }}" | sed -E 's#^(https?://[^/]+).*#\1#')
           echo "=== ${{ inputs.probe_url }} が読み込むJSを ${{ inputs.grep }} で検索 ==="
+          # HTML に載るのはランタイムと共通チャンクだけ。各ページのコードは
+          # 実行時に読まれる別チャンクで、名前は webpack のマニフェスト内にしか
+          # 無いため HTML からは辿れない。このアプリは PWA なので、Service Worker の
+          # プリキャッシュ manifest(/sw.js)に全アセットが列挙される。そこからも
+          # 拾って、目的の画面のコードを確実に検査対象に含める。
+          curl -sS "$ORIGIN/sw.js" -o /tmp/sw.js || : > /tmp/sw.js
           SRCS=$( { grep -oE 'src="[^"]+\.js"' /tmp/body | sed 's/src="//; s/"$//';
-                    grep -oE 'href="[^"]+\.js"' /tmp/body | sed 's/href="//; s/"$//'; } \
+                    grep -oE 'href="[^"]+\.js"' /tmp/body | sed 's/href="//; s/"$//';
+                    grep -oE '"[^"]*/_nuxt/[^"]+\.js"' /tmp/sw.js | tr -d '"'; } \
                   | sort -u || true)
           if [ -z "$SRCS" ]; then
             echo "(JSの参照が見つかりません。HTMLではない可能性)"
