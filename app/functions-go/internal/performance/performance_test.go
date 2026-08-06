@@ -40,12 +40,67 @@ func TestGetLevel_Boundary(t *testing.T) {
 }
 
 func TestGetNextLevelExp(t *testing.T) {
-	r := GetNextLevelExp(0) // level=1 -> target_points[1]=5
+	// 0exp は Lv1。GetLevel は points <= 閾値 で判定するので、
+	// targetPoints[0]=0 を1でも超えた 1exp で Lv2 になる。
+	r := GetNextLevelExp(0)
 	if r.NextLevel != 2 {
 		t.Errorf("NextLevel = %d, want 2", r.NextLevel)
 	}
-	if r.NextExp != 5 {
-		t.Errorf("NextExp = %d, want 5", r.NextExp)
+	if r.NextExp != 1 {
+		t.Errorf("NextExp = %d, want 1", r.NextExp)
+	}
+}
+
+// NEXT として出す値は「そこに到達したら実際にレベルが上がる値」でなければ
+// ならない。以前は1レベルぶん先(Lv L+1 の上限)を返しており、表示より手前で
+// レベルが上がっていた(5exp は Lv2 で 6exp で Lv3 になるのに NEXT 11 と表示)。
+func TestGetNextLevelExp_ReachingItLevelsUp(t *testing.T) {
+	for _, points := range []int{0, 1, 5, 6, 100, 39157, 51217} {
+		level := GetLevel(points)
+		next := GetNextLevelExp(points)
+		if level >= MaxLevel {
+			continue
+		}
+		if got := GetLevel(next.NextExp); got != level+1 {
+			t.Errorf("points=%d (Lv%d): NEXT %d exp に到達しても Lv%d のまま (want Lv%d)",
+				points, level, next.NextExp, got, level+1)
+		}
+		// その1手前ではまだ上がらない(先取りしすぎていない)。
+		if got := GetLevel(next.NextExp - 1); got != level {
+			t.Errorf("points=%d (Lv%d): NEXT-1 = %d exp で既に Lv%d (まだ Lv%d のはず)",
+				points, level, next.NextExp-1, got, level)
+		}
+	}
+}
+
+// 進捗バーは「今のレベルの中でどこまで進んだか」。レベル帯の下限で0%、
+// 次レベルの直前で100%近くになること(累計/次レベルだと常に満タンに見えた)。
+func TestGetLevelStartExp(t *testing.T) {
+	if got := GetLevelStartExp(0); got != 0 {
+		t.Errorf("Lv1 の下限 = %d, want 0", got)
+	}
+	for _, points := range []int{1, 5, 6, 100, 39157, 51217} {
+		level := GetLevel(points)
+		start := GetLevelStartExp(points)
+		if GetLevel(start) != level {
+			t.Errorf("points=%d: 下限 %d が同じレベルでない (Lv%d vs Lv%d)",
+				points, start, GetLevel(start), level)
+		}
+		if start > 0 && GetLevel(start-1) != level-1 {
+			t.Errorf("points=%d: 下限 %d の1つ手前が前のレベルでない", points, start)
+		}
+		next := GetNextLevelExp(points).NextExp
+		if level < MaxLevel && next <= start {
+			t.Errorf("points=%d: next(%d) <= start(%d) では割合が出せない", points, next, start)
+		}
+	}
+	// 報告例: Lv54 の 51217。累計/次 では 92%超だが、レベル内では約10%。
+	start := GetLevelStartExp(51217)
+	next := GetNextLevelExp(51217).NextExp
+	ratio := float64(51217-start) / float64(next-start) * 100
+	if ratio > 20 {
+		t.Errorf("Lv54 51217 の進捗 = %.1f%%, レベル帯の序盤なので小さいはず (start=%d next=%d)",
+			ratio, start, next)
 	}
 }
 
@@ -386,9 +441,10 @@ func TestGetLevel_NeverZeroAboveMax(t *testing.T) {
 
 func TestGetNextLevelExp_HighAndMaxLevel(t *testing.T) {
 	// 途中のレベルは「次の閾値」を返す。
+	// Lv51 の範囲は (39156, 42716]。42716 を超えた 42717 で Lv52 になる。
 	got := GetNextLevelExp(39157) // Lv51
-	if got.NextLevel != 52 || got.NextExp != targetPoints[51] {
-		t.Errorf("GetNextLevelExp(39157) = %+v, want NextLevel=52 NextExp=%d", got, targetPoints[51])
+	if got.NextLevel != 52 || got.NextExp != targetPoints[50]+1 {
+		t.Errorf("GetNextLevelExp(39157) = %+v, want NextLevel=52 NextExp=%d", got, targetPoints[50]+1)
 	}
 	// 最高レベルでは 0 を返さない(進捗バーが0除算になるため)。
 	max := targetPoints[len(targetPoints)-1]
