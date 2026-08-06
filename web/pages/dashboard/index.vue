@@ -179,19 +179,26 @@ export default {
     this.chartData.datasets[0].data =
       chartMax > 0 ? raw.map((v) => Math.round((v / chartMax) * 100)) : raw;
 
-    this.profile.total = response.data.total;
-    this.profile.exp = response.data.total;
-    this.profile.point = response.data.points;
-    this.profile.level = response.data.level;
-    this.profile.hp = response.data.hp;
-    this.profile.power = response.data.power;
-    this.profile.intelligence = response.data.intelligence;
-    this.profile.defence = response.data.defence;
-    this.profile.agility = response.data.agility;
-    this.profile.next = response.data.next_exp;
-    // 進捗バーの起点(今のレベルの下限)
-    this.profile.levelStart = response.data.level_start_exp;
-    this.profile.last_sanpai = response.data.last_sanpai;
+    // profile は丸ごと差し替える。1つずつ代入すると Vue 2 が検知できず
+    // (空オブジェクトへの後付けプロパティはリアクティブにならない)、
+    // progressPercent がデータ到着前の初回描画で評価した値のまま固まる。
+    // 進捗バーは v-if="!isLoading" の外にあるため必ず先に描画され、そのとき
+    // next が undefined で 100% を返していた = レベルに関係なく常に満タン。
+    this.profile = {
+      total: response.data.total,
+      exp: response.data.total,
+      point: response.data.points,
+      level: response.data.level,
+      hp: response.data.hp,
+      power: response.data.power,
+      intelligence: response.data.intelligence,
+      defence: response.data.defence,
+      agility: response.data.agility,
+      next: response.data.next_exp,
+      // 進捗バーの起点(今のレベルの下限)
+      levelStart: response.data.level_start_exp,
+      last_sanpai: response.data.last_sanpai,
+    };
     if(response){
       this.isLoading = false;
     }
@@ -209,13 +216,15 @@ export default {
     // 近づき、レベル帯の先頭にいてもバーがほぼ満タンに見えていた
     // (Lv54 の下限 50759 でも 50759/55293 = 92%)。
     //
-    // next が 0 や未取得でも 0除算・100%超えにしない
-    // (最高レベルでは next が頭打ちになるため)。
+    // 未取得(読み込み中)は0%。ここで100を返すと、データが来るまで満タンの
+    // バーを見せることになる。頭打ち(最高レベルで next が伸びない)のときだけ
+    // 100%にする。0除算・100%超えもここで防ぐ。
     progressPercent() {
       const next = Number(this.profile.next);
       const total = Number(this.profile.total);
       const start = Number(this.profile.levelStart) || 0;
-      if (!next || !isFinite(next) || next <= start) return 100;
+      if (!next || !isFinite(next) || !isFinite(total)) return 0;
+      if (next <= start) return 100;
       const ratio = (total - start) / (next - start);
       return Math.max(0, Math.min(100, ratio * 100));
     },
