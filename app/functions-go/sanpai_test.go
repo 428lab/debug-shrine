@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -102,7 +103,7 @@ func TestFetchGitHubFeed_SendsBasicAuthHeader(t *testing.T) {
 	defer srv.Close()
 	withMockGitHub(t, srv)
 
-	if _, err := fetchGitHubFeed(context.Background(), "octocat"); err != nil {
+	if _, err := fetchGitHubFeed(context.Background(), "octocat", time.Time{}); err != nil {
 		t.Fatalf("fetchGitHubFeed: %v", err)
 	}
 }
@@ -122,7 +123,7 @@ func TestFetchGitHubFeed_NoCredentials(t *testing.T) {
 	defer srv.Close()
 	withMockGitHub(t, srv)
 
-	if _, err := fetchGitHubFeed(context.Background(), "octocat"); err != nil {
+	if _, err := fetchGitHubFeed(context.Background(), "octocat", time.Time{}); err != nil {
 		t.Fatalf("fetchGitHubFeed: %v", err)
 	}
 }
@@ -354,5 +355,122 @@ func TestSanpaiHandler_MissingAuthorizationHeader(t *testing.T) {
 	sanpaiHandler(rec, req)
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", rec.Code)
+	}
+}
+
+// events を新しい順に n 件返すモックページを組み立てる(created_at は base から1分ずつ遡る)。
+func mockEventsPage(base time.Time, offset, n int) string {
+	items := make([]string, 0, n)
+	for i := 0; i < n; i++ {
+		at := base.Add(-time.Duration(offset+i) * time.Minute).UTC().Format(time.RFC3339)
+		items = append(items, fmt.Sprintf(
+			`{"id":"e%d","type":"PushEvent","created_at":%q,"repo":{"name":"o/r"},"payload":{}}`,
+			offset+i, at))
+	}
+	return "[" + strings.Join(items, ",") + "]"
+}
+
+// 普段の参拝(前回から100件も動いていない)では1ページで打ち切ること。
+// ここが増えると全ユーザーのGitHub API呼び出しが毎回3倍になる。
+func TestFetchGitHubFeed_StopsAtFirstPageWhenCaughtUp(t *testing.T) {
+	now := time.Now()
+	since := now.Add(-30 * time.Minute) // 30件目より新しい
+	var pages int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&pages, 1)
+		w.Header().Set("Content-Type", "application/json")
+		// 1ページ丸ごと(100件)返す。ただし since 以前の分が含まれる。
+		_, _ = w.Write([]byte(mockEventsPage(now, 0, githubFeedPerPage)))
+	}))
+	defer srv.Close()
+	withMockGitHub(t, srv)
+
+	items, err := fetchGitHubFeed(context.Background(), "octocat", since)
+	if err != nil {
+		t.Fatalf("fetchGitHubFeed: %v", err)
+	}
+	if got := atomic.LoadInt32(&pages); got != 1 {
+		t.Errorf("取得済みの範囲に達したら打ち切るべき: %d ページ取得した", got)
+	}
+	if len(items) != githubFeedPerPage {
+		t.Errorf("件数 = %d, want %d", len(items), githubFeedPerPage)
+	}
+}
+
+// 100件を超えて動いている場合は上限(3ページ=300件)まで遡ること。
+// これが無いと超過分を永久に取りこぼす(#239)。
+func TestFetchGitHubFeed_PaginatesUpToMaxPages(t *testing.T) {
+	now := time.Now()
+	since := now.Add(-365 * 24 * time.Hour) // どのページにも到達しない
+	var pages int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p := atomic.AddInt32(&pages, 1)
+		if got := r.URL.Query().Get("page"); got != fmt.Sprint(p) {
+			t.Errorf("page パラメータ = %q, want %d", got, p)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(mockEventsPage(now, int(p-1)*githubFeedPerPage, githubFeedPerPage)))
+	}))
+	defer srv.Close()
+	withMockGitHub(t, srv)
+
+	items, err := fetchGitHubFeed(context.Background(), "octocat", since)
+	if err != nil {
+		t.Fatalf("fetchGitHubFeed: %v", err)
+	}
+	if got := atomic.LoadInt32(&pages); got != githubFeedMaxPages {
+		t.Errorf("ページ数 = %d, want %d (Events APIの上限)", got, githubFeedMaxPages)
+	}
+	want := githubFeedPerPage * githubFeedMaxPages
+	if len(items) != want {
+		t.Errorf("件数 = %d, want %d", len(items), want)
+	}
+}
+
+// 埋まっていないページが来たらそこで終わり(存在しないページを叩かない)。
+func TestFetchGitHubFeed_StopsOnShortPage(t *testing.T) {
+	now := time.Now()
+	var pages int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p := atomic.AddInt32(&pages, 1)
+		w.Header().Set("Content-Type", "application/json")
+		if p == 1 {
+			_, _ = w.Write([]byte(mockEventsPage(now, 0, githubFeedPerPage)))
+			return
+		}
+		_, _ = w.Write([]byte(mockEventsPage(now, githubFeedPerPage, 3)))
+	}))
+	defer srv.Close()
+	withMockGitHub(t, srv)
+
+	items, err := fetchGitHubFeed(context.Background(), "octocat", time.Time{})
+	if err != nil {
+		t.Fatalf("fetchGitHubFeed: %v", err)
+	}
+	if got := atomic.LoadInt32(&pages); got != 2 {
+		t.Errorf("ページ数 = %d, want 2 (2ページ目が埋まっていないので打ち切る)", got)
+	}
+	if len(items) != githubFeedPerPage+3 {
+		t.Errorf("件数 = %d, want %d", len(items), githubFeedPerPage+3)
+	}
+}
+
+func TestReachedSince(t *testing.T) {
+	now := time.Now()
+	items := []feedItem{
+		{Event: githubEvent{CreatedAt: now.Add(-1 * time.Minute).UTC().Format(time.RFC3339)}},
+		{Event: githubEvent{CreatedAt: now.Add(-10 * time.Minute).UTC().Format(time.RFC3339)}},
+		{Event: githubEvent{CreatedAt: "壊れた値"}},
+	}
+	if !reachedSince(items, now.Add(-5*time.Minute)) {
+		t.Errorf("since 以前の要素があるので true のはず")
+	}
+	if reachedSince(items, now.Add(-60*time.Minute)) {
+		t.Errorf("すべて since より新しいので false のはず")
+	}
+	if reachedSince(nil, now) {
+		t.Errorf("空なら false")
 	}
 }
