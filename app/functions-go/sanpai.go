@@ -129,15 +129,82 @@ type feedItem struct {
 	Event githubEvent
 }
 
-// fetchGitHubFeed は GitHub Events API から公開アクティビティを取得する
-// (Node版 get_feed と同一のURL・クエリパラメータ)。
-func fetchGitHubFeed(ctx context.Context, username string) ([]feedItem, error) {
+// firestoreBatchMaxWrites は Firestore の書き込みバッチ1回あたりの上限。
+const firestoreBatchMaxWrites = 500
+
+// githubFeedPerPage は1ページあたりの取得件数(Events APIの上限)。
+const githubFeedPerPage = 100
+
+// githubFeedMaxPages は遡るページ数の上限。Events API は最大300件(100件×3ページ)
+// までしか返さないため、それ以上は要求しても無駄。
+const githubFeedMaxPages = 3
+
+// fetchGitHubFeed は GitHub Events API から公開アクティビティを取得する。
+//
+// 以前は1ページ(100件)だけ取って終わりだったため、前回の参拝から公開イベントが
+// 100件を超えると超過分を永久に取りこぼしていた(90日を過ぎると GitHub からも
+// 返らなくなるため、後から拾い直せない)。since(前回の参拝時刻)まで遡って取る。
+//
+// 取得済みの範囲に入ったページで打ち切るので、普段の参拝は1リクエストのまま。
+// 全ページ舐めるのは初回参拝や、久しぶりの参拝で100件を超えている人だけ。
+func fetchGitHubFeed(ctx context.Context, username string, since time.Time) ([]feedItem, error) {
+	var all []feedItem
+	// ページの取得中に新しいイベントが増えると窓がずれ、同じイベントが2つの
+	// ページに載ることがある。重複したまま返すと、同一バッチ内で同じドキュメントへ
+	// 2回書くことになり Firestore に弾かれる(参拝そのものが失敗する)うえ、
+	// ポイントと能力値も二重計上になる。1ページだけ取っていた頃は GitHub が
+	// ページ内のID一意を保証していたので起きなかった。
+	seen := make(map[string]bool)
+	for page := 1; page <= githubFeedMaxPages; page++ {
+		items, err := fetchGitHubFeedPage(ctx, username, page)
+		if err != nil {
+			// 途中のページで失敗したら参拝ごと失敗させる。ここで取れた分だけで
+			// 進めると last_sanpai が進んでしまい、取れなかったイベントを
+			// 二度と拾えなくなる(取りこぼしを止めるための変更なので本末転倒)。
+			// 失敗しても last_sanpai は書き換えないため、やり直せる。
+			return nil, err
+		}
+		for _, it := range items {
+			if it.Event.ID != "" && seen[it.Event.ID] {
+				continue
+			}
+			seen[it.Event.ID] = true
+			all = append(all, it)
+		}
+		// 最終ページ(埋まっていない)ならこれ以上は無い。
+		if len(items) < githubFeedPerPage {
+			break
+		}
+		// 集計済みの時刻まで遡れたら十分。
+		if reachedSince(items, since) {
+			break
+		}
+	}
+	return all, nil
+}
+
+// reachedSince はページ内に since 以前のイベントが含まれるかを返す(純関数)。
+// Events API は新しい順に返すので、1件でも含まれていればそれ以上遡る必要はない。
+func reachedSince(items []feedItem, since time.Time) bool {
+	for _, it := range items {
+		t, err := time.Parse(time.RFC3339, it.Event.CreatedAt)
+		if err != nil {
+			continue
+		}
+		if !t.After(since) {
+			return true
+		}
+	}
+	return false
+}
+
+func fetchGitHubFeedPage(ctx context.Context, username string, page int) ([]feedItem, error) {
 	clientID := os.Getenv("GITHUB_CLIENT_ID")
 	clientSecret := os.Getenv("GITHUB_CLIENT_SECRET")
 
 	reqURL := fmt.Sprintf(
-		"%s/users/%s/events/public?per_page=100",
-		githubAPIBaseURL, url.PathEscape(username),
+		"%s/users/%s/events/public?per_page=%d&page=%d",
+		githubAPIBaseURL, url.PathEscape(username), githubFeedPerPage, page,
 	)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
@@ -323,17 +390,18 @@ func runSanpai(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 		}
 	}
 
-	feed, err := fetchGitHubFeed(ctx, userData.ScreenName)
-	if err != nil {
-		// Node版はGitHub取得失敗時に例外化し外側catchで "missing server error." になる。
-		return err
-	}
-
+	// 前回の参拝時刻。ここまで遡って取得し、ここより新しいイベントだけを集計する。
 	var since time.Time
 	if hasLastSanpai {
 		since = userData.LastSanpai
 	} else {
 		since, _ = time.Parse(time.RFC3339, "2008-04-01T00:00:00Z")
+	}
+
+	feed, err := fetchGitHubFeed(ctx, userData.ScreenName, since)
+	if err != nil {
+		// Node版はGitHub取得失敗時に例外化し外側catchで "missing server error." になる。
+		return err
 	}
 
 	var splited []feedItem
@@ -360,19 +428,29 @@ func runSanpai(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 	}
 
 	// アクティビティ反映
-	batch := client.Batch()
+	// Firestore のバッチは1回あたり500件までなので分割して書く。
+	// 1ページ(100件)しか取っていなかった頃は上限に当たりようがなかったが、
+	// 300件まで遡るようになった(#239)ので余裕が減っている。ページ数を増やしても
+	// ここが破綻しないよう、件数に依らない形にしておく。
 	activityColl := userRef.Collection("github_activities")
-	for _, it := range splited {
-		docRef := activityColl.Doc(it.Event.ID)
-		batch.Set(docRef, map[string]interface{}{
-			"id":         it.Event.ID,
-			"type":       it.Event.Type,
-			"created_at": it.Event.CreatedAt,
-			"raw":        string(it.Raw),
-		})
-	}
-	if _, err := batch.Commit(ctx); err != nil {
-		return err
+	for start := 0; start < len(splited); start += firestoreBatchMaxWrites {
+		end := start + firestoreBatchMaxWrites
+		if end > len(splited) {
+			end = len(splited)
+		}
+		batch := client.Batch()
+		for _, it := range splited[start:end] {
+			docRef := activityColl.Doc(it.Event.ID)
+			batch.Set(docRef, map[string]interface{}{
+				"id":         it.Event.ID,
+				"type":       it.Event.Type,
+				"created_at": it.Event.CreatedAt,
+				"raw":        string(it.Raw),
+			})
+		}
+		if _, err := batch.Commit(ctx); err != nil {
+			return err
+		}
 	}
 
 	// 意図的な省略: Node版にはここに「2022/1/1〜1/3はポイント3倍」という
