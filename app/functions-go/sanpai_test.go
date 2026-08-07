@@ -474,3 +474,58 @@ func TestReachedSince(t *testing.T) {
 		t.Errorf("空なら false")
 	}
 }
+
+// ページの取得中に新しいイベントが増えると窓がずれ、同じイベントが2つのページに
+// 載ることがある。重複したまま返すと、同一バッチ内で同じドキュメントへ2回書く
+// ことになり Firestore に弾かれる(参拝そのものが失敗する)うえ、ポイントと
+// 能力値も二重計上になる。
+func TestFetchGitHubFeed_DedupesAcrossPages(t *testing.T) {
+	now := time.Now()
+	var pages int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p := atomic.AddInt32(&pages, 1)
+		w.Header().Set("Content-Type", "application/json")
+		// 2ページとも同じ offset から返す = 全件重複する状況を作る。
+		_, _ = w.Write([]byte(mockEventsPage(now, 0, githubFeedPerPage)))
+		_ = p
+	}))
+	defer srv.Close()
+	withMockGitHub(t, srv)
+
+	items, err := fetchGitHubFeed(context.Background(), "octocat", time.Time{})
+	if err != nil {
+		t.Fatalf("fetchGitHubFeed: %v", err)
+	}
+	if len(items) != githubFeedPerPage {
+		t.Errorf("重複を除いた件数 = %d, want %d", len(items), githubFeedPerPage)
+	}
+	seen := map[string]bool{}
+	for _, it := range items {
+		if seen[it.Event.ID] {
+			t.Fatalf("重複したイベントIDが残っている: %s", it.Event.ID)
+		}
+		seen[it.Event.ID] = true
+	}
+}
+
+// 途中のページで失敗したら参拝ごと失敗させる(部分的に進めると last_sanpai が
+// 進んで、取れなかったイベントを二度と拾えなくなる)。
+func TestFetchGitHubFeed_FailsWhenLaterPageFails(t *testing.T) {
+	now := time.Now()
+	var pages int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p := atomic.AddInt32(&pages, 1)
+		if p == 1 {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(mockEventsPage(now, 0, githubFeedPerPage)))
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+	withMockGitHub(t, srv)
+
+	if _, err := fetchGitHubFeed(context.Background(), "octocat", time.Time{}); err == nil {
+		t.Errorf("2ページ目が失敗したらエラーを返すべき(部分的に進めない)")
+	}
+}

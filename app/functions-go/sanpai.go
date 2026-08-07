@@ -149,12 +149,28 @@ const githubFeedMaxPages = 3
 // 全ページ舐めるのは初回参拝や、久しぶりの参拝で100件を超えている人だけ。
 func fetchGitHubFeed(ctx context.Context, username string, since time.Time) ([]feedItem, error) {
 	var all []feedItem
+	// ページの取得中に新しいイベントが増えると窓がずれ、同じイベントが2つの
+	// ページに載ることがある。重複したまま返すと、同一バッチ内で同じドキュメントへ
+	// 2回書くことになり Firestore に弾かれる(参拝そのものが失敗する)うえ、
+	// ポイントと能力値も二重計上になる。1ページだけ取っていた頃は GitHub が
+	// ページ内のID一意を保証していたので起きなかった。
+	seen := make(map[string]bool)
 	for page := 1; page <= githubFeedMaxPages; page++ {
 		items, err := fetchGitHubFeedPage(ctx, username, page)
 		if err != nil {
+			// 途中のページで失敗したら参拝ごと失敗させる。ここで取れた分だけで
+			// 進めると last_sanpai が進んでしまい、取れなかったイベントを
+			// 二度と拾えなくなる(取りこぼしを止めるための変更なので本末転倒)。
+			// 失敗しても last_sanpai は書き換えないため、やり直せる。
 			return nil, err
 		}
-		all = append(all, items...)
+		for _, it := range items {
+			if it.Event.ID != "" && seen[it.Event.ID] {
+				continue
+			}
+			seen[it.Event.ID] = true
+			all = append(all, it)
+		}
 		// 最終ページ(埋まっていない)ならこれ以上は無い。
 		if len(items) < githubFeedPerPage {
 			break
