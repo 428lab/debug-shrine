@@ -121,6 +121,8 @@ export default {
       // サーバーへの状態問い合わせが1度でも完了したか。保存済みの状態で先に
       // 画面を出すので、これが false の間は「引く」を押せないようにする。
       statusChecked: false,
+      // 演出を始めた回数。飛行中の問い合わせの応答が古いかどうかの判定に使う。
+      sceneCount: 0,
       result: null,
       pendingResult: null, // 演出中に保持(着地まで表示しない)
       remaining: 0, // 次に引けるまでの秒
@@ -170,6 +172,8 @@ export default {
       if (this.state !== "cooldown" && this.state !== "available") {
         this.state = "loading";
       }
+      // 応答が返るまでに演出が始まったかを見分けるための世代。
+      const sceneAtRequest = this.sceneCount;
       const token = await this.getToken();
       if (!token) return;
       try {
@@ -178,12 +182,17 @@ export default {
           { github_id: this.user.github_id, peek: true },
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        // 演出が始まっていたら、この応答はもう古い。抽選側が状態を持っている
-        // ので触らない(触ると演出が畳まれて引く前の画面に戻ってしまう)。
-        if (this.state === "animating") return;
+        // この問い合わせを投げた後に演出が始まっていたら、応答はもう古い。
+        // 抽選側が状態を持っているので触らない(触ると演出が畳まれて引く前の
+        // 画面に戻ってしまう)。
+        //
+        // 「今 animating か」で判定してはいけない。演出が結果より先に終わった
+        // ときの取り直し(onLanded)はまだ animating のまま呼ぶため、応答を
+        // 捨てると演出が閉じずに固まる。
+        if (this.sceneCount !== sceneAtRequest) return;
         this.applyResponse(res.data);
       } catch (e) {
-        if (this.state === "animating") return;
+        if (this.sceneCount !== sceneAtRequest) return;
         this.state = "error";
       } finally {
         this.statusChecked = true;
@@ -194,6 +203,8 @@ export default {
       if (this.state === "animating") return;
       // 確認前は引かせない(ボタンも disabled だが、念のため入口でも止める)。
       if (!this.statusChecked) return;
+      // 飛行中の問い合わせがあれば、その応答は古いものとして捨てさせる。
+      this.sceneCount++;
       this.pendingResult = null;
       this._pendingRemaining = 0;
       this.state = "animating";
