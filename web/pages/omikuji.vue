@@ -19,9 +19,19 @@
     <!-- 引ける -->
     <div v-else-if="state === 'available'" class="my-5">
       <div class="omikuji-box mx-auto mb-4"><i class="fas fa-torii-gate"></i></div>
-      <button class="btn btn-lg btn-accent px-5" @click="startScene">
+      <!-- 状態の問い合わせが終わるまで押せない。保存済みの状態で先に画面を
+           出しているため(#236)、確認前でもボタンが見えている。ここで押せると
+           演出の最中に問い合わせの応答が返り、状態が上書きされて演出が消える。 -->
+      <button
+        class="btn btn-lg btn-accent px-5"
+        :disabled="!statusChecked"
+        @click="startScene"
+      >
         おみくじを引く
       </button>
+      <div v-if="!statusChecked" class="mt-2 text-muted small">
+        <i class="fas fa-fw fa-spinner fa-spin"></i> お伺いを立てています…
+      </div>
       <div v-if="result" class="mt-3 text-muted small">
         （前回の結果は下に表示されています）
       </div>
@@ -108,6 +118,9 @@ export default {
   data() {
     return {
       state: "loading", // loading | available | animating | cooldown | empty(物理乱数枯渇) | error
+      // サーバーへの状態問い合わせが1度でも完了したか。保存済みの状態で先に
+      // 画面を出すので、これが false の間は「引く」を押せないようにする。
+      statusChecked: false,
       result: null,
       pendingResult: null, // 演出中に保持(着地まで表示しない)
       remaining: 0, // 次に引けるまでの秒
@@ -165,14 +178,22 @@ export default {
           { github_id: this.user.github_id, peek: true },
           { headers: { Authorization: `Bearer ${token}` } }
         );
+        // 演出が始まっていたら、この応答はもう古い。抽選側が状態を持っている
+        // ので触らない(触ると演出が畳まれて引く前の画面に戻ってしまう)。
+        if (this.state === "animating") return;
         this.applyResponse(res.data);
       } catch (e) {
+        if (this.state === "animating") return;
         this.state = "error";
+      } finally {
+        this.statusChecked = true;
       }
     },
     // 「引く」→ 演出(鈴の緒儀式)を開始。実際の抽選は鈴が鳴った時(onRang)。
     startScene() {
       if (this.state === "animating") return;
+      // 確認前は引かせない(ボタンも disabled だが、念のため入口でも止める)。
+      if (!this.statusChecked) return;
       this.pendingResult = null;
       this._pendingRemaining = 0;
       this.state = "animating";
@@ -272,6 +293,8 @@ export default {
           clearInterval(this.timerId);
           this.timerId = null;
           this.remaining = 0;
+          // 演出中にクールダウンが明けても状態を触らない(演出が消えてしまう)。
+          if (this.state === "animating") return;
           // 引ける状態へ。前回結果は残しつつボタンを出す。
           this.state = "available";
           saveOmikujiState(
