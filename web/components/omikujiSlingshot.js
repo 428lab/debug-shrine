@@ -208,7 +208,7 @@ function buildWorld(Matter) {
 // isDragging(): 指が玉をつまんでいるか(シーン側が MouseConstraint から判定)。
 // ヘッドレス検証では pull(dx,dy) → release() で同じ経路を通せる。
 function createRitual(Matter, built) {
-  const { ball, elastic, anchor } = built;
+  const { ball, elastic, anchor, world } = built;
   const { Body, Sleeping } = Matter;
   let pulled = false;
   let launched = false;
@@ -233,11 +233,9 @@ function createRitual(Matter, built) {
       const k = GEO.ELASTIC.maxSpeed / sp;
       Body.setVelocity(ball, { x: v.x * k, y: v.y * k });
     }
-    // ゴムを切り離す(以降は自由飛行)。
-    elastic.bodyB = null;
-    elastic.pointA = { x: -9999, y: -9999 };
-    elastic.pointB = { x: 0, y: 0 };
-    elastic.render.visible = false;
+    // ゴムを世界から外す(以降は自由飛行)。bodyB を null にして残す手もあるが、
+    // 拘束が描画に残ったり、点と点の空拘束が毎ステップ解かれたりするので外す。
+    Matter.Composite.remove(world, elastic);
     launched = true;
   }
 
