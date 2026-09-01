@@ -233,9 +233,11 @@ function createRitual(Matter, built) {
       const k = GEO.ELASTIC.maxSpeed / sp;
       Body.setVelocity(ball, { x: v.x * k, y: v.y * k });
     }
-    // ゴムを世界から外す(以降は自由飛行)。bodyB を null にして残す手もあるが、
-    // 拘束が描画に残ったり、点と点の空拘束が毎ステップ解かれたりするので外す。
+    // ゴムを世界から外す(以降は自由飛行)。bodyB も外す。外し忘れると
+    // 「繋がっている間は自重を打ち消す」処理が放った後も効き続け、玉が
+    // 無重力で漂って静止しない(掃引で静止 24.8s になって発覚)。
     Matter.Composite.remove(world, elastic);
+    elastic.bodyB = null;
     launched = true;
   }
 
