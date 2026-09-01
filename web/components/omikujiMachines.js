@@ -26,8 +26,9 @@
 // 抽選の正しさは装置に依存しない(狐の最終着地は omikujiFox.js)。
 const bell = require("./omikujiMachine");
 const slingshot = require("./omikujiSlingshot");
+const pinball = require("./omikujiPinball");
 
-const ALL = { bell, slingshot };
+const ALL = { bell, slingshot, pinball };
 const IDS = Object.keys(ALL);
 
 function byId(id) {
