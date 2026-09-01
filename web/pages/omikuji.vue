@@ -82,10 +82,12 @@
       </button>
     </div>
 
-    <!-- 抽選演出(鈴の緒 → 連鎖 → 狐が選ぶ)。全画面オーバーレイ -->
+    <!-- 抽選演出(儀式 → 装置の見せ場 → 狐が選ぶ)。全画面オーバーレイ。
+         装置(からくり)は引くたびにランダム(omikujiMachines.js)。 -->
     <OmikujiScene
       v-if="state === 'animating'"
       :target-tier="pendingResult && pendingResult.tier"
+      :pattern="scenePattern"
       @rang="onRang"
       @landed="onLanded"
     />
@@ -97,6 +99,7 @@ import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { mapGetters } from "vuex";
 import ResultCard from "@/components/OmikujiResult";
 import OmikujiScene from "@/components/OmikujiScene";
+import machines from "@/components/omikujiMachines";
 import {
   saveOmikujiState,
   loadOmikujiState,
@@ -123,6 +126,8 @@ export default {
       statusChecked: false,
       // 演出を始めた回数。飛行中の問い合わせの応答が古いかどうかの判定に使う。
       sceneCount: 0,
+      // 今回の演出の装置(omikujiMachines.js の id)。引くたびに選び直す。
+      scenePattern: "bell",
       result: null,
       pendingResult: null, // 演出中に保持(着地まで表示しない)
       remaining: 0, // 次に引けるまでの秒
@@ -205,6 +210,9 @@ export default {
       if (!this.statusChecked) return;
       // 飛行中の問い合わせがあれば、その応答は古いものとして捨てさせる。
       this.sceneCount++;
+      // 装置を選ぶ。?scene=slingshot のように指定すれば固定できる(確認用)。
+      const wanted = this.$route && this.$route.query && this.$route.query.scene;
+      this.scenePattern = machines.IDS.includes(wanted) ? wanted : machines.pick();
       this.pendingResult = null;
       this._pendingRemaining = 0;
       this.state = "animating";
