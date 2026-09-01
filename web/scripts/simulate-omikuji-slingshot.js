@@ -8,8 +8,10 @@
 //   node scripts/simulate-omikuji-slingshot.js --one -80 34   指定の引き(dx,dy)を1回
 //   node scripts/simulate-omikuji-slingshot.js --verbose  各点の結果を全部出す
 //
-// 「届かない」点があっても、シーン側は 17 秒で狐を起こすので演出は完走する。
-// ただし体感を守るため、常識的な引き(右上へ飛ぶ向き)は全て届くことを目標にする。
+// 合否: 放てて、狐に届くか、届かなくても数秒(SETTLE_LIMIT_SEC)以内に静まること。
+// 静まれば物音で狐が起きる(createSettleDetector)ので、演出としては完走扱い。
+// 放てない・場外へ抜ける・いつまでも転がり続ける、が失敗。
+const SETTLE_LIMIT_SEC = 8;
 
 /* eslint-disable no-console */
 const Matter = require("matter-js");
@@ -124,7 +126,7 @@ function main() {
       const dy = Math.sin(rad) * pull;
       const r = runOnce(dx, dy, 25);
       total++;
-      const ok = r.launched && r.hitSec !== null;
+      const ok = r.launched && (r.hitSec !== null || (r.settledSec !== null && r.settledSec <= SETTLE_LIMIT_SEC));
       if (!ok) {
         fail++;
         failures.push({ deg, pull, ...r });
@@ -144,7 +146,7 @@ function main() {
       }
     }
   }
-  console.log(`掃引 ${total} 点: 未到達 ${fail} / 最遅到達 ${slowest.toFixed(1)}s / 無操作静止 ${idleOk ? "OK" : "NG"}`);
+  console.log(`掃引 ${total} 点: 失敗 ${fail} / 最遅到達 ${slowest.toFixed(1)}s / 無操作静止 ${idleOk ? "OK" : "NG"} (静止は ${SETTLE_LIMIT_SEC}s 以内なら合格)`);
   for (const f of failures.slice(0, 20)) {
     console.log(`  角度${f.deg}° 引き${f.pull}: 射出${f.speedAtLaunch} 木札 ${f.blocksMoved}/${f.blockTotal} 玉(${f.ballX},${f.ballY}) launched=${f.launched} 静止=${f.settledSec === null ? "なし" : f.settledSec.toFixed(1) + "s"}`);
   }
