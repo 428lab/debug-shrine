@@ -77,10 +77,12 @@ export default {
     pattern: { type: String, default: "bell" },
   },
   data() {
-    // 装置は生成時に確定(以後変えない)。座標系(GEO)も装置のもの。
-    const machine = machines.byId(this.pattern);
+    // 狐の初期位置は装置の寝床。装置そのものは data に入れない(computed の machine)。
+    // data に入れると Vue 2 が装置モジュール(共有オブジェクト)を丸ごと
+    // リアクティブ化して __ob__ を生やし、ヘッドレス検証と共有している
+    // モジュールの中身を書き換えてしまう。
+    const fox = machines.byId(this.pattern).FOX;
     return {
-      machine,
       phase: "ritual", // ritual | cascade | fox | done
       tierByBin: ALL_TIERS.slice(),
       rung: false,
@@ -88,9 +90,9 @@ export default {
       innerStyle: {},
       // 狐
       foxPose: "sleep",
-      foxLeft: machine.FOX.sleepLeft,
-      foxBottom: machine.FOX.sleepBottom,
-      foxFlip: machine.FOX.flip,
+      foxLeft: fox.sleepLeft,
+      foxBottom: fox.sleepBottom,
+      foxFlip: fox.flip,
       showBang: false,
       ringPulse: false,
       pulsePos: null,
@@ -98,6 +100,10 @@ export default {
     };
   },
   computed: {
+    // 装置は生成時に確定(以後変えない)。座標系(GEO)も装置のもの。
+    machine() {
+      return machines.byId(this.pattern);
+    },
     GEO() {
       return this.machine.GEO;
     },
