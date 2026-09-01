@@ -19,26 +19,26 @@
         </div>
       </div>
 
-      <!-- 狐(DOMスプライト)。寝床で寝ていて、玉に起こされてビンを飛び移る -->
+      <!-- 狐(DOMスプライト)。寝床で寝ていて、玉(や木札)に起こされてビンを飛び移る -->
       <div v-if="!reducedMotion" class="fox-wrap" :style="foxStyle">
         <FoxSprite :pose="foxPose" :style="{ transform: 'scaleX(' + foxFlip + ')' }" />
         <div v-if="foxPose === 'sleep'" class="bubble zzz">Zzz…</div>
         <div v-if="showBang" class="bubble bang">!</div>
       </div>
 
-      <!-- 鈴が鳴った時の波紋 -->
-      <div v-if="ringPulse" class="ring-pulse" :style="bellPulseStyle"></div>
+      <!-- 儀式が完了した時の波紋(鈴が鳴った・玉を放った) -->
+      <div v-if="ringPulse" class="ring-pulse" :style="pulseStyle"></div>
 
-      <!-- 案内 -->
+      <!-- 案内(文言は装置ごと) -->
       <div v-if="phase === 'ritual'" class="hint">
         <div v-if="!reducedMotion">
-          <div class="hint-title">鈴の緒(金色の房)をつかんで、左右に振ろう</div>
-          <a class="hint-fallback" href="javascript:void(0)" @click.stop="onRing">
-            うまく鳴らせないときはここをタップ
+          <div class="hint-title">{{ hint.title }}</div>
+          <a class="hint-fallback" href="javascript:void(0)" @click.stop="onFallback">
+            {{ hint.fallback }}
           </a>
         </div>
         <div v-else>
-          <button class="btn btn-lg btn-accent" @click.stop="onRing">鈴を鳴らす</button>
+          <button class="btn btn-lg btn-accent" @click.stop="onRing">{{ hint.button }}</button>
         </div>
       </div>
       <div v-else-if="phase === 'cascade' || phase === 'fox'" class="hint skip">
@@ -50,11 +50,9 @@
 
 <script>
 import Matter from "matter-js";
-import machine from "@/components/omikujiMachine";
+import machines from "@/components/omikujiMachines";
 import { foxHopSequence } from "@/components/omikujiFox";
 import FoxSprite from "@/components/FoxSprite";
-
-const GEO = machine.GEO;
 
 const TIER_KEYS = {
   超吉: "chokichi",
@@ -67,24 +65,22 @@ const TIER_KEYS = {
 };
 const ALL_TIERS = Object.keys(TIER_KEYS);
 
-// 狐の座標(シーン内%)。物理の論理座標から換算した定数。
-const FOX = {
-  // 寝床(FOX_PLATFORM 上。右向きに寝て、おしりが左=玉2の飛来方向)
-  sleepLeft: (443 / GEO.W) * 100,
-  sleepBottom: ((GEO.H - 639) / GEO.H) * 100,
-  // ビンの中に立つときの足元
-  binBottom: ((GEO.H - 744) / GEO.H) * 100,
-  widthPct: 17,
-};
+// 狐の横幅(シーン内%)。寝床の位置は装置ごと(machine.FOX)。
+const FOX_WIDTH_PCT = 17;
 
 export default {
   components: { FoxSprite },
   props: {
     // 親が omikujiGo 応答後に渡す。届くまでは装置と狐が場を繋ぐ。
     targetTier: { type: String, default: null },
+    // 装置(からくり)の種類。omikujiMachines.js の id。
+    pattern: { type: String, default: "bell" },
   },
   data() {
+    // 装置は生成時に確定(以後変えない)。座標系(GEO)も装置のもの。
+    const machine = machines.byId(this.pattern);
     return {
+      machine,
       phase: "ritual", // ritual | cascade | fox | done
       tierByBin: ALL_TIERS.slice(),
       rung: false,
@@ -92,15 +88,26 @@ export default {
       innerStyle: {},
       // 狐
       foxPose: "sleep",
-      foxLeft: FOX.sleepLeft,
-      foxBottom: FOX.sleepBottom,
-      foxFlip: 1, // 右向きで寝る(おしりを左=玉の飛来方向に向ける)
+      foxLeft: machine.FOX.sleepLeft,
+      foxBottom: machine.FOX.sleepBottom,
+      foxFlip: machine.FOX.flip,
       showBang: false,
       ringPulse: false,
+      pulsePos: null,
       reducedMotion: false,
     };
   },
   computed: {
+    GEO() {
+      return this.machine.GEO;
+    },
+    hint() {
+      return this.machine.HINT;
+    },
+    // ビンの中に立つときの足元
+    foxBinBottom() {
+      return ((this.GEO.H - this.GEO.FLOOR_Y) / this.GEO.H) * 100;
+    },
     targetBinIndex() {
       return this.targetTier ? this.tierByBin.indexOf(this.targetTier) : -1;
     },
@@ -108,13 +115,14 @@ export default {
       return {
         left: this.foxLeft + "%",
         bottom: this.foxBottom + "%",
-        width: FOX.widthPct + "%",
+        width: FOX_WIDTH_PCT + "%",
       };
     },
-    bellPulseStyle() {
+    pulseStyle() {
+      const p = this.pulsePos || this.machine.pulseAt(this.built || {});
       return {
-        left: (GEO.BELL.x / GEO.W) * 100 + "%",
-        top: (GEO.BELL.y / GEO.H) * 100 + "%",
+        left: (p.x / this.GEO.W) * 100 + "%",
+        top: (p.y / this.GEO.H) * 100 + "%",
       };
     },
   },
@@ -177,28 +185,26 @@ export default {
     computeSize() {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
-      const ratio = GEO.W / GEO.H;
+      const ratio = this.GEO.W / this.GEO.H;
       let w = Math.min(vw * 0.96, vh * 0.9 * ratio, 460);
       const h = w / ratio;
       this.innerStyle = { width: Math.round(w) + "px", height: Math.round(h) + "px" };
     },
     binLeftPct(i) {
-      return ((i + 0.5) / GEO.BIN_COUNT) * 100;
+      return ((i + 0.5) / this.GEO.BIN_COUNT) * 100;
     },
 
-    // ---- 物理シーン(からくり装置+鈴の緒) ----
+    // ---- 物理シーン(装置は machine が組む。シーンは幕の進行だけを持つ) ----
     initScene() {
       if (this.destroyed || !this.$refs.canvasWrap) return;
-      const { engine, world, tassel, relayBall } = machine.buildMachineWorld(Matter);
-      // 弱い当たりでもドミノ連鎖が完走するよう最低転倒速度を保証(#199)
-      machine.installChainAssist(Matter, engine);
-      this.engine = engine;
-      this.tassel = tassel;
-      this.relayBall = relayBall;
+      const GEO = this.GEO;
+      const built = this.machine.build(Matter);
+      this.built = built;
+      this.engine = built.engine;
 
       this.render = Matter.Render.create({
         element: this.$refs.canvasWrap,
-        engine,
+        engine: built.engine,
         options: {
           width: GEO.W,
           height: GEO.H,
@@ -211,50 +217,62 @@ export default {
       this.render.canvas.style.height = "100%";
       Matter.Render.run(this.render);
 
-      // 鈴の緒「だけ」掴める(カテゴリで制限。装置や玉は操作不可)
+      // 指でつまめるのは装置が決めたものだけ(鈴の緒 / 御神玉)。装置や他の玉は操作不可。
       const mouse = Matter.Mouse.create(this.render.canvas);
-      this.mouseConstraint = Matter.MouseConstraint.create(engine, {
+      this.mouseConstraint = Matter.MouseConstraint.create(built.engine, {
         mouse,
-        collisionFilter: { category: GEO.CAT_MOUSE, mask: GEO.CAT_ROPE },
+        collisionFilter: this.machine.grabFilter,
         constraint: { stiffness: 0.18, render: { visible: false } },
       });
-      Matter.World.add(world, this.mouseConstraint);
+      Matter.World.add(built.world, this.mouseConstraint);
       this.render.mouse = mouse;
 
-      // 玉(または飛んだ絵馬)が狐のおしりに直撃 → 目を覚ます
-      Matter.Events.on(engine, "collisionStart", (e) => {
+      this.ritual = this.machine.createRitual(Matter, built);
+      this.settle = this.machine.createSettleDetector
+        ? this.machine.createSettleDetector(Matter, built)
+        : null;
+
+      // 玉(や木札・絵馬)が狐のおしりに直撃 → 目を覚ます
+      const wakeLabels = this.machine.wakeLabels;
+      Matter.Events.on(built.engine, "collisionStart", (e) => {
         if (this.phase !== "cascade") return;
         for (const p of e.pairs) {
           const labels = [p.bodyA.label, p.bodyB.label];
-          if (labels.includes("fox-sensor") && (labels.includes("ball") || labels.includes("ema"))) {
+          if (!labels.includes("fox-sensor")) continue;
+          const other = labels[0] === "fox-sensor" ? labels[1] : labels[0];
+          if (wakeLabels.includes(other)) {
             this.wakeFox();
             return;
           }
         }
       });
 
-      // 手動固定ステップ(揺れ検知は儀式中のみ)
+      // 手動固定ステップ。儀式中は装置の完了判定、見せ場中は静止検知を回す。
       const step = () => {
         if (this.destroyed) return;
         Matter.Engine.update(this.engine, GEO.FIXED_DELTA, 1);
-        if (this.phase === "ritual") this.trackSwing();
+        if (this.phase === "ritual" && this.ritual) {
+          const dragging = !!(this.mouseConstraint && this.mouseConstraint.body);
+          if (this.ritual.step(dragging)) this.onRing();
+        } else if (this.phase === "cascade" && this.settle && !this._settleFired) {
+          // 狙いが外れて何にも当たらず、玉も木札も静まったら、物音で狐が起きる
+          // (タイムボックスを待たずに数秒で先へ進める)。
+          if (this.settle.step()) {
+            this._settleFired = true;
+            this.later(1200, () => this.wakeFox());
+          }
+        }
         this._raf = requestAnimationFrame(step);
       };
       this._raf = requestAnimationFrame(step);
     },
 
-    // 鈴の緒のスイング検知:房の x が中心から左右のしきい値を交互に越えたら
-    // 「振った」と数える(往復1.5回で鳴る。振幅ベースなので判定が安定)
-    trackSwing() {
-      if (!this.tassel || this.rung) return;
-      const dx = this.tassel.position.x - GEO.BELL.x;
-      const TH = 26;
-      const side = dx > TH ? 1 : dx < -TH ? -1 : 0;
-      if (side !== 0 && side !== this._lastSide) {
-        if (this._lastSide === 1 || this._lastSide === -1) this._swings = (this._swings || 0) + 1;
-        this._lastSide = side;
+    // 「うまく鳴らせない/放てないとき」の代替操作。装置がその場で完了なら鳴らす。
+    onFallback() {
+      if (this.rung) return;
+      if (!this.ritual || this.machine.fallbackRitual(Matter, this.built, this.ritual)) {
+        this.onRing();
       }
-      if ((this._swings || 0) >= 3) this.onRing();
     },
 
     onRing() {
@@ -276,27 +294,27 @@ export default {
       }
 
       this.phase = "cascade";
-      // 掴み操作はもう終わり(装置には最初から触れない)
+      // 波紋は儀式完了時の位置(鈴 / 射出点)に出す
+      this.pulsePos = this.machine.pulseAt(this.built || {});
+      // 掴み操作はもう終わり
       if (this.mouseConstraint && this.engine) {
         Matter.World.remove(this.engine.world, this.mouseConstraint);
         this.mouseConstraint = null;
       }
-      // 鈴から御神玉を放つ
-      this.later(300, () => {
-        if (this.engine) machine.spawnBall(Matter, this.engine.world, 0.35);
-      });
-      // フォールバック階段(通常は6〜10.4秒で狐に直撃して不要):
-      // 1) 連鎖が途中で詰まったら、リレーの玉2をそっと押して旅を続けさせる
-      this.later(13000, () => {
-        if (this.phase === "cascade" && this.relayBall && this.engine) {
-          Matter.Sleeping.set(this.relayBall, false);
-          Matter.Body.setVelocity(this.relayBall, { x: -1.2, y: -0.4 });
+      // 装置側の仕掛け(鈴なら御神玉の投入。弾き玉なら何もしない)
+      this.machine.onRitualDone(Matter, this.built, (ms, fn) => this.later(ms, fn));
+      // フォールバック階段(通常は途中で狐に直撃して不要):
+      // 1) 詰まったら装置をそっと押す
+      const tl = this.machine.TIMELINE;
+      this.later(tl.nudgeMs, () => {
+        if (this.phase === "cascade" && this.built && this.engine) {
+          this.machine.nudge(Matter, this.built);
         }
       });
       // 2) それでも届かなければ狐を起こす
-      this.later(17000, () => this.wakeFox());
+      this.later(tl.wakeMs, () => this.wakeFox());
       // 3) 全体フェイルセーフ
-      this.later(28000, () => this.finish());
+      this.later(tl.failsafeMs, () => this.finish());
     },
     waitTargetThen(cb) {
       if (this.targetTier) return cb();
@@ -334,12 +352,12 @@ export default {
     startHops() {
       if (this.destroyed || this.phase === "done") return;
       const target = this.targetBinIndex >= 0 ? this.targetBinIndex : 0;
-      this.hopSeq = foxHopSequence(target, GEO.BIN_COUNT);
+      this.hopSeq = foxHopSequence(target, this.GEO.BIN_COUNT);
       this.hopIndex = 0;
       // まず寝床からひと跳びで最初のビンへ。ひと跳び直行(hopSeqが本命のみ)の
       // 場合はこれが決めのジャンプなので、本命着地の演出(長い溜め・長い滞空)にする。
       const directToTarget = this.hopSeq.length === 1;
-      this.doHop(this.foxLeft, this.binLeftPct(this.hopSeq[0]), FOX.binBottom, directToTarget, () => {
+      this.doHop(this.foxLeft, this.binLeftPct(this.hopSeq[0]), this.foxBinBottom, directToTarget, () => {
         this.later(directToTarget ? 250 : 500, () => this.nextHop());
       });
     },
@@ -356,7 +374,7 @@ export default {
       const from = this.binLeftPct(this.hopSeq[this.hopIndex - 1]);
       const to = this.binLeftPct(this.hopSeq[this.hopIndex]);
       const isFinal = this.hopIndex === this.hopSeq.length - 1;
-      this.doHop(from, to, FOX.binBottom, isFinal, () => {
+      this.doHop(from, to, this.foxBinBottom, isFinal, () => {
         // 着地後の間(キョロキョロ)。本命前は長めに焦らす
         this.later(isFinal ? 250 : 550 + Math.random() * 350, () => this.nextHop());
       });
@@ -418,8 +436,9 @@ export default {
         this.engine = null;
       }
       this.mouseConstraint = null;
-      this.tassel = null;
-      this.relayBall = null;
+      this.built = null;
+      this.ritual = null;
+      this.settle = null;
     },
   },
 };

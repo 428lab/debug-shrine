@@ -344,4 +344,105 @@ function spawnBall(Matter, world, vx) {
   return b;
 }
 
-module.exports = { GEO, buildMachineWorld, spawnBall, installChainAssist };
+// ---- OmikujiScene 向けの共通インターフェース(omikujiMachines.js 参照) ----
+//
+// 鈴の緒装置は上の buildMachineWorld / spawnBall / installChainAssist が本体で、
+// 以下はそれを共通の形に包んだもの。ヘッドレス検証(simulate-omikuji.js)は
+// 引き続き本体の関数を直接使う。
+
+const FOX = {
+  // 寝床(FOX_PLATFORM 上。右向きに寝て、おしりが左=玉2の飛来方向)
+  sleepLeft: (443 / GEO.W) * 100,
+  sleepBottom: ((GEO.H - 639) / GEO.H) * 100,
+  flip: 1,
+};
+
+const HINT = {
+  title: "鈴の緒(金色の房)をつかんで、左右に振ろう",
+  fallback: "うまく鳴らせないときはここをタップ",
+  button: "鈴を鳴らす",
+};
+
+// 玉2の旅は 6〜10.4 秒。連鎖が詰まった時の押し(13s)、それでも届かなければ
+// 狐を起こす(17s)、全体のフェイルセーフ(28s)。
+const TIMELINE = { nudgeMs: 13000, wakeMs: 17000, failsafeMs: 28000 };
+
+// 玉(または飛んだ絵馬)が狐のおしりに当たったら起きる。
+const wakeLabels = ["ball", "ema"];
+
+// 鈴の緒「だけ」掴める(装置や玉は操作不可)。
+const grabFilter = { category: GEO.CAT_MOUSE, mask: GEO.CAT_ROPE };
+
+function build(Matter) {
+  const built = buildMachineWorld(Matter);
+  // 弱い当たりでもドミノ連鎖が完走するよう最低転倒速度を保証(#199)
+  installChainAssist(Matter, built.engine);
+  return built;
+}
+
+function pulseAt() {
+  return { x: GEO.BELL.x, y: GEO.BELL.y };
+}
+
+// 鈴の緒のスイング検知:房の x が中心から左右のしきい値を交互に越えたら
+// 「振った」と数える(往復1.5回で鳴る。振幅ベースなので判定が安定)。
+function createRitual(Matter, built) {
+  const { tassel } = built;
+  const TH = 26;
+  let lastSide = 0;
+  let swings = 0;
+  let done = false;
+  return {
+    step() {
+      if (done) return false;
+      const dx = tassel.position.x - GEO.BELL.x;
+      const side = dx > TH ? 1 : dx < -TH ? -1 : 0;
+      if (side !== 0 && side !== lastSide) {
+        if (lastSide === 1 || lastSide === -1) swings++;
+        lastSide = side;
+      }
+      if (swings >= 3) {
+        done = true;
+        return true;
+      }
+      return false;
+    },
+  };
+}
+
+// 「うまく鳴らせないとき」はその場で鳴ったことにする。
+function fallbackRitual() {
+  return true;
+}
+
+// 鈴が鳴った → 少し置いて鈴から御神玉を放つ。
+function onRitualDone(Matter, built, later) {
+  later(300, () => spawnBall(Matter, built.world, 0.35));
+}
+
+// 連鎖が途中で詰まったら、リレーの玉2をそっと押して旅を続けさせる。
+function nudge(Matter, built) {
+  if (!built.relayBall) return;
+  Matter.Sleeping.set(built.relayBall, false);
+  Matter.Body.setVelocity(built.relayBall, { x: -1.2, y: -0.4 });
+}
+
+module.exports = {
+  GEO,
+  buildMachineWorld,
+  spawnBall,
+  installChainAssist,
+  // 共通インターフェース
+  id: "bell",
+  FOX,
+  HINT,
+  TIMELINE,
+  wakeLabels,
+  grabFilter,
+  build,
+  pulseAt,
+  createRitual,
+  fallbackRitual,
+  onRitualDone,
+  nudge,
+};
