@@ -94,8 +94,10 @@ const HINT = {
 const wakeLabels = ["ball"];
 const grabFilter = { category: GEO.CAT_MOUSE, mask: GEO.CAT_GRAB };
 
-// 詰まったら押す(8s)、それでも来なければ起こす(12s)、フェイルセーフ(20s)。
-const TIMELINE = { nudgeMs: 8000, wakeMs: 12000, failsafeMs: 20000 };
+// 詰まったら押す(8s)、それでも来なければ起こす(14s)、フェイルセーフ(20s)。
+// 止まった玉は静止検知(約2s)で先に狐が起きるので、押しはほぼ保険。
+// 起こしは掃引の最遅到達(11.0s)より余裕を持たせる(長いラリーの途中で起きない)。
+const TIMELINE = { nudgeMs: 8000, wakeMs: 14000, failsafeMs: 20000 };
 
 function buildWorld(Matter, opts) {
   const rnd = (opts && opts.rnd) || Math.random;
@@ -350,6 +352,8 @@ const SETTLE = { speed: 0.15, steps: 45 };
 
 // 詰まったら玉を下へ落とす(バンパーの上で止まった等)。
 // まだ跳ね回っている玉には触らない(長いラリーの途中で速度を書き換えると不自然)。
+// 止まった玉は静止検知が先に狐を起こすので、これが効くのは押しの直前に止まった
+// 玉だけ(保険)。
 function nudge(Matter, built) {
   const { ball } = built;
   if (Math.hypot(ball.velocity.x, ball.velocity.y) >= SETTLE.speed) return;

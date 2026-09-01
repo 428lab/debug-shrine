@@ -10,8 +10,8 @@
 //   node scripts/simulate-omikuji-pinball.js --one 70 3 引き70・シード3 を1回
 //   node scripts/simulate-omikuji-pinball.js --trace 70 3 玉の軌跡を 0.25s ごとに出す
 //
-// 合否: 放てて、狐に届くか、届かなくても SETTLE_LIMIT_SEC 以内に静まること
-// (静まれば物音で狐が起きる)。
+// 合否: 放てて狐に届くこと。届かず静まった場合は、SETTLE_LIMIT_SEC 以内で
+// かつ止まった場所が狐の穴の中のときだけ合格(棚止まりは失敗)。
 
 /* eslint-disable no-console */
 const Matter = require("matter-js");
