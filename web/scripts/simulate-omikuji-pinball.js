@@ -131,12 +131,18 @@ function main() {
   let slowest = 0;
   let bumpTotal = 0;
   const failures = [];
+  let settledNoHit = 0;
+  const FS = machine.GEO.FOX_SENSOR;
   for (const pull of pulls) {
     for (const seed of seeds) {
       const r = runOnce(pull, seed, 30);
       total++;
       bumpTotal += r.bumps;
-      const ok = r.launched && !r.escaped && (r.hitSec !== null || (r.settledSec !== null && r.settledSec <= SETTLE_LIMIT_SEC));
+      // 狐に届かず静まった場合は、止まった場所が狐の穴の中でなければ失敗
+      // (どこかの棚に載ったまま終わる演出は避ける)。
+      const inHole = Math.abs(r.ballX - FS.x) <= FS.w / 2 && Math.abs(r.ballY - FS.y) <= FS.h / 2;
+      if (r.hitSec === null && r.settledSec !== null) settledNoHit++;
+      const ok = r.launched && !r.escaped && (r.hitSec !== null || (r.settledSec !== null && r.settledSec <= SETTLE_LIMIT_SEC && inHole));
       if (!ok) {
         fail++;
         failures.push({ pull, seed, ...r });
@@ -147,7 +153,7 @@ function main() {
       }
     }
   }
-  console.log(`掃引 ${total} 点: 失敗 ${fail} / 最遅到達 ${slowest.toFixed(1)}s / 平均バンパー ${(bumpTotal / total).toFixed(1)}回 / 無操作静止 ${idleOk ? "OK" : "NG"}`);
+  console.log(`掃引 ${total} 点: 失敗 ${fail} / 最遅到達 ${slowest.toFixed(1)}s / 平均バンパー ${(bumpTotal / total).toFixed(1)}回 / 無操作静止 ${idleOk ? "OK" : "NG"} / 届かず静止 ${settledNoHit}`);
   for (const f of failures.slice(0, 20)) {
     console.log(`  引き${f.pull} seed${f.seed}: 射出${f.speedAtLaunch} 最高速${f.maxSpeed} バンパー${f.bumps} 玉(${f.ballX},${f.ballY}) launched=${f.launched} 静止=${f.settledSec === null ? "なし" : f.settledSec.toFixed(1) + "s"}${f.escaped ? " 場外" : ""}`);
   }

@@ -133,7 +133,15 @@ function buildWorld(Matter, opts) {
 
   // レーンの蓋(一方通行)。玉が盤面へ出たら閉じて、跳ね返ってきた玉が
   // レーンに落ち戻らないようにする(井戸の底で止まると狐から遠く、時間もかかる)。
-  const lid = Bodies.rectangle((L.wallX + GEO.W) / 2, L.wallTop - 6, GEO.W - L.wallX, 12, {
+  // 形は左下がりのくさび。平らな板だと、天辺を右へ戻ってきた玉が板の上に
+  // 載って右上の隅で止まった(330点中3点)。斜面なら仕切り壁の上を伝って盤面へ落ちる。
+  const lidPts = [
+    { x: L.wallX, y: L.wallTop },
+    { x: GEO.W, y: L.wallTop - 40 },
+    { x: GEO.W, y: L.wallTop },
+  ];
+  const lidC = Matter.Vertices.centre(lidPts);
+  const lid = Bodies.fromVertices(lidC.x, lidC.y, [lidPts], {
     isStatic: true,
     label: "lid",
     collisionFilter: { mask: 0 },
@@ -338,14 +346,17 @@ function fallbackRitual(Matter, built, ritual) {
 
 function onRitualDone() {}
 
+const SETTLE = { speed: 0.15, steps: 45 };
+
 // 詰まったら玉を下へ落とす(バンパーの上で止まった等)。
+// まだ跳ね回っている玉には触らない(長いラリーの途中で速度を書き換えると不自然)。
 function nudge(Matter, built) {
   const { ball } = built;
+  if (Math.hypot(ball.velocity.x, ball.velocity.y) >= SETTLE.speed) return;
   Matter.Sleeping.set(ball, false);
   Matter.Body.setVelocity(ball, { x: (Math.random() - 0.5) * 4, y: 6 });
 }
 
-const SETTLE = { speed: 0.15, steps: 45 };
 function createSettleDetector(Matter, built) {
   const { ball } = built;
   let quiet = 0;

@@ -13,7 +13,7 @@
 //   TIMELINE      : { nudgeMs, wakeMs, failsafeMs } 詰まり時のフォールバック時刻
 //   wakeLabels    : fox-sensor に触れたら狐が起きるボディのラベル
 //   grabFilter    : 指でつまめるものの collisionFilter(MouseConstraint 用)
-//   build(Matter) : 世界を組む。{ engine, world, ...handles }
+//   build(Matter, opts?): 世界を組む。{ engine, world, ...handles }。opts.rnd で乱数を注入可(検証用)
 //   pulseAt(built): 儀式完了の波紋を出す論理座標 { x, y }
 //   createRitual(Matter, built): { step(dragging) → 儀式完了で true }
 //   fallbackRitual(Matter, built, ritual): 「うまくできないとき」の代替操作。
