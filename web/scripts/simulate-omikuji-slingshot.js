@@ -130,11 +130,11 @@ function main() {
       if (!ok) {
         fail++;
         failures.push({ deg, pull, ...r });
-      } else if (r.hitSec !== null) {
+      } else {
         slowest = Math.max(slowest, r.hitSec);
       }
       if (verbose) {
-        const outcome = r.hitSec !== null
+        const outcome = ok
           ? `狐到達 ${r.hitSec.toFixed(1)}s (${r.hitBy})`
           : r.settledSec !== null
             ? `未到達→静止 ${r.settledSec.toFixed(1)}s`
