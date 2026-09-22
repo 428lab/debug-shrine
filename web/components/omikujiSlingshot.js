@@ -37,10 +37,7 @@ const GEO = {
   GROUND_Y: 620,
 
   // Y字の台。ANCHOR が玉の定位置(ゴムの支点)。
-  // 左へ引き絞るので、台は画面左端から離しておく(x=72 だと最大引きで玉が
-  // canvas の外に出て、スマホでは指が画面の縁に当たって引き切れなかった)。
-  // 最大引き(maxPull)でも玉が x=60 に収まる位置。
-  SLING: { x: 130, anchorY: 440, forkTipY: 458, forkW: 30, postH: 160 },
+  SLING: { x: 72, anchorY: 440, forkTipY: 458, forkW: 30, postH: 160 },
   // 玉。ゴムの stiffness と密度の組み合わせで射出速度が決まる。
   BALL: { r: 12, density: 0.004, restitution: 0.3, friction: 0.05, frictionAir: 0.001 },
   // ゴム(拘束)。引き絞りは MAX_PULL で頭打ち。RELEASE_MIN 未満の引きは
@@ -48,9 +45,7 @@ const GEO = {
   // stiffness 0.045 だと引き30で 12px/step、最大引きで 45px/step に達し、
   // 12px の玉が 16px の壁を突き抜けて場外へ落ちた(matter は連続衝突判定を
   // しない)。柔らかくした上で、切り離し時の速度に上限も掛ける。
-  // 射出速度は引き60強で maxSpeed に頭打ちになるので、それ以上引いても
-  // 変わらない。maxPull を 70 に抑え、指を動かす距離(画面端までの余裕)を減らす。
-  ELASTIC: { stiffness: 0.012, maxPull: 70, releaseMin: 18, maxSpeed: 15 },
+  ELASTIC: { stiffness: 0.012, maxPull: 100, releaseMin: 18, maxSpeed: 15 },
 
   // 木札の櫓。x0 が左端の柱の中心。3層。
   TOWER: {
