@@ -86,8 +86,8 @@ func TestOmikuji_PickEntryReturnsRequestedTier(t *testing.T) {
 }
 
 func TestOmikuji_DataIntegrity(t *testing.T) {
-	if len(omikujiEntries) < 105 {
-		t.Errorf("omikujiEntries has %d entries, want >= 105", len(omikujiEntries))
+	if len(omikujiEntries) < 140 {
+		t.Errorf("omikujiEntries has %d entries, want >= 140", len(omikujiEntries))
 	}
 
 	perTier := map[string]int{}
