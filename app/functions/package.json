@@ -26,6 +26,18 @@
   "overrides": {
     "chartjs-node-canvas": {
       "canvas": "^3.1.0"
+    },
+    "@google-cloud/firestore": {
+      "protobufjs": "8.6.6"
+    },
+    "@grpc/proto-loader": {
+      "protobufjs": "8.6.6"
+    },
+    "google-gax": {
+      "protobufjs": "8.6.6"
+    },
+    "proto3-json-serializer": {
+      "protobufjs": "8.6.6"
     }
   },
   "devDependencies": {
