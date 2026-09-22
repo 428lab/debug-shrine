@@ -80,31 +80,6 @@ var omikujiEntries = []omikujiEntry{
 		{Category: "対人運", Text: "総務が今日だけ神対応。備品申請が音速で通る。"},
 	}},
 
-	{ID: "chokichi-016", Tier: TierChokichi, Fortune: "rm -rf / を叩いた端末が、たまたまDockerコンテナの中だった。", Lines: []omikujiLine{
-		{Category: "障害運", Text: "消し飛んだのはコンテナだけ。ホストは鼻歌を歌っている。"},
-		{Category: "失物", Text: "消えたと思ったファイルが、全部ボリュームの外で無事だった。"},
-		{Category: "願望", Text: "『やり直したい』と思った瞬間、もうやり直せる状態にある。"},
-	}},
-	{ID: "chokichi-017", Tier: TierChokichi, Fortune: "うろ覚えで書いた正規表現が、RFCの仕様を完全に満たしていた。", Lines: []omikujiLine{
-		{Category: "学問", Text: "読んだこともない仕様書の内容が、なぜか指先に宿っている。"},
-		{Category: "レビュー運", Text: "レビュアーが『この正規表現、額に入れて飾りたい』と言う。"},
-		{Category: "金運", Text: "ちょうど使い切ったクレジットが、翌朝満額で補充されている。"},
-	}},
-	{ID: "chokichi-018", Tier: TierChokichi, Fortune: "うっかりforce pushした先が、誰も使っていない作業ブランチだった。しかも元に戻った。", Lines: []omikujiLine{
-		{Category: "失物", Text: "reflogを開く前に、失ったコミットの方から帰ってくる。"},
-		{Category: "対人運", Text: "チーム全員が『今のpush、ちょうど欲しかった』と言う。"},
-		{Category: "待ち人", Text: "来る。コンフリクトを全部解消した状態で。"},
-	}},
-	{ID: "chokichi-019", Tier: TierChokichi, Fortune: "閏秒・夏時間・年末年始が同時に来た夜、ログの時刻がすべて正しかった。", Lines: []omikujiLine{
-		{Category: "障害運", Text: "オンコールの電話が、朝まで一度も鳴らない。鳴らす理由がない。"},
-		{Category: "健康運", Text: "休暇明けなのに時差ボケも運動不足もない。体内時計がNTP同期済み。"},
-		{Category: "願望", Text: "今年の目標が、年が明ける前に全部終わっている。"},
-	}},
-	{ID: "chokichi-020", Tier: TierChokichi, Fortune: "本番障害のポストモーテムを書こうとしたら、障害そのものが起きていなかったと判明した。", Lines: []omikujiLine{
-		{Category: "障害運", Text: "アラートの誤検知だった。しかも検知ルールも直っていた。"},
-		{Category: "対人運", Text: "経営層から『いつも安定していて助かる』と謎の感謝が届く。"},
-		{Category: "デプロイ運", Text: "ロールバックボタンの存在を、今日も忘れていられる。"},
-	}},
 	{ID: "daikichi-001", Tier: TierDaikichi, Fortune: "詰まってたバグ、散歩から戻ったら直し方が降ってくる。", Lines: []omikujiLine{
 		{Category: "失物", Text: "見失っていた原因が、コーヒー片手にふと見える。"},
 		{Category: "デプロイ運", Text: "リリースは無風。ヒヤリともせず終わる。"},
@@ -181,31 +156,6 @@ var omikujiEntries = []omikujiEntry{
 		{Category: "レビュー運", Text: "自信のPRが、期待通りすんなり通る。"},
 	}},
 
-	{ID: "daikichi-016", Tier: TierDaikichi, Fortune: "エラーメッセージをそのまま検索したら、一件目が正解だった。", Lines: []omikujiLine{
-		{Category: "学問", Text: "公式ドキュメントに、今まさに欲しかった例がそのまま載っている。"},
-		{Category: "失物", Text: "無くしたと思った設定値が、.env.example に残っていた。"},
-		{Category: "健康運", Text: "目の疲れが少なく、夕方まで集中が続く。"},
-	}},
-	{ID: "daikichi-017", Tier: TierDaikichi, Fortune: "ペアプロの相手と息が合い、設計が一時間で固まる。", Lines: []omikujiLine{
-		{Category: "対人運", Text: "説明が一回で伝わる。お互いに相手の考えが見えている。"},
-		{Category: "レビュー運", Text: "ペアで書いたので、レビューは確認だけで終わる。"},
-		{Category: "願望", Text: "温めていたアイデアに、チームの賛同が集まる。"},
-	}},
-	{ID: "daikichi-018", Tier: TierDaikichi, Fortune: "ずっと赤かったフレーキーテストの原因が、ついに判明する。", Lines: []omikujiLine{
-		{Category: "障害運", Text: "不安定だった監視が落ち着き、夜の通知が静かになる。"},
-		{Category: "デプロイ運", Text: "CIが安定し、再実行ボタンを押さずに済む一日。"},
-		{Category: "待ち人", Text: "頼りにしていた人から、ちょうど欲しかった知見が届く。"},
-	}},
-	{ID: "daikichi-019", Tier: TierDaikichi, Fortune: "依存パッケージの更新が、破壊的変更ゼロで通る。", Lines: []omikujiLine{
-		{Category: "デプロイ運", Text: "メジャーアップデートなのに、テストの修正は一行だけ。"},
-		{Category: "金運", Text: "不要なリソースが見つかり、クラウド代が少し下がる。"},
-		{Category: "学問", Text: "チェンジログを読むだけで、新しい書き方が身につく。"},
-	}},
-	{ID: "daikichi-020", Tier: TierDaikichi, Fortune: "見積もりがぴったり当たり、定時に気持ちよく上がれる。", Lines: []omikujiLine{
-		{Category: "健康運", Text: "夕方に散歩する余裕があり、夜はぐっすり眠れる。"},
-		{Category: "対人運", Text: "進捗報告が『順調です』の一言で済む。"},
-		{Category: "願望", Text: "週末の予定が、罪悪感なしに楽しめる。"},
-	}},
 	{ID: "chukichi-001", Tier: TierChukichi, Fortune: "だいたい順調。たまに詰まるが、まあ進む。", Lines: []omikujiLine{
 		{Category: "デプロイ運", Text: "リリースは無事。だが緊張で肩に力が入る。"},
 		{Category: "レビュー運", Text: "軽微な指摘が三つ。直せば通る範囲。"},
@@ -282,31 +232,6 @@ var omikujiEntries = []omikujiEntry{
 		{Category: "金運", Text: "小さな精算が通り、財布が少しだけ潤う。"},
 	}},
 
-	{ID: "chukichi-016", Tier: TierChukichi, Fortune: "バグは見つかる。直せる。ただ、似たバグがもう一つ見つかる。", Lines: []omikujiLine{
-		{Category: "失物", Text: "一つ目の原因は早めに判明。二つ目は明日の朝の楽しみ。"},
-		{Category: "レビュー運", Text: "指摘は的確。直すと、ついでにもう一か所が気になる。"},
-		{Category: "健康運", Text: "夕方に軽い肩こり。伸びをすれば持ち直す。"},
-	}},
-	{ID: "chukichi-017", Tier: TierChukichi, Fortune: "リリースは予定通り。ただしリリースノートは書き忘れる。", Lines: []omikujiLine{
-		{Category: "デプロイ運", Text: "反映は無事。告知だけが少し遅れて出る。"},
-		{Category: "対人運", Text: "問い合わせが一件。答えられる内容で助かる。"},
-		{Category: "待ち人", Text: "返事は来る。ただ要件の半分だけ。"},
-	}},
-	{ID: "chukichi-018", Tier: TierChukichi, Fortune: "新しいツールを入れる。設定に半日、便利さは本物。", Lines: []omikujiLine{
-		{Category: "学問", Text: "ドキュメントは丁寧だが、肝心の一行が見つからない。"},
-		{Category: "金運", Text: "無料プランで足りる。今のところは。"},
-		{Category: "願望", Text: "作業効率は上がる。元が取れるのは来週から。"},
-	}},
-	{ID: "chukichi-019", Tier: TierChukichi, Fortune: "会議は一つ減る。代わりにSlackのスレッドが一つ伸びる。", Lines: []omikujiLine{
-		{Category: "対人運", Text: "結論は出る。ただしスレッドの80件目あたりで。"},
-		{Category: "待ち人", Text: "レビュアーは午後に戻ってくる。昼までは我慢。"},
-		{Category: "障害運", Text: "小さな警告が一件。原因は昨日の自分の設定。"},
-	}},
-	{ID: "chukichi-020", Tier: TierChukichi, Fortune: "テストカバレッジが少し上がる。本当に守りたい所はまだ裸。", Lines: []omikujiLine{
-		{Category: "レビュー運", Text: "『テスト追加ありがとう』と言われる。次は境界値を、とも。"},
-		{Category: "学問", Text: "モックの書き方を一つ覚える。使いどころはまだ手探り。"},
-		{Category: "健康運", Text: "座りっぱなし気味。立って水を飲めば回復する。"},
-	}},
 	{ID: "shokichi-001", Tier: TierShokichi, Fortune: "動く。だが『なぜ動くか』は説明できない。", Lines: []omikujiLine{
 		{Category: "失物", Text: "直したはずのバグが、別の顔で戻ってくる。"},
 		{Category: "レビュー運", Text: "指摘は多いが、どれも一理あって反論できない。"},
@@ -383,31 +308,6 @@ var omikujiEntries = []omikujiEntry{
 		{Category: "願望", Text: "小さな望みが一つ叶う。感謝を忘れずに。"},
 	}},
 
-	{ID: "shokichi-016", Tier: TierShokichi, Fortune: "ビルドは通る。警告が37件出ているが、見なかったことにする。", Lines: []omikujiLine{
-		{Category: "失物", Text: "警告の中に、一つだけ本物の問題が紛れている。"},
-		{Category: "学問", Text: "警告を一つ調べたら、知らない仕様を一つ覚える。"},
-		{Category: "願望", Text: "『いつか全部直す』という願いだけが積み上がる。"},
-	}},
-	{ID: "shokichi-017", Tier: TierShokichi, Fortune: "ブランチ名に迷って10分、実装は20分。", Lines: []omikujiLine{
-		{Category: "対人運", Text: "命名規約を聞いたら、人によって答えが違う。"},
-		{Category: "レビュー運", Text: "ロジックは通る。変数名にだけコメントが三つ付く。"},
-		{Category: "健康運", Text: "悩みすぎて甘いものが欲しくなる。一個までなら吉。"},
-	}},
-	{ID: "shokichi-018", Tier: TierShokichi, Fortune: "ローカル環境は無事。ただしDockerのディスクが残り2GB。", Lines: []omikujiLine{
-		{Category: "失物", Text: "謎のイメージが30GB。消していいのか誰も知らない。"},
-		{Category: "金運", Text: "ストレージ代が地味に増える。気づくのは月末。"},
-		{Category: "デプロイ運", Text: "反映は通るが、ビルドキャッシュが効かず少し遅い。"},
-	}},
-	{ID: "shokichi-019", Tier: TierShokichi, Fortune: "質問への回答が来る。『それは仕様です』。", Lines: []omikujiLine{
-		{Category: "待ち人", Text: "返事は早い。欲しかった答えではない。"},
-		{Category: "対人運", Text: "悪気のない『前にも説明しましたよね』に少し凹む。"},
-		{Category: "学問", Text: "仕様書の奥に、答えがちゃんと書いてあった。"},
-	}},
-	{ID: "shokichi-020", Tier: TierShokichi, Fortune: "修正は一行。原因の特定に三時間。", Lines: []omikujiLine{
-		{Category: "障害運", Text: "原因は分かる。ログレベルがDEBUGなら五分で済んだ。"},
-		{Category: "レビュー運", Text: "一行の差分に『なぜ?』と聞かれ、三時間分を語る。"},
-		{Category: "健康運", Text: "夢中で昼食を忘れる。気づいたのは15時。"},
-	}},
 	{ID: "suekichi-001", Tier: TierSuekichi, Fortune: "動いた。理由は分からないが動いた。触るな。", Lines: []omikujiLine{
 		{Category: "失物", Text: "直った気配はあるが、根本原因は闇の中。"},
 		{Category: "デプロイ運", Text: "反映は通る。だが二度と同じ手順を再現できない。"},
@@ -484,31 +384,6 @@ var omikujiEntries = []omikujiEntry{
 		{Category: "レビュー運", Text: "何度目かの修正で、ようやく承認が見えてくる。"},
 	}},
 
-	{ID: "suekichi-016", Tier: TierSuekichi, Fortune: "TODOコメントを消したら、TODOが一つ増えた。", Lines: []omikujiLine{
-		{Category: "失物", Text: "5年前のTODOに、自分の名前が書いてある。"},
-		{Category: "願望", Text: "負債返済の願いは、次のスプリントへ持ち越し。"},
-		{Category: "学問", Text: "古いコードを読み、昔の自分から一つ学ぶ。"},
-	}},
-	{ID: "suekichi-017", Tier: TierSuekichi, Fortune: "『来週やります』が三週目に突入する。", Lines: []omikujiLine{
-		{Category: "待ち人", Text: "相手も『来週やります』と言っている。お互い様。"},
-		{Category: "対人運", Text: "進捗を聞かれる前に、自分から言えば傷は浅い。"},
-		{Category: "健康運", Text: "焦りで寝つきが悪い。今日は画面を早めに閉じよ。"},
-	}},
-	{ID: "suekichi-018", Tier: TierSuekichi, Fortune: "パスワードの再設定メールが届かない。迷惑メールフォルダにあった。", Lines: []omikujiLine{
-		{Category: "失物", Text: "探し物はいつも、一番見たくない場所にある。"},
-		{Category: "障害運", Text: "大事にはならない。ただ15分溶ける。"},
-		{Category: "金運", Text: "サブスクの解約を忘れていたと気づく。今月分は払う。"},
-	}},
-	{ID: "suekichi-019", Tier: TierSuekichi, Fortune: "ラバーダックに話しかけたら、アヒルの方が困った顔をした。", Lines: []omikujiLine{
-		{Category: "学問", Text: "説明しているうちに、自分が分かっていないことが分かる。"},
-		{Category: "対人運", Text: "人に聞くのが一番早い。聞く勇気が出るのは夕方。"},
-		{Category: "願望", Text: "答えは近い。今日ではないが、たぶん明日。"},
-	}},
-	{ID: "suekichi-020", Tier: TierSuekichi, Fortune: "npm installが終わる頃には、やる気も終わっている。", Lines: []omikujiLine{
-		{Category: "デプロイ運", Text: "依存の解決に時間がかかる。気長に待て。"},
-		{Category: "健康運", Text: "待ち時間にストレッチをすれば、肩だけは救われる。"},
-		{Category: "失物", Text: "lockファイルの差分に、身に覚えのない変更が混ざる。"},
-	}},
 	{ID: "kyo-001", Tier: TierKyo, Fortune: "再現しないバグの再現に半日溶ける。原因はキャッシュ。", Lines: []omikujiLine{
 		{Category: "失物", Text: "手元では絶対に再現しない。本番でだけ静かに壊れる。"},
 		{Category: "デプロイ運", Text: "反映後にエラー率が上がり、ロールバックで一日終わる。"},
@@ -585,31 +460,6 @@ var omikujiEntries = []omikujiEntry{
 		{Category: "健康運", Text: "苛立ちで肩に力が入り、頭痛の種になる。"},
 	}},
 
-	{ID: "kyo-016", Tier: TierKyo, Fortune: "『ちょっとだけ』のつもりのリファクタが、差分2000行に育つ。", Lines: []omikujiLine{
-		{Category: "レビュー運", Text: "レビュアーが差分を開いて、そっと閉じる。"},
-		{Category: "デプロイ運", Text: "分割しろと言われ、PRが五本に増える。"},
-		{Category: "健康運", Text: "手首が痛い。今日はマウスを置いて休め。"},
-	}},
-	{ID: "kyo-017", Tier: TierKyo, Fortune: "証明書の期限が今日だった。知ったのはユーザーからの問い合わせ。", Lines: []omikujiLine{
-		{Category: "障害運", Text: "ブラウザの警告画面が、会社の顔として拡散される。"},
-		{Category: "対人運", Text: "『誰の担当?』の答えが、なぜか自分になる。"},
-		{Category: "待ち人", Text: "更新に必要な権限を持つ人が、今日に限って休み。"},
-	}},
-	{ID: "kyo-018", Tier: TierKyo, Fortune: "タイムゾーンのバグを直したら、別のタイムゾーンで壊れる。", Lines: []omikujiLine{
-		{Category: "失物", Text: "UTCとJSTの間に、九時間分の真実が消える。"},
-		{Category: "学問", Text: "夏時間の存在を、身をもって思い出す。"},
-		{Category: "願望", Text: "『世界がUTCで統一されますように』と祈る。届かない。"},
-	}},
-	{ID: "kyo-019", Tier: TierKyo, Fortune: "キャッシュを消したら直った。なぜ壊れたのかは誰も知らない。", Lines: []omikujiLine{
-		{Category: "障害運", Text: "同じ症状が三日後に再発する。そのときも誰も知らない。"},
-		{Category: "レビュー運", Text: "『根本原因は?』のコメントに答えられない。"},
-		{Category: "健康運", Text: "もやもやが晴れず、寝つきが悪い。"},
-	}},
-	{ID: "kyo-020", Tier: TierKyo, Fortune: "OSのアップデートを入れたら、開発環境だけ動かなくなる。", Lines: []omikujiLine{
-		{Category: "失物", Text: "パスが通らない。昨日まで通っていたのに。"},
-		{Category: "金運", Text: "新しいライセンスが必要だと告げられる。"},
-		{Category: "待ち人", Text: "同じ症状のissueはある。解決策は『私も』の山。"},
-	}},
 	{ID: "daikyo-001", Tier: TierDaikyo, Fortune: "24時リリースの立ち会い決定。しかも待ちは他チームの障害復旧。", Lines: []omikujiLine{
 		{Category: "デプロイ運", Text: "自分の作業は5分で終わる。だが前工程が永遠に終わらない。"},
 		{Category: "待ち人", Text: "承認待ちの相手が、別の障害対応で音信不通になる。"},
@@ -684,30 +534,5 @@ var omikujiEntries = []omikujiEntry{
 		{Category: "障害運", Text: "復旧は終わったのに、再発防止策の詰めで朝が来る。"},
 		{Category: "対人運", Text: "翌朝いちで、経営層への説明会がセットされている。"},
 		{Category: "健康運", Text: "眠気と自責で、キーボードの上に突っ伏しかける。"},
-	}},
-	{ID: "daikyo-016", Tier: TierDaikyo, Fortune: "本番DBのバックアップが、半年前から空ファイルだった。発覚したのは復元の最中。", Lines: []omikujiLine{
-		{Category: "障害運", Text: "復元ボタンを押した瞬間、0バイトが静かにこちらを見つめる。"},
-		{Category: "失物", Text: "最後の頼みは、誰かのローカルに残るダンプだけ。"},
-		{Category: "願望", Text: "願うことは一つ。『誰か、手元に残していてくれ』。"},
-	}},
-	{ID: "daikyo-017", Tier: TierDaikyo, Fortune: "有給初日の朝、全社チャンネルに自分の名前がメンション付きで流れる。", Lines: []omikujiLine{
-		{Category: "対人運", Text: "『○○さんしか分からないので』が、休暇を秒で終わらせる。"},
-		{Category: "健康運", Text: "旅先の宿で、ノートPCの画面だけが明るい。"},
-		{Category: "待ち人", Text: "代わりに見てくれる人は、今日から入社の新人。"},
-	}},
-	{ID: "daikyo-018", Tier: TierDaikyo, Fortune: "ドメインの更新を忘れた。サービスごと、見知らぬ広告ページになっていた。", Lines: []omikujiLine{
-		{Category: "障害運", Text: "メールも止まる。障害連絡すら誰にも届かない。"},
-		{Category: "金運", Text: "買い戻しの見積もりに、ゼロが三つ多く付いている。"},
-		{Category: "対人運", Text: "更新を担当していた人は、三年前に退職していた。"},
-	}},
-	{ID: "daikyo-019", Tier: TierDaikyo, Fortune: "『全員に返信』で、障害の原因と自分の愚痴を全社に送る。", Lines: []omikujiLine{
-		{Category: "対人運", Text: "愚痴の相手が、宛先のCCに入っていた。"},
-		{Category: "失物", Text: "送信取り消しの猶予は、とうの昔に過ぎている。"},
-		{Category: "健康運", Text: "胃が痛い。明日の出社がこわい。"},
-	}},
-	{ID: "daikyo-020", Tier: TierDaikyo, Fortune: "レガシーシステムの唯一の理解者が、引き継ぎ資料『なし』で退職する。", Lines: []omikujiLine{
-		{Category: "学問", Text: "読めるのはコメントだけ。しかもコメントは嘘をつく。"},
-		{Category: "障害運", Text: "誰も触れない領域から、毎晩3時にだけアラートが鳴る。"},
-		{Category: "待ち人", Text: "前任者に連絡がつく。『もう覚えてない』とだけ返ってくる。"},
 	}},
 }

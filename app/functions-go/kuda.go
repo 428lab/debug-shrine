@@ -132,7 +132,7 @@ func bytesToUnitFloat(hi, lo int) float64 {
 }
 
 // byteToUnitFloat は1バイトを r∈[0,1) に写像する(純関数)。
-// 文言プール(レア度ごと20件)の選択用途には256段階で十分。
+// 文言プール(レア度ごと15件)の選択用途には256段階で十分。
 func byteToUnitFloat(b int) float64 {
 	return float64(b) / 256.0
 }

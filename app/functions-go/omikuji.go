@@ -247,7 +247,7 @@ func runOmikuji(ctx context.Context, w http.ResponseWriter, client *firestore.Cl
 
 	// 抽選は kuda の物理乱数(量子ゆらぎ/放射性崩壊)で行う。1回の抽選で
 	// 3バイト消費: tier に2バイト(重み合計100に対し量子化誤差~0.003%)、
-	// 文言に1バイト(プール20件のflavor用途)。
+	// 文言に1バイト(プール15件のflavor用途)。
 	// kuda が枯渇(503)・停止中は疑似乱数へフォールバックせず「引けない」を
 	// 返す(ユーザー決定。クールダウンは消費しないので復旧後に引き直せる)。
 	drops, err := fetchKudaBytes(ctx, 3)
