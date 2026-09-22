@@ -27,10 +27,8 @@
 const bell = require("./omikujiMachine");
 const slingshot = require("./omikujiSlingshot");
 const pinball = require("./omikujiPinball");
-const saisen = require("./omikujiSaisen");
-const daruma = require("./omikujiDaruma");
 
-const ALL = { bell, slingshot, pinball, saisen, daruma };
+const ALL = { bell, slingshot, pinball };
 const IDS = Object.keys(ALL);
 
 function byId(id) {
