@@ -35,19 +35,31 @@
             <rect :x="TUBE.x + TUBE.w * 0.28" :y="TUBE.y - TUBE.h / 2" :width="TUBE.w * 0.22" :height="TUBE.h" rx="8" class="tube-facet dark" />
             <rect :x="TUBE.x - TUBE.w / 2" :y="TUBE.y - TUBE.h / 2 + 22" :width="TUBE.w" height="8" class="tube-band" />
             <rect :x="TUBE.x - TUBE.w / 2" :y="TUBE.y + TUBE.h / 2 - 30" :width="TUBE.w" height="8" class="tube-band" />
-            <text :x="TUBE.x" :y="TUBE.y - 40" class="tube-label">
-              <tspan :x="TUBE.x" dy="0">御</tspan>
-              <tspan :x="TUBE.x" dy="36">神</tspan>
-              <tspan :x="TUBE.x" dy="36">籤</tspan>
-            </text>
+            <!-- 1文字ずつ別の text にして、それぞれ中央揃えにする。1つの text の中で
+                 tspan を改行して並べていたら、tspan の間の改行が空白として描かれ、
+                 「御␣」「神␣」が空白込みで中央揃えされて左に寄った(末尾の籤だけ中央)。
+                 >{{ ch }}</text> と詰めて書き、空白を入れないこと。 -->
+            <text
+              v-for="(ch, k) in TUBE_LABEL"
+              :key="'l' + k"
+              :x="TUBE.x"
+              :y="TUBE.y - 40 + k * 36"
+              class="tube-label"
+            >{{ ch }}</text>
             <!-- 口(上面の穴) -->
             <ellipse :cx="TUBE.x" :cy="TUBE.y - TUBE.h / 2 + 4" rx="10" ry="4" class="tube-hole" />
           </g>
         </g>
         <!-- 棒の番号。筒はひっくり返っているので、筒の外に正立で書く -->
-        <text v-if="drawerNo !== null && stickOut > 90" :x="TUBE.x" :y="stickLabelY" class="stick-no">
-          <tspan v-for="(ch, k) in stickLabel" :key="k" :x="TUBE.x" :dy="k === 0 ? 0 : 15">{{ ch }}</tspan>
-        </text>
+        <template v-if="drawerNo !== null && stickOut > 90">
+          <text
+            v-for="(ch, k) in stickLabel"
+            :key="'n' + k"
+            :x="TUBE.x"
+            :y="stickLabelY + k * 15"
+            class="stick-no"
+          >{{ ch }}</text>
+        </template>
 
         <!-- 引き出しの棚 -->
         <rect :x="CAB.x" :y="CAB.y" :width="CAB.w" :height="CAB.h" rx="6" class="cabinet" />
@@ -104,6 +116,7 @@ const TIER_KEYS = {
   大凶: "daikyo",
 };
 const KANJI = ["一", "二", "三", "四", "五", "六", "七"];
+const TUBE_LABEL = ["御", "神", "籤"];
 
 // 論理座標(OmikujiScene の装置と同じ 480x760)
 const W = 480;
@@ -131,6 +144,7 @@ export default {
       CAB,
       DRAWERS,
       KANJI,
+      TUBE_LABEL,
       phase: "ritual", // ritual | waiting | reveal | done
       offsetY: 0,
       tilt: 0,
