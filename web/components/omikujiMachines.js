@@ -24,6 +24,12 @@
 //                   狙いが外れて何にも当たらない装置で、物音で狐を起こすきっかけ
 //
 // 抽選の正しさは装置に依存しない(狐の最終着地は omikujiFox.js)。
+//
+// 狐を使わず、演出そのものが結果を見せる種類(REVEALS)もある。こちらは物理の
+// 装置ではなく、それぞれ専用のコンポーネント(OmikujiAmida.vue など)で動く。
+// ページとの約束は OmikujiScene と同じ(props: targetTier / emit: rang, landed)。
+//   amida : 隠しあみだくじ(OmikujiAmida.vue)
+//   tube  : おみくじ筒(OmikujiTube.vue)
 const bell = require("./omikujiMachine");
 const slingshot = require("./omikujiSlingshot");
 const pinball = require("./omikujiPinball");
@@ -32,15 +38,22 @@ const daruma = require("./omikujiDaruma");
 
 const ALL = { bell, slingshot, pinball, saisen, daruma };
 const IDS = Object.keys(ALL);
+const REVEALS = ["amida", "tube"];
+// 演出の全種類(物理の装置 + 演出が結果を見せる種類)
+const ALL_IDS = IDS.concat(REVEALS);
 
 function byId(id) {
   return ALL[id] || bell;
 }
 
+function isReveal(id) {
+  return REVEALS.includes(id);
+}
+
 // 毎回ランダムに1つ選ぶ(rnd は検証用に注入可)。
 function pick(rnd) {
   const r = (rnd || Math.random)();
-  return IDS[Math.min(IDS.length - 1, Math.floor(r * IDS.length))];
+  return ALL_IDS[Math.min(ALL_IDS.length - 1, Math.floor(r * ALL_IDS.length))];
 }
 
-module.exports = { ALL, IDS, byId, pick };
+module.exports = { ALL, IDS, REVEALS, ALL_IDS, byId, isReveal, pick };
