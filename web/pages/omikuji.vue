@@ -82,9 +82,12 @@
       </button>
     </div>
 
-    <!-- 抽選演出(儀式 → 装置の見せ場 → 狐が選ぶ)。全画面オーバーレイ。
-         装置(からくり)は引くたびにランダム(omikujiMachines.js)。 -->
-    <OmikujiScene
+    <!-- 抽選演出。全画面オーバーレイ。種類は引くたびにランダム(omikujiMachines.js)。
+         物理の装置(儀式 → 装置の見せ場 → 狐が選ぶ)は OmikujiScene、演出そのものが
+         結果を見せる種類(あみだ・筒)は専用のコンポーネント。どれも targetTier を
+         受け取り、儀式が済んだら rang、見せ終えたら landed を出す。 -->
+    <component
+      :is="sceneComponent"
       v-if="state === 'animating'"
       :target-tier="pendingResult && pendingResult.tier"
       :pattern="scenePattern"
@@ -99,6 +102,8 @@ import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { mapGetters } from "vuex";
 import ResultCard from "@/components/OmikujiResult";
 import OmikujiScene from "@/components/OmikujiScene";
+import OmikujiAmida from "@/components/OmikujiAmida";
+import OmikujiTube from "@/components/OmikujiTube";
 import machines from "@/components/omikujiMachines";
 import {
   saveOmikujiState,
@@ -117,7 +122,7 @@ function resolveCurrentUser(auth) {
 
 export default {
   middleware: ["auth"],
-  components: { ResultCard, OmikujiScene },
+  components: { ResultCard, OmikujiScene, OmikujiAmida, OmikujiTube },
   data() {
     return {
       state: "loading", // loading | available | animating | cooldown | empty(物理乱数枯渇) | error
@@ -212,7 +217,7 @@ export default {
       this.sceneCount++;
       // 装置を選ぶ。?scene=slingshot のように指定すれば固定できる(確認用)。
       const wanted = this.$route && this.$route.query && this.$route.query.scene;
-      this.scenePattern = machines.IDS.includes(wanted) ? wanted : machines.pick();
+      this.scenePattern = machines.ALL_IDS.includes(wanted) ? wanted : machines.pick();
       this.pendingResult = null;
       this._pendingRemaining = 0;
       this.state = "animating";
@@ -328,6 +333,11 @@ export default {
   },
   computed: {
     ...mapGetters(["user"]),
+    // 今回の演出のコンポーネント(物理の装置はすべて OmikujiScene)
+    sceneComponent() {
+      if (!machines.isReveal(this.scenePattern)) return "OmikujiScene";
+      return { amida: "OmikujiAmida", tube: "OmikujiTube" }[this.scenePattern];
+    },
     remainingText() {
       // トップページと同じ表記にする(整形は omikujiCooldown.js に一本化)。
       return formatOmikujiRemaining(this.remaining);
