@@ -30,6 +30,7 @@
 // ページとの約束は OmikujiScene と同じ(props: targetTier / emit: rang, landed)。
 //   amida : 隠しあみだくじ(OmikujiAmida.vue)
 //   tube  : おみくじ筒(OmikujiTube.vue)
+//   pitagora : 和風ピタゴラ(OmikujiPitagora.vue)
 const bell = require("./omikujiMachine");
 const slingshot = require("./omikujiSlingshot");
 const pinball = require("./omikujiPinball");
@@ -38,7 +39,7 @@ const daruma = require("./omikujiDaruma");
 
 const ALL = { bell, slingshot, pinball, saisen, daruma };
 const IDS = Object.keys(ALL);
-const REVEALS = ["amida", "tube"];
+const REVEALS = ["amida", "tube", "pitagora"];
 // 演出の全種類(物理の装置 + 演出が結果を見せる種類)
 const ALL_IDS = IDS.concat(REVEALS);
 
