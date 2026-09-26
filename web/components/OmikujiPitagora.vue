@@ -94,8 +94,14 @@
         />
 
         <!-- ⑤ 鹿威し -->
-        <path d="M1590 440 V476 H1512" class="pipe" />
-        <path v-if="t > 5.2 && t < 7.5" d="M1512 482 V512" class="drip" />
+        <!-- 樋の口は竹筒の口の真上。水は筒の上面(傾きで上下する)まで落ちて注がれる -->
+        <path :d="`M1590 440 V476 H${WATER_X}`" class="pipe" />
+        <path
+          :d="`M${WATER_X} 484 V${waterEndY}`"
+          class="water"
+          :style="{ strokeDashoffset: -t * 90 }"
+        />
+        <ellipse :cx="WATER_X" :cy="waterEndY" rx="6" ry="2" class="splash" />
         <rect :x="G.SHISHI.pivotX - 6" :y="G.SHISHI.pivotY - 40" width="12" height="92" class="wood" />
         <g :transform="`rotate(${shishiDeg} ${G.SHISHI.pivotX} ${G.SHISHI.pivotY - 40})`">
           <rect
@@ -107,6 +113,8 @@
             class="bamboo"
           />
           <ellipse :cx="G.SHISHI.pivotX + G.SHISHI.len / 2 - 3" :cy="G.SHISHI.pivotY - 40" rx="5" ry="10" class="ink" />
+          <!-- 上面の口(樋の水はここに注がれる) -->
+          <ellipse :cx="G.SHISHI.pivotX + 60" :cy="G.SHISHI.pivotY - 51" rx="12" ry="3.5" class="ink" />
         </g>
         <circle :cx="G.SHISHI.pivotX" :cy="G.SHISHI.pivotY - 40" r="4" class="ink" />
         <ellipse cx="1350" cy="604" rx="30" ry="12" class="stone" />
@@ -219,6 +227,10 @@ const LAP_SPEED = (2 * Math.PI) / 1.2; // 回転盤の角速度(rad/s)
 // 出口でカメラが寄る倍率。3D の最初の構図(真横)はこの寄りの画面に合わせる
 // (玉の大きさ・位置・動く速さがそろうよう、EXIT_SIDE_DIST を決めている)。
 const EXIT_ZOOM = 3.2;
+// 鹿威しの樋の口の x(竹筒の口 = 右端より少し内側の真上)
+const WATER_X = 1476;
+// 谷越えのスローでカメラが玉に寄る倍率
+const SLOW_ZOOM = 2.2;
 // 2D の玉の半径(画面の幅に対する割合)= 3D の玉の半径 → 真横のカメラの距離
 const EXIT_SIDE_DIST = (0.9 * 0.42 * 480) / (10 * 1.06 * EXIT_ZOOM);
 // 3D の走り出しの速さの倍率(2D の出口で玉の周りが流れる速さ ÷ 3D の真横で流れる速さ)
@@ -262,14 +274,16 @@ export default {
       return G.ball2D(this.t, this.tableAngle);
     },
     viewBox() {
-      if (this.zoomF > 0) {
+      // 寄り: 出口(3D へ切り替わる前)と、谷越えのスロー(スローの強さに合わせてアップ)
+      const k = this.zoomF > 0 ? this.zoomF : this.slowK;
+      if (k > 0) {
         // いつもの画面から、玉を真ん中にした寄りの画面へなめらかに移る
-        const zoom = 1 + (EXIT_ZOOM - 1) * this.zoomF;
+        const zoom = 1 + ((this.zoomF > 0 ? EXIT_ZOOM : SLOW_ZOOM) - 1) * k;
         const w = G.STAGE.W / zoom;
         const h = G.STAGE.H / zoom;
         const b = this.ball;
-        const cx = this.camX + G.STAGE.W / 2 + (b.x - this.camX - G.STAGE.W / 2) * this.zoomF;
-        const cy = G.STAGE.H / 2 + (b.y - G.STAGE.H / 2) * this.zoomF;
+        const cx = this.camX + G.STAGE.W / 2 + (b.x - this.camX - G.STAGE.W / 2) * k;
+        const cy = G.STAGE.H / 2 + (b.y - G.STAGE.H / 2) * k;
         return `${cx - w / 2} ${cy - h / 2} ${w} ${h}`;
       }
       return `${this.camX} ${this.shake} ${G.STAGE.W} ${G.STAGE.H}`;
@@ -287,6 +301,12 @@ export default {
     },
     shishiDeg() {
       return G.shishiAngle(this.t);
+    },
+    // 樋から落ちる水が当たる所(竹筒の上面。筒の傾きで上下する)
+    waterEndY() {
+      const a = (this.shishiDeg * Math.PI) / 180;
+      const d = (WATER_X - G.SHISHI.pivotX) / Math.cos(a);
+      return G.SHISHI.pivotY - 40 + d * Math.sin(a) - 11 / Math.cos(a);
     },
     // 谷越えのスローの強さ(0〜1)
     slowK() {
@@ -327,6 +347,7 @@ export default {
     // __ob__ を生やし、検証スクリプトと共有しているモジュールを書き換えてしまう)
     this.G = G;
     this.helixRails = G.helixRailPaths();
+    this.WATER_X = WATER_X;
   },
   mounted() {
     this.reducedMotion =
@@ -806,7 +827,8 @@ export default {
 .spring { fill: none; stroke: #93b56f; stroke-width: 4; }
 .plank { fill: #3a2d26; stroke: #c79a64; stroke-width: 1.5; }
 .pipe { fill: none; stroke: #6f8f4e; stroke-width: 10; stroke-linecap: round; }
-.drip { stroke: #7fa6d1; stroke-width: 3; stroke-dasharray: 4 6; }
+.water { stroke: #9cc3ec; stroke-width: 5; stroke-dasharray: 10 5; stroke-linecap: round; opacity: 0.9; }
+.splash { fill: #a9c6e6; opacity: 0.7; }
 .bamboo { fill: #6f8f4e; stroke: #3f5a2a; stroke-width: 1.5; }
 .stone { fill: #6a6460; }
 .table-side { fill: #5a3f28; }

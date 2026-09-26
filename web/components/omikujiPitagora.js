@@ -259,8 +259,9 @@ function cameraX(ballX, t) {
 // ---- 3D のあみだ(玉の視点) ----
 const POV = {
   laneGap: 6,
-  rowGap: 7.5,
-  rows: 10,
+  rowGap: 6,
+  rows: 15, // 横線を置ける段の数(隠しあみだより多く、密にして追いにくくする)
+  density: 0.45, // 各段・各すきまに横線を置く確率
   lead: 28, // 最初の横線までの直線(カメラが玉の後ろへ回り込む間はまっすぐ)
   tail: 12, // 最後の横線から門まで
   fillet: 1.6, // 曲がり角の丸み
@@ -272,7 +273,7 @@ const laneX = (lane) => (lane - (LANES - 1) / 2) * POV.laneGap;
 // 入る線 start から結果の門 target へのあみだと、玉の道のり(曲がり角の点)を組む。
 function buildRoute(start, target, opts) {
   const rows = POV.rows;
-  const ladder = buildLadder(start, target, { rows, rnd: opts && opts.rnd });
+  const ladder = buildLadder(start, target, { rows, density: POV.density, rnd: opts && opts.rnd });
   const { path } = ladder;
   const pts = [{ x: laneX(start), z: 0 }];
   ladder.rows.forEach((row, r) => {
