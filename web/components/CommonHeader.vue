@@ -33,7 +33,7 @@
             >
           </li>
           <li class="nav-item">
-            <nuxt-link class="nav-link active" to="/ostrich">ダチョウ走</nuxt-link>
+            <nuxt-link class="nav-link active" to="/games">ミニゲーム</nuxt-link>
           </li>
           <!-- <li class="nav-item">
             <a class="nav-link" href="#">Link</a>

@@ -847,9 +847,14 @@ sanpai_logs / omikuji_logs を集計して返す(表示: `web/components/Profile
   (`ogps/{user}_v3.webp`、`userogp.go` の `ogpObjectName`)にして旧カードを無効化。
   描画内容を変えるときはこの世代を上げること(旧世代は scheduled_ogp_delete が掃除)。
 
-## ミニゲーム「ダチョウ走」(`/ostrich`)
+## ミニゲーム(`/games`)
 
-おみくじとは関係のない、単独のミニゲーム。ログインしなくても遊べ、サーバーとは通信しない。
+おみくじとは関係のない、単独のミニゲーム。一覧は `web/pages/games/index.vue`、各ゲームは
+`web/pages/games/<id>.vue`(ゲームを増やしたら一覧の `games` に足す)。
+
+### ダチョウ走(`/games/ostrich`)
+
+ログインしなくても遊べ、サーバーとは通信しない。
 
 - ベースは Chrome の通信できない時の恐竜ゲーム。ダチョウが走り続け、地面でタップ(スペース
   キー / ↑)するとジャンプ、空中でタップすると羽ばたく(Flappy Bird)。障害物はサボテン、
@@ -862,7 +867,7 @@ sanpai_logs / omikuji_logs を集計して返す(表示: `web/components/Profile
   そのままスクショしやすい)。「画像を保存」はゲーム画面と札を1枚の PNG にまとめ、共有できる
   端末ではシェアシート、それ以外はダウンロードにする。
 - ルールは `web/components/ostrichGame.js`(純関数、固定刻み 1/120 秒、乱数を注入できる)、
-  描画と操作は `web/components/OstrichRun.vue`、ページは `web/pages/ostrich.vue`。
+  描画と操作は `web/components/OstrichRun.vue`、ページは `web/pages/games/ostrich.vue`。
 - 検証は `web/scripts/test-ostrich-game.js`。単純な自動操縦で 300 回 × 90 秒走らせ、ほぼ全部
   走り切れること(= よけようのない配置が出ないこと)、障害物の間隔が反応に要る時間以上あること、
   門のすき間が走ったままでは通れず羽ばたけば届く高さにあることを確かめる。

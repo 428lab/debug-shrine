@@ -1,5 +1,6 @@
 <template>
   <div class="container py-3">
+    <div class="mb-2"><nuxt-link to="/games">&lt; ミニゲーム一覧</nuxt-link></div>
     <h1 class="h4 text-center mb-3">ダチョウ走</h1>
     <OstrichRun :site-url="$config.baseUrl" />
   </div>
