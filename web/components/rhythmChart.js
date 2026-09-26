@@ -159,25 +159,12 @@ function judge(diff) {
   return null;
 }
 
-// 点数(満点 1,000,000)と評価
+// 点数(満点 1,000,000)
 const WEIGHT = { kiwami: 1, ryo: 0.7, ka: 0.3, fuka: 0 };
 function scoreOf(counts, total) {
   if (!total) return 0;
   const sum = Object.keys(WEIGHT).reduce((a, k) => a + (counts[k] || 0) * WEIGHT[k], 0);
   return Math.round((1000000 * sum) / total);
 }
-// 正確さ(%)から運勢の評価
-const RANKS = [
-  { min: 97, name: "大吉" },
-  { min: 92, name: "中吉" },
-  { min: 85, name: "小吉" },
-  { min: 75, name: "吉" },
-  { min: 60, name: "末吉" },
-  { min: 0, name: "凶" },
-];
-function rankOf(score) {
-  const pct = score / 10000;
-  return RANKS.find((r) => pct >= r.min).name;
-}
 
-module.exports = { LANES, LEVELS, WINDOWS, WEIGHT, RANKS, buildChart, judge, scoreOf, rankOf };
+module.exports = { LANES, LEVELS, WINDOWS, WEIGHT, buildChart, judge, scoreOf };
