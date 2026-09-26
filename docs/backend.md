@@ -852,7 +852,9 @@ sanpai_logs / omikuji_logs を集計して返す(表示: `web/components/Profile
 おみくじとは関係のない、単独のミニゲーム。一覧は `web/pages/games/index.vue`、各ゲームは
 `web/pages/games/<id>.vue`(ゲームを増やしたら一覧の `games` に足す)。
 
-### ダチョウ走(`/games/ostrich`)
+### 韋駝天(いだてん。`/games/ostrich`)
+
+名前は足の速い神様「韋駄天」の「駄」を駝鳥の「駝」にしたもの。
 
 ログインしなくても遊べ、サーバーとは通信しない。
 

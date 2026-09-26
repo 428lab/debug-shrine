@@ -1,4 +1,4 @@
-// ミニゲーム「ダチョウ走」のルール(components/ostrichGame.js)の検証。
+// ミニゲーム「韋駝天」のルール(components/ostrichGame.js)の検証。
 //
 // 使い方(web/ ディレクトリで実行):
 //   node scripts/test-ostrich-game.js
