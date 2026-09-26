@@ -1,7 +1,7 @@
 <template>
   <!-- リズムゲーム本体。譜面は rhythmChart.js、曲と音は rhythmSong.js / rhythmAudio.js。
        ハイスコアはこの端末にだけ保存する(DB には送らない)。 -->
-  <div class="rg">
+  <div class="rg" @dblclick.prevent>
     <div ref="wrap" class="rg-wrap">
       <canvas
         ref="canvas"
@@ -9,6 +9,9 @@
         @pointerdown.prevent="onPointerDown"
         @pointerup.prevent="onPointerUp"
         @pointercancel.prevent="onPointerUp"
+        @touchstart.prevent
+        @touchend.prevent
+        @dblclick.prevent
         @contextmenu.prevent
       ></canvas>
 
@@ -129,6 +132,17 @@ export default {
     window.addEventListener("keydown", this.onKeyDown);
     window.addEventListener("keyup", this.onKeyUp);
     document.addEventListener("visibilitychange", this.onVisibility);
+    // スマホでダブルタップしても拡大しないように(このページにいる間だけ)。
+    // CSS の touch-action が効かない古い iOS 向けに、素早い 2 回目のタップも打ち消す
+    this._prevTouchAction = document.documentElement.style.touchAction;
+    document.documentElement.style.touchAction = "manipulation";
+    this._lastTouchEnd = 0;
+    this._onTouchEnd = (e) => {
+      const now = Date.now();
+      if (now - this._lastTouchEnd < 350 && e.cancelable) e.preventDefault();
+      this._lastTouchEnd = now;
+    };
+    document.addEventListener("touchend", this._onTouchEnd, { passive: false });
     this._raf = requestAnimationFrame(this.frame);
   },
   beforeDestroy() {
@@ -136,6 +150,8 @@ export default {
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
     document.removeEventListener("visibilitychange", this.onVisibility);
+    document.removeEventListener("touchend", this._onTouchEnd);
+    document.documentElement.style.touchAction = this._prevTouchAction || "";
     if (this._raf) cancelAnimationFrame(this._raf);
     if (this.engine) this.engine.silence();
     if (this.ctx) this.ctx.close();
@@ -726,6 +742,7 @@ export default {
 .rg {
   max-width: 520px;
   margin: 0 auto;
+  touch-action: manipulation; /* ボタンを素早く押してもダブルタップ拡大しない */
 }
 .rg-wrap {
   position: relative;
