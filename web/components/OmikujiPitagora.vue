@@ -101,7 +101,6 @@
           class="water"
           :style="{ strokeDashoffset: -t * 90 }"
         />
-        <ellipse :cx="WATER_X" :cy="waterEndY" rx="6" ry="2" class="splash" />
         <rect :x="G.SHISHI.pivotX - 6" :y="G.SHISHI.pivotY - 40" width="12" height="92" class="wood" />
         <g :transform="`rotate(${shishiDeg} ${G.SHISHI.pivotX} ${G.SHISHI.pivotY - 40})`">
           <rect
@@ -116,6 +115,7 @@
           <!-- 上面の口(樋の水はここに注がれる) -->
           <ellipse :cx="G.SHISHI.pivotX + 60" :cy="G.SHISHI.pivotY - 51" rx="12" ry="3.5" class="ink" />
         </g>
+        <ellipse :cx="WATER_X" :cy="waterEndY" rx="6" ry="2" class="splash" />
         <circle :cx="G.SHISHI.pivotX" :cy="G.SHISHI.pivotY - 40" r="4" class="ink" />
         <ellipse cx="1350" cy="604" rx="30" ry="12" class="stone" />
         <!-- 竹が石を打った瞬間: 文字でなく、石から広がる輪と飛ぶ破片で見せる -->

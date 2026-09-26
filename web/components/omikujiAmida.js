@@ -54,7 +54,7 @@ function buildLadder(start, target, opts) {
   const lanes = (opts && opts.lanes) || LANES;
   const nRows = (opts && opts.rows) || ROWS;
   const rnd = (opts && opts.rnd) || Math.random;
-  const density = (opts && opts.density) || DENSITY;
+  const density = opts && opts.density != null ? opts.density : DENSITY;
   if (!(start >= 0 && start < lanes && target >= 0 && target < lanes)) {
     throw new Error(`buildLadder: out of range start=${start} target=${target}`);
   }
