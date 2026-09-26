@@ -93,11 +93,35 @@ function emaFallTime(i) {
   return T.railEnd + ((x - LEDGE.x0) / (LEDGE.x1 - LEDGE.x0)) * (T.ledgeEnd - T.railEnd);
 }
 
-// 谷越えの時間の進み(真ん中ほど遅い = スロー)。0→1 を 0→1 に写す。
-function slowMo(f) {
-  // 速さ ∝ 1 - 0.7*sin(πf) を積分して正規化
-  const g = (u) => u + (0.7 / Math.PI) * (Math.cos(Math.PI * u) - 1);
-  return g(f) / g(1);
+// 谷越えのスローの強さ(0〜1)。時間 u(0〜1)の真ん中あたりで平らに 1 になり、両端は 0。
+// 端をはっきり速く、真ん中を急に遅くすることで「スローになった」と分かるようにする
+// (全体を少しずつ遅くするだけでは、比べる速い場面が無く、スローに見えなかった)。
+function slowWeight(u) {
+  return Math.exp(-Math.pow((u - SLOW.center) / SLOW.width, 4));
+}
+const SLOW = { center: 0.48, width: 0.26, depth: 0.86 }; // 真ん中の速さ = 端の (1 − depth) 倍
+// 谷越えの時間の進み: 時間 u を放物線の進み f(0〜1)に写す(速さ ∝ 1 − depth·slowWeight)
+const SLOW_TABLE = (() => {
+  const n = 200;
+  const acc = [0];
+  for (let i = 1; i <= n; i++) {
+    const u = (i - 0.5) / n;
+    acc.push(acc[i - 1] + (1 - SLOW.depth * slowWeight(u)) / n);
+  }
+  return acc.map((v) => v / acc[n]);
+})();
+function slowMo(u) {
+  const n = SLOW_TABLE.length - 1;
+  const x = clamp(u, 0, 1) * n;
+  const i = Math.min(n - 1, Math.floor(x));
+  return lerp(SLOW_TABLE[i], SLOW_TABLE[i + 1], x - i);
+}
+// 放物線の上の点(f = 0〜1)
+function arcPoint(f) {
+  const x = lerp(ARC.x0, ARC.x1, f);
+  const base = lerp(ARC.y0, ARC.y1, f);
+  const lift = 4 * f * (1 - f) * (Math.min(ARC.y0, ARC.y1) - ARC.apex);
+  return { x, y: base - lift };
 }
 
 // 螺旋のレールの絵(SVG の path)。玉の下(中心から 11 下)を通る線を、柱の奥と手前に分ける。
@@ -173,12 +197,11 @@ function ball2D(t, tableAngle) {
   }
   if (t < T.launch) return { x: BOARD.x, y: BOARD.y + 6, s: 1 };
   if (t < T.land) {
-    const f = slowMo((t - T.launch) / (T.land - T.launch));
-    // 放物線(始点・頂点・終点を通る)
-    const x = lerp(ARC.x0, ARC.x1, f);
-    const base = lerp(ARC.y0, ARC.y1, f);
-    const lift = 4 * f * (1 - f) * (Math.min(ARC.y0, ARC.y1) - ARC.apex);
-    return { x, y: base - lift, s: 1, slow: true };
+    const u = (t - T.launch) / (T.land - T.launch);
+    const f = slowMo(u);
+    const p = arcPoint(f);
+    // slow: スローの強さ(黒帯・暗がり・残像の濃さに使う)。arcF: 残像の位置を決める
+    return { x: p.x, y: p.y, s: 1, slow: slowWeight(u), arcF: f };
   }
   if (t < T.spill) {
     // 筒の中(筒と一緒に下がる)
@@ -379,6 +402,7 @@ module.exports = {
   POV,
   LANES,
   ball2D,
+  arcPoint,
   onTable,
   emaAngle,
   shishiAngle,

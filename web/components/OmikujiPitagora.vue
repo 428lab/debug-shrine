@@ -82,7 +82,16 @@
         <g :transform="`rotate(${boardTilt} 1062 600)`">
           <rect x="1030" y="596" width="96" height="8" rx="3" class="plank" />
         </g>
-        <text v-if="ball.slow" :x="ball.x + 26" :y="ball.y - 30" class="slowmo">×0.3</text>
+        <!-- 谷越えのスロー: 玉の後ろに残像を引く -->
+        <circle
+          v-for="(g, k) in slowGhosts"
+          :key="'sg' + k"
+          :cx="g.x"
+          :cy="g.y"
+          r="10"
+          fill="url(#pg-ball)"
+          :opacity="g.o"
+        />
 
         <!-- ⑤ 鹿威し -->
         <path d="M1590 440 V476 H1512" class="pipe" />
@@ -160,6 +169,11 @@
           <div class="scroll-rod"></div>
         </div>
       </div>
+
+      <!-- 谷越えのスロー: 映画のような上下の黒帯と、周りの暗がり -->
+      <div v-if="slowK > 0.01" class="slow-vignette" :style="{ opacity: slowK }"></div>
+      <div v-if="slowK > 0.01" class="slow-bar top" :style="{ transform: `scaleY(${slowK})` }"></div>
+      <div v-if="slowK > 0.01" class="slow-bar bottom" :style="{ transform: `scaleY(${slowK})` }"></div>
 
       <div class="flash" :style="{ opacity: flash }"></div>
 
@@ -273,6 +287,23 @@ export default {
     },
     shishiDeg() {
       return G.shishiAngle(this.t);
+    },
+    // 谷越えのスローの強さ(0〜1)
+    slowK() {
+      return this.phase === "run" && this.ball.slow ? this.ball.slow : 0;
+    },
+    // スローの間の残像(放物線の少し手前の位置に、薄く並べる)
+    slowGhosts() {
+      const k = this.slowK;
+      if (k < 0.05) return [];
+      const out = [];
+      for (let i = 1; i <= 4; i++) {
+        const f = this.ball.arcF - i * 0.035;
+        if (f <= 0) break;
+        const p = G.arcPoint(f);
+        out.push({ x: p.x, y: p.y, o: (k * 0.4) / i });
+      }
+      return out;
     },
     // カコーンの輪: 打った瞬間に広がって消える
     kakon() {
@@ -782,13 +813,31 @@ export default {
 .table-top { fill: #8b6a48; stroke: #c79a64; stroke-width: 2; }
 .table-groove { fill: none; stroke: #5a3f28; stroke-width: 2; stroke-dasharray: 5 5; }
 .ball { filter: drop-shadow(0 0 4px rgba(255, 210, 90, 0.7)); }
-.slowmo {
-  fill: #7fa6d1;
-  font: 700 16px "IBM Plex Mono", ui-monospace, monospace;
-}
 .impact ellipse { fill: none; stroke: #efe6d2; stroke-width: 2.5; }
 .impact line { stroke: #efe6d2; stroke-width: 3; stroke-linecap: round; }
 
+.slow-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 50%, transparent 45%, rgba(8, 6, 12, 0.7) 100%);
+}
+.slow-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 9%;
+  background: #000;
+  pointer-events: none;
+}
+.slow-bar.top {
+  top: 0;
+  transform-origin: top;
+}
+.slow-bar.bottom {
+  bottom: 0;
+  transform-origin: bottom;
+}
 .flash {
   position: absolute;
   inset: 0;
