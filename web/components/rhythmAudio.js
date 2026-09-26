@@ -38,7 +38,15 @@ function createEngine(ctx) {
   comp.attack.value = 0.004;
   comp.release.value = 0.12;
   comp.connect(master);
-  master.connect(ctx.destination);
+  // 最後に音割れを防ぐリミッター(効果音は曲のコンプレッサを通らずに、ここへ直接来る)
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.value = -2;
+  limiter.knee.value = 0;
+  limiter.ratio.value = 20;
+  limiter.attack.value = 0.001;
+  limiter.release.value = 0.1;
+  master.connect(limiter);
+  limiter.connect(ctx.destination);
 
   // 残響(減衰するノイズを畳み込む)
   const reverb = ctx.createConvolver();
@@ -103,6 +111,12 @@ function createEngine(ctx) {
     sho: bus(0.6, 0.5),
     sfx: bus(0.8, 0.2),
   };
+  // 効果音は曲のコンプレッサに押し下げられないよう、コンプレッサを通さずに出す(残響には送る)
+  B.sfx.disconnect(comp);
+  const sfxOut = ctx.createGain();
+  sfxOut.gain.value = 1;
+  B.sfx.connect(sfxOut);
+  sfxOut.connect(master);
   // 歪んだギター: 弦ごとの音をまとめて 1 つの歪み(tanh)に通し、箱鳴り(ローパス)で丸める
   const gtrIn = ctx.createGain();
   {
@@ -788,28 +802,35 @@ function createEngine(ctx) {
     } else if (lane === "taiko") {
       const o = osc("sine", 130, t, 0.6);
       o.frequency.exponentialRampToValueAtTime(62, t + 0.2);
-      const g = env(t, 0.9 * strong, 0.002, 0.5);
+      const g = env(t, 1.5 * strong, 0.002, 0.5);
       o.connect(g);
       g.connect(B.sfx);
       const n = noise(t, 0.06);
       const lp = ctx.createBiquadFilter();
       lp.type = "lowpass";
-      lp.frequency.value = 1500;
-      const ng = env(t, 0.5 * strong, 0.001, 0.05);
+      lp.frequency.value = 1800;
+      const ng = env(t, 1.2 * strong, 0.001, 0.05);
       n.connect(lp);
       lp.connect(ng);
       ng.connect(B.sfx);
     } else {
-      // 柏手: 乾いた破裂音 + 短い響き
-      const n = noise(t, 0.2);
-      const bp = ctx.createBiquadFilter();
-      bp.type = "bandpass";
-      bp.frequency.value = 1800;
-      bp.Q.value = 0.9;
-      const g = env(t, 0.9 * strong, 0.0005, 0.12);
-      n.connect(bp);
-      bp.connect(g);
-      g.connect(B.sfx);
+      // 柏手: 乾いた破裂音(高い所と低い所の 2 枚)+ 手のひらの当たる低い音 + 短い響き
+      for (const [f, q, a] of [[1800, 0.9, 2.2], [900, 1.2, 1.4]]) {
+        const n = noise(t, 0.2);
+        const bp = ctx.createBiquadFilter();
+        bp.type = "bandpass";
+        bp.frequency.value = f;
+        bp.Q.value = q;
+        const g = env(t, a * strong, 0.0005, 0.12);
+        n.connect(bp);
+        bp.connect(g);
+        g.connect(B.sfx);
+      }
+      const o = osc("triangle", 220, t, 0.06);
+      o.frequency.exponentialRampToValueAtTime(140, t + 0.05);
+      const og = env(t, 0.8 * strong, 0.0005, 0.05);
+      o.connect(og);
+      og.connect(B.sfx);
     }
     // 極: きらっと高い音を重ねる
     if (judge === "kiwami") {
