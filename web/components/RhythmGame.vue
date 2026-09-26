@@ -246,8 +246,10 @@ export default {
       if (this.phase !== "paused") return;
       // 音が本当に動き出してから遊びに戻る(先に戻ると、止まっていた間の音符が一気に不可になる)
       const ctx = this.ensureCtx();
+      this._resuming = true;
       const p = ctx.resume ? ctx.resume() : null;
       const go = () => {
+        this._resuming = false;
         if (this.phase === "paused") this.phase = "play";
       };
       if (p && p.then) p.then(go, go);
@@ -262,7 +264,9 @@ export default {
       const t = this.heardTime();
       if (this.st) for (let lane = 0; lane < 3; lane++) if (this.st.held[lane]) this.endHold(lane, t);
       if (this._pointers) this._pointers = {};
-      if (this.ctx && this.ctx.state === "running") this.ctx.suspend();
+      // 音の状態に関わらず止める(止まっていても後で勝手に動き出すことがある: 遅れて届く resume、
+      // iOS の中断明けの自動復帰)。こちらから止めておけば、再開の操作まで鳴らない
+      if (this.ctx && this.ctx.state !== "closed") this.ctx.suspend();
       this.phase = "paused";
     },
 
@@ -374,6 +378,8 @@ export default {
     // ---- 毎フレーム ----
     frame(now) {
       this._raf = requestAnimationFrame(this.frame);
+      // 一時停止中に音が勝手に動き出したら(遅れて届いた resume など)止め直す
+      if (this.phase === "paused" && !this._resuming && this.ctx && this.ctx.state === "running") this.ctx.suspend();
       if (this.phase === "play") this.update(now);
       this.draw(now);
     },
