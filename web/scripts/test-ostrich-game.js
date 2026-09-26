@@ -27,8 +27,8 @@ function seeded(seed) {
   };
 }
 
-// 単純な自動操縦: 目の前の障害物だけを見る。press を返す関数を渡すと、押すのを遅らせられる
-function autopilot(g, press = G.press) {
+// 単純な自動操縦: 目の前の障害物だけを見る
+function autopilot(g) {
   const front = G.BIRD.x + G.BIRD.w / 2;
   const ob = g.obstacles.find((o) => o.x + o.w > G.BIRD.x - G.BIRD.w / 2);
   if (!ob) return;
@@ -36,14 +36,14 @@ function autopilot(g, press = G.press) {
   if (ob.kind === "gate") {
     const target = ob.gapBottom - 30; // 足をすき間の下端より少し上に
     if (g.onGround) {
-      if (d < g.speed * 0.75) press(g);
+      if (d < g.speed * 0.75) G.press(g);
     } else if (g.y > target && g.vy > -150) {
-      press(g);
+      G.press(g);
     }
     return;
   }
   if (ob.kind === "crow" && !ob.low) return; // 高いカラスは走り抜ける
-  if (g.onGround && d < g.speed * 0.12 + 6 && d > -10) press(g);
+  if (g.onGround && d < g.speed * 0.12 + 6 && d > -10) G.press(g);
 }
 
 const SECONDS = 90;
