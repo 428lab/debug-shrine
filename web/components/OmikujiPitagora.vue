@@ -19,10 +19,10 @@
           </linearGradient>
         </defs>
         <!-- 空と遠景は出口のレールの先(カメラが玉に寄る所)まで広げておく -->
-        <rect x="0" y="-12" width="2400" height="784" fill="url(#pg-sky)" />
+        <rect x="0" y="-12" width="2400" height="832" fill="url(#pg-sky)" />
         <!-- 遠景の山 -->
         <path
-          d="M0 520 L160 440 L300 500 L470 410 L640 480 L820 400 L1000 470 L1180 390 L1380 470 L1560 410 L1760 480 L1900 430 L2120 480 L2400 420 V772 H0 Z"
+          d="M0 520 L160 440 L300 500 L470 410 L640 480 L820 400 L1000 470 L1180 390 L1380 470 L1560 410 L1760 480 L1900 430 L2120 480 L2400 420 V820 H0 Z"
           class="hills"
         />
 
@@ -55,7 +55,7 @@
           </g>
         </g>
 
-        <!-- ③ 鳥居と螺旋(柱に巻き付く1本のレール。奥 → 柱 → 奥の玉 → 手前の順に重ねる) -->
+        <!-- ③ 鳥居と螺旋(柱に巻き付く1本のレール。奥 → 奥の玉 → 柱 → 手前の順に重ねる) -->
         <g class="torii">
           <rect x="800" y="300" width="200" height="14" rx="3" />
           <rect x="814" y="326" width="172" height="9" />
@@ -63,7 +63,6 @@
           <rect x="963" y="314" width="13" height="300" />
         </g>
         <path v-for="(d, k) in helixRails.back" :key="'hb' + k" :d="d" class="rail helix-back" />
-        <rect :x="G.HELIX.cx - 5" y="336" width="10" height="278" class="wood" />
         <circle
           v-if="phase !== 'ritual' && ball.coilBack"
           :cx="ball.x"
@@ -72,12 +71,13 @@
           fill="url(#pg-ball)"
           class="ball"
         />
+        <rect :x="G.HELIX.cx - 5" y="336" width="10" height="278" class="wood" />
         <path v-for="(d, k) in helixRails.front" :key="'hf' + k" :d="d" class="rail" />
 
         <!-- ④ 跳ね板と谷 -->
         <path :d="`M${G.HELIX.cx} ${G.HELIX.y1 + 11} L${G.BOARD.x + 4} ${G.BOARD.y + 11}`" class="rail" />
-        <path d="M930 614 H1135 V772 H930 Z" class="ground" />
-        <path d="M1316 614 H1395 V642 H2400 V772 H1316 Z" class="ground" />
+        <path d="M930 614 H1135 V820 H930 Z" class="ground" />
+        <path d="M1316 614 H1395 V642 H2400 V820 H1316 Z" class="ground" />
         <path d="M1062 614 q-6 -8 0 -16 q6 -8 0 -16" class="spring" />
         <g :transform="`rotate(${boardTilt} 1062 600)`">
           <rect x="1030" y="596" width="96" height="8" rx="3" class="plank" />
@@ -207,6 +207,9 @@ const LAP_SPEED = (2 * Math.PI) / 1.2; // 回転盤の角速度(rad/s)
 const EXIT_ZOOM = 3.2;
 // 2D の玉の半径(画面の幅に対する割合)= 3D の玉の半径 → 真横のカメラの距離
 const EXIT_SIDE_DIST = (0.9 * 0.42 * 480) / (10 * 1.06 * EXIT_ZOOM);
+// 3D の走り出しの速さの倍率(2D の出口で玉の周りが流れる速さ ÷ 3D の真横で流れる速さ)
+const EXIT_SPEED_MATCH =
+  ((G.EXIT_SPEED * LAP_SPEED * EXIT_ZOOM) / 480) / ((0.9 * G.POV.speed) / EXIT_SIDE_DIST);
 // 真横のカメラの見下ろす角度: 地平線 = 玉の 38 上(回転盤の地面の縁)× EXIT_ZOOM
 const EXIT_PITCH = Math.atan((38 * EXIT_ZOOM) / 480 / 0.9);
 const FAILSAFE_MS = 25000; // 結果を待つ上限
@@ -481,7 +484,11 @@ export default {
           const el = (now - t0) / 1000;
           // 2D の玉と同じ速さのまま走る。最初は 2D の寄りの画面に 3D を重ねてなじませる
           // (その間も 2D の玉は同じ速さで進める)
-          const s = G.POV.speed * el;
+          // 走り出しは 2D の出口の速さ(画面の上で同じ速さに見える値)から、回り込む間に
+          // いつもの速さへ戻す
+          const k = EXIT_SPEED_MATCH - 1;
+          const o = G.T.orbit;
+          const s = G.POV.speed * (el + k * (el < o ? el - (el * el) / (2 * o) : o / 2));
           if (this.povFade < 1) {
             this.povFade = Math.min(1, el / 0.25);
             this.exitD += G.EXIT_SPEED * LAP_SPEED * dt;
@@ -513,9 +520,11 @@ export default {
       const e = o * o * (3 - 2 * o);
       const side = -Math.PI / 2;
       const yaw = side + (this._yaw - side) * e;
-      const dist = EXIT_SIDE_DIST + (3.6 - EXIT_SIDE_DIST) * e;
       // 真横でも少し見下ろす(2D の寄りの画面で玉の上に見えている地面の縁と、地平線の高さを合わせる)
-      const y0 = 0.45 + EXIT_SIDE_DIST * Math.tan(EXIT_PITCH);
+      // (EXIT_SIDE_DIST は玉までの視線の長さ。水平の距離と高さに分ける)
+      const y0 = 0.45 + EXIT_SIDE_DIST * Math.sin(EXIT_PITCH);
+      const side0 = EXIT_SIDE_DIST * Math.cos(EXIT_PITCH);
+      const dist = side0 + (3.6 - side0) * e;
       const cam = {
         // 玉のやや後ろ上から。玉が画面の下寄りに来て、進む先を隠さない高さ
         x: p.x - Math.sin(yaw) * dist,

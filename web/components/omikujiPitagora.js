@@ -49,7 +49,7 @@ const EMA = { x0: 580, gap: 40, n: 6, baseY: 384 };
 // 鳥居の中の螺旋(真ん中の柱に巻き付く1本のレール)。玉は手前の真ん中(φ=0)から入って
 // turns 周まわりながら下り、また手前の真ん中から外へ出る。
 // 画面上の位置: x = cx + r·sin φ、y = 下り + ry·(cos φ − 1)。cos φ < 0 が柱の奥。
-const HELIX = { cx: 900, r: 56, ry: 22, y0: 372, y1: 548, turns: 3 };
+const HELIX = { cx: 900, r: 52, ry: 22, y0: 372, y1: 548, turns: 3 };
 function helixPoint(phi) {
   const total = HELIX.turns * 2 * Math.PI;
   return {
@@ -74,6 +74,18 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, f) => a + (b - a) * f;
 const easeIn = (f) => f * f;
 const easeInOut = (f) => f * f * (3 - 2 * f);
+
+// 螺旋の速さの係数(位置 = V0·u + (1−V0)·u²)。入口は棚の速さ、出口は跳ね板への初速にそろえる。
+const HELIX_V0 = (() => {
+  const ledgeV = (LEDGE.x1 - LEDGE.x0) / (T.ledgeEnd - T.railEnd);
+  const helixV = (HELIX.turns * 2 * Math.PI * HELIX.r) / (T.helixEnd - T.ledgeEnd); // 平均の速さ
+  return ledgeV / helixV;
+})();
+const HELIX_OUT_V0 = (() => {
+  const outV = ((2 - HELIX_V0) * HELIX.turns * 2 * Math.PI * HELIX.r) / (T.helixEnd - T.ledgeEnd);
+  const len = Math.hypot(BOARD.x - HELIX.cx, BOARD.y - HELIX.y1);
+  return clamp((outV * (T.boardHit - T.helixEnd)) / len, 0, 1);
+})();
 
 // 絵馬 i が倒れ始める時刻(玉が手前に来た時)
 function emaFallTime(i) {
@@ -147,15 +159,16 @@ function ball2D(t, tableAngle) {
     return { x: lerp(LEDGE.x0, LEDGE.x1, f), y: LEDGE.y, s: 1 };
   }
   if (t < T.helixEnd) {
-    // 一定の速さで回る(棚から入る速さとほぼ同じ)
-    const f = (t - T.ledgeEnd) / (T.helixEnd - T.ledgeEnd);
+    // 棚から入った速さで回り始め、下るほど少しずつ速くなる
+    const u = (t - T.ledgeEnd) / (T.helixEnd - T.ledgeEnd);
+    const f = HELIX_V0 * u + (1 - HELIX_V0) * u * u;
     return helixPoint(f * HELIX.turns * 2 * Math.PI);
   }
   if (t < T.boardHit) {
     const e = { x1: HELIX.cx, y1: HELIX.y1 };
-    // 螺旋を出た勢いのまま跳ね板へ(速さが途切れないよう一次で入る)
+    // 螺旋を出た勢いのまま跳ね板へ(螺旋の出口の速さから入る)
     const f = (t - T.helixEnd) / (T.boardHit - T.helixEnd);
-    const g = 0.6 * f + 0.4 * f * f;
+    const g = HELIX_OUT_V0 * f + (1 - HELIX_OUT_V0) * f * f;
     return { x: lerp(e.x1, BOARD.x, g), y: lerp(e.y1, BOARD.y, g), s: 1 };
   }
   if (t < T.launch) return { x: BOARD.x, y: BOARD.y + 6, s: 1 };
