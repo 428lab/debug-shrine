@@ -22,11 +22,11 @@ const DENSITY = 0.3; // 各段・各すきまに横線を置く確率(隣接は�
 const MAX_TRIES = 200;
 
 // 1段ぶんの横線をランダムに置く。rungs[c] = true は c と c+1 を結ぶ。
-function randomRow(lanes, rnd) {
+function randomRow(lanes, rnd, density = DENSITY) {
   const row = new Array(lanes - 1).fill(false);
   for (let c = 0; c < lanes - 1; c++) {
     if (c > 0 && row[c - 1]) continue; // 隣り合う横線は置かない
-    row[c] = rnd() < DENSITY;
+    row[c] = rnd() < density;
   }
   return row;
 }
@@ -54,18 +54,19 @@ function buildLadder(start, target, opts) {
   const lanes = (opts && opts.lanes) || LANES;
   const nRows = (opts && opts.rows) || ROWS;
   const rnd = (opts && opts.rnd) || Math.random;
+  const density = opts && opts.density != null ? opts.density : DENSITY;
   if (!(start >= 0 && start < lanes && target >= 0 && target < lanes)) {
     throw new Error(`buildLadder: out of range start=${start} target=${target}`);
   }
   for (let t = 0; t < MAX_TRIES; t++) {
     const rows = [];
-    for (let r = 0; r < nRows; r++) rows.push(randomRow(lanes, rnd));
+    for (let r = 0; r < nRows; r++) rows.push(randomRow(lanes, rnd, density));
     if (endOf(rows, start) === target) return { rows, path: tracePath(rows, start) };
   }
   // 決まらなかった場合: ランダムな段の後ろに、狙いの端まで横へ運ぶ段を足す。
   const rows = [];
   const head = nRows - Math.abs(target - start);
-  for (let r = 0; r < Math.max(0, head); r++) rows.push(randomRow(lanes, rnd));
+  for (let r = 0; r < Math.max(0, head); r++) rows.push(randomRow(lanes, rnd, density));
   let c = endOf(rows, start);
   while (c !== target) {
     const row = new Array(lanes - 1).fill(false);
