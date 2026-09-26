@@ -54,27 +54,34 @@
           </g>
         </g>
 
-        <!-- ③ 鳥居と螺旋 -->
+        <!-- ③ 鳥居とつづら折り(玉は鳥居の手前を転がってくぐる) -->
         <g class="torii">
           <rect x="800" y="300" width="200" height="14" rx="3" />
           <rect x="814" y="326" width="172" height="9" />
           <rect x="824" y="314" width="13" height="300" />
           <rect x="963" y="314" width="13" height="300" />
         </g>
-        <ellipse
-          v-for="k in 3"
-          :key="'hx' + k"
-          :cx="G.SPIRAL.cx"
-          :cy="G.SPIRAL.y0 + 18 + (k - 1) * 75"
-          :rx="G.SPIRAL.r"
-          ry="13"
-          class="helix"
+        <path
+          v-for="(r, k) in G.ZIG.ramps"
+          :key="'zr' + k"
+          :d="`M${r.x0 - (k ? 6 * Math.sign(r.x1 - r.x0) : 0)} ${r.y0 + 11} L${r.x1 + 10 * Math.sign(r.x1 - r.x0)} ${r.y1 + 11 + 3 * Math.sign(r.y1 - r.y0)}`"
+          class="rail"
+        />
+        <rect
+          v-for="(x, k) in G.ZIG.stops"
+          :key="'zs' + k"
+          :x="x - 3"
+          :y="G.ZIG.ramps[k].y1 - 14"
+          width="6"
+          height="30"
+          rx="2"
+          class="stake"
         />
 
         <!-- ④ 跳ね板と谷 -->
-        <path :d="`M${G.SPIRAL.cx + G.SPIRAL.r - 6} ${G.SPIRAL.y1 + 11} L${G.BOARD.x + 4} ${G.BOARD.y + 11}`" class="rail" />
+        <path :d="`M${G.ZIG.ramps[2].x1 - 2} ${G.ZIG.ramps[2].y1 + 11} L${G.BOARD.x + 4} ${G.BOARD.y + 11}`" class="rail" />
         <path d="M930 614 H1135 V760 H930 Z" class="ground" />
-        <path d="M1395 642 H1900 V760 H1395 Z" class="ground" />
+        <path d="M1316 614 H1395 V642 H1900 V760 H1316 Z" class="ground" />
         <path d="M1062 614 q-6 -8 0 -16 q6 -8 0 -16" class="spring" />
         <g :transform="`rotate(${boardTilt} 1062 600)`">
           <rect x="1030" y="596" width="96" height="8" rx="3" class="plank" />
@@ -98,7 +105,27 @@
         </g>
         <circle :cx="G.SHISHI.pivotX" :cy="G.SHISHI.pivotY - 40" r="4" class="ink" />
         <ellipse cx="1350" cy="604" rx="30" ry="12" class="stone" />
-        <text v-if="kakonShown" x="1250" y="500" class="sfx">カコーン</text>
+        <!-- 竹が石を打った瞬間: 文字でなく、石から広がる輪と飛ぶ破片で見せる -->
+        <g v-if="kakon" class="impact">
+          <ellipse
+            v-for="k in 3"
+            :key="'kr' + k"
+            cx="1348"
+            cy="596"
+            :rx="kakon.r * (1 + (k - 1) * 0.45)"
+            :ry="kakon.r * (1 + (k - 1) * 0.45) * 0.38"
+            :opacity="kakon.o / k"
+          />
+          <line
+            v-for="k in 5"
+            :key="'ks' + k"
+            :x1="1348 + Math.cos(-0.35 - k * 0.48) * (14 + kakon.r * 0.5)"
+            :y1="590 + Math.sin(-0.35 - k * 0.48) * (14 + kakon.r * 0.5)"
+            :x2="1348 + Math.cos(-0.35 - k * 0.48) * (26 + kakon.r * 0.9)"
+            :y2="590 + Math.sin(-0.35 - k * 0.48) * (26 + kakon.r * 0.9)"
+            :opacity="kakon.o"
+          />
+        </g>
 
         <!-- ⑥ 回転盤 -->
         <path :d="`M1488 594 L${G.TABLE.cx - G.TABLE.rx + 6} ${G.TABLE.cy + 2}`" class="rail" />
@@ -124,7 +151,7 @@
 
       <!-- 結果: 太鼓と巻物 -->
       <div v-if="phase === 'final'" class="final">
-        <div class="taiko"><span class="don">ドン</span></div>
+        <div class="taiko"><span class="shock"></span><span class="shock late"></span></div>
         <div class="scroll">
           <div class="scroll-rod"></div>
           <div class="scroll-paper">
@@ -216,7 +243,7 @@ export default {
         const b = this.ball;
         return `${b.x - w / 2} ${b.y - h / 2} ${w} ${h}`;
       }
-      return `${this.camX} 0 ${G.STAGE.W} ${G.STAGE.H}`;
+      return `${this.camX} ${this.shake} ${G.STAGE.W} ${G.STAGE.H}`;
     },
     ropeEnd() {
       return ROPE.rest + this.pull;
@@ -232,8 +259,17 @@ export default {
     shishiDeg() {
       return G.shishiAngle(this.t);
     },
-    kakonShown() {
-      return this.t > G.T.kakon && this.t < G.T.kakon + 0.9;
+    // カコーンの輪: 打った瞬間に広がって消える
+    kakon() {
+      const u = (this.t - G.T.kakon) / 0.6;
+      if (u < 0 || u > 1) return null;
+      return { r: 10 + 40 * (1 - (1 - u) * (1 - u)), o: 1 - u };
+    },
+    // 打った瞬間だけ画面を小さく揺らす(減っていく揺れ)
+    shake() {
+      const u = (this.t - G.T.kakon) / 0.28;
+      if (u < 0 || u > 1 || this.reducedMotion) return 0;
+      return Math.sin(u * Math.PI * 7) * 4 * (1 - u);
     },
     // 結果を待っている(この間はスキップできない)
     waiting() {
@@ -357,7 +393,7 @@ export default {
         this.t = (now - this._t0) / 1000;
         if (this.t > G.T.tableIn) this.tableAngle += LAP_SPEED * dt;
         // カメラは玉を追う(少し遅れてついていく)
-        const target = G.cameraX(this.ball.x);
+        const target = G.cameraX(this.ball.x, this.t);
         this.camX += (target - this.camX) * Math.min(1, dt * 6);
         // 回転盤で最低1周し、結果が届いていれば玉に飛び込む
         if (this.t > G.T.tableIn + G.T.minLap && this.targetTier) {
@@ -692,7 +728,6 @@ export default {
 .rail { stroke: #c79a64; stroke-width: 5; stroke-linecap: round; fill: none; }
 .ema { fill: #f3ead8; stroke: #5b3b23; stroke-width: 1.6; }
 .torii rect { fill: #b8412c; }
-.helix { fill: none; stroke: #c79a64; stroke-width: 4; opacity: 0.9; }
 .ground { fill: #2a211c; }
 .spring { fill: none; stroke: #93b56f; stroke-width: 4; }
 .plank { fill: #3a2d26; stroke: #c79a64; stroke-width: 1.5; }
@@ -708,10 +743,9 @@ export default {
   fill: #7fa6d1;
   font: 700 16px "IBM Plex Mono", ui-monospace, monospace;
 }
-.sfx {
-  fill: #ff7a52;
-  font: 900 40px "Hiragino Mincho ProN", "Yu Mincho", serif;
-}
+.stake { fill: #5b3b23; stroke: #c79a64; stroke-width: 1; }
+.impact ellipse { fill: none; stroke: #efe6d2; stroke-width: 2.5; }
+.impact line { stroke: #efe6d2; stroke-width: 3; stroke-linecap: round; }
 
 .flash {
   position: absolute;
@@ -748,23 +782,29 @@ export default {
   border-radius: 50%;
   background: #efe6d2;
 }
-.don {
+/* ドンは文字でなく、太鼓から広がる衝撃の輪で見せる */
+.shock {
   position: absolute;
-  right: -34%;
-  top: -30%;
-  color: #ff7a52;
-  font: 900 clamp(22px, 7vmin, 36px) "Hiragino Mincho ProN", "Yu Mincho", serif;
-  animation: don-pop 0.5s ease-out;
+  inset: -4%;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 214, 120, 0.9);
+  opacity: 0;
+  animation: shock 0.7s ease-out;
+  pointer-events: none;
+}
+.shock.late {
+  animation-delay: 0.12s;
+  border-width: 2px;
 }
 @keyframes taiko-hit {
   0% { transform: scale(1.18); }
   100% { transform: scale(1); }
 }
-@keyframes don-pop {
-  0% { transform: scale(0.3); opacity: 0; }
-  60% { transform: scale(1.3); opacity: 1; }
-  100% { transform: scale(1); }
+@keyframes shock {
+  0% { transform: scale(0.9); opacity: 1; }
+  100% { transform: scale(1.9); opacity: 0; }
 }
+
 .scroll {
   width: 44%;
   display: flex;
@@ -845,7 +885,7 @@ export default {
 }
 @media (prefers-reduced-motion: reduce) {
   .taiko,
-  .don,
+  .shock,
   .scroll-paper {
     animation: none;
   }

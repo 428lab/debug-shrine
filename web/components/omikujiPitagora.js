@@ -3,7 +3,7 @@
 // 演出の流れ(OmikujiPitagora.vue):
 //   鈴の緒を引く(ここでサーバーに抽選を頼む)
 //   → 横長の装置を玉が駆け抜ける(2D。カメラが玉を追う)
-//     絵馬ドミノ → 鳥居の螺旋 → 跳ね板で谷越え(スロー) → 鹿威し → 回転盤
+//     絵馬ドミノ → 鳥居の中のつづら折り → 跳ね板で谷越え(スロー) → 鹿威し → 回転盤
 //   → 回転盤の玉にカメラが飛び込み、玉の視点(3D)であみだくじを走る
 //   → 結果の門をくぐり、太鼓が鳴って巻物が広がる
 //
@@ -27,8 +27,8 @@ const STAGE = { W: 480, H: 760, WORLD_W: 1900 };
 const T = {
   railStart: 0.25, // 鈴から出た玉がレールに乗る
   railEnd: 1.1, // レールの終わり(絵馬の棚へ)
-  ledgeEnd: 1.9, // 絵馬の棚の終わり(螺旋へ)
-  spiralEnd: 3.7, // 螺旋の終わり
+  ledgeEnd: 1.9, // 絵馬の棚の終わり(つづら折りへ)
+  zigEnd: 3.7, // つづら折りの終わり
   boardHit: 4.0, // 跳ね板に着く
   launch: 4.12, // 跳ね板が玉を打ち上げる
   land: 5.8, // 鹿威しの筒に入る(谷越えはスロー)
@@ -44,7 +44,35 @@ const BELL = { x: 150, y: 190 }; // 描画は OmikujiPitagora.vue で 72 下げ�
 const RAIL = { x0: 178, y0: 258, x1: 520, y1: 372 };
 const LEDGE = { x0: 520, x1: 840, y: 372 }; // 玉の中心の高さ
 const EMA = { x0: 580, gap: 40, n: 6, baseY: 384 };
-const SPIRAL = { cx: 900, r: 60, y0: 372, y1: 560, turns: 2.5 };
+// 鳥居の中のつづら折り(玉の中心の座標)。坂を転がって杭に当たり、下の坂へ落ちて向きを変える。
+// 最後の坂はそのまま外へ出て跳ね板へ続く。
+const ZIG = {
+  ramps: [
+    { x0: 840, y0: 372, x1: 946, y1: 402 },
+    { x0: 938, y0: 446, x1: 858, y1: 472 },
+    { x0: 866, y0: 516, x1: 960, y1: 546 },
+  ],
+  stops: [956, 848], // 杭(坂の端)の x
+};
+// 区間(転がる/落ちる)と長さの比。合計を ledgeEnd〜zigEnd に割り付ける。
+const ZIG_SEGS = (() => {
+  const r = ZIG.ramps;
+  const segs = [
+    { kind: "roll", a: r[0], w: 0.5, v0: 0.55 },
+    { kind: "drop", from: r[0], to: r[1], w: 0.2 },
+    { kind: "roll", a: r[1], w: 0.42, v0: 0.4 },
+    { kind: "drop", from: r[1], to: r[2], w: 0.2 },
+    { kind: "roll", a: r[2], w: 0.38, v0: 0.4 },
+  ];
+  const sum = segs.reduce((a, s) => a + s.w, 0);
+  let acc = 0;
+  for (const s of segs) {
+    s.t0 = T.ledgeEnd + (acc / sum) * (T.zigEnd - T.ledgeEnd);
+    acc += s.w;
+    s.t1 = T.ledgeEnd + (acc / sum) * (T.zigEnd - T.ledgeEnd);
+  }
+  return segs;
+})();
 const BOARD = { x: 1090, y: 592 };
 const ARC = { x0: 1090, y0: 592, apex: 360 }; // 終点は鹿威しの筒の口(下で設定)
 const SHISHI = { pivotX: 1420, pivotY: 590, len: 150, cupX: 1490, cupY: 548 };
@@ -84,6 +112,27 @@ function onTable(a) {
   };
 }
 
+// つづら折りの上の玉。坂は転がるほど速く、杭に当たると少し跳ね返って下の坂へ落ちる。
+function zig2D(t) {
+  let seg = ZIG_SEGS[ZIG_SEGS.length - 1];
+  for (const s of ZIG_SEGS) {
+    if (t < s.t1) {
+      seg = s;
+      break;
+    }
+  }
+  const u = clamp((t - seg.t0) / (seg.t1 - seg.t0), 0, 1);
+  if (seg.kind === "roll") {
+    const a = seg.a;
+    const f = seg.v0 * u + (1 - seg.v0) * u * u; // 初速ありの等加速
+    return { x: lerp(a.x0, a.x1, f), y: lerp(a.y0, a.y1, f), s: 1 };
+  }
+  // 落ちる: 杭から跳ね返った横の動き(減速)+ 縦は自由落下
+  const x = lerp(seg.from.x1, seg.to.x0, 1 - (1 - u) * (1 - u));
+  const y = lerp(seg.from.y1, seg.to.y0, u * u);
+  return { x, y, s: 1 };
+}
+
 // 時刻 t(rang からの秒)の玉の位置。tableAngle は回転盤に乗ってからの角度。
 function ball2D(t, tableAngle) {
   if (t < T.railStart) {
@@ -98,19 +147,13 @@ function ball2D(t, tableAngle) {
     const f = (t - T.railEnd) / (T.ledgeEnd - T.railEnd);
     return { x: lerp(LEDGE.x0, LEDGE.x1, f), y: LEDGE.y, s: 1 };
   }
-  if (t < T.spiralEnd) {
-    const f = (t - T.ledgeEnd) / (T.spiralEnd - T.ledgeEnd);
-    const th = f * SPIRAL.turns * 2 * Math.PI;
-    return {
-      x: SPIRAL.cx - SPIRAL.r * Math.cos(th),
-      y: lerp(SPIRAL.y0, SPIRAL.y1, f),
-      s: 1 + 0.18 * Math.sin(th),
-      behind: Math.sin(th) < 0,
-    };
-  }
+  if (t < T.zigEnd) return zig2D(t);
   if (t < T.boardHit) {
-    const f = easeIn((t - T.spiralEnd) / (T.boardHit - T.spiralEnd));
-    return { x: lerp(SPIRAL.cx + SPIRAL.r, BOARD.x, f), y: lerp(SPIRAL.y1, BOARD.y, f), s: 1 };
+    const e = ZIG.ramps[2];
+    // 最後の坂の勢いのまま跳ね板へ(速さが途切れないよう一次で入る)
+    const f = (t - T.zigEnd) / (T.boardHit - T.zigEnd);
+    const g = 0.6 * f + 0.4 * f * f;
+    return { x: lerp(e.x1, BOARD.x, g), y: lerp(e.y1, BOARD.y, g), s: 1 };
   }
   if (t < T.launch) return { x: BOARD.x, y: BOARD.y + 6, s: 1 };
   if (t < T.land) {
@@ -167,8 +210,11 @@ function emaAngle(i, t) {
 }
 
 // カメラの左端(世界座標)。玉を画面の中央やや左に置く。
-function cameraX(ballX) {
-  return clamp(ballX - STAGE.W * 0.45, 0, STAGE.WORLD_W - STAGE.W);
+function cameraX(ballX, t) {
+  let x = ballX - STAGE.W * 0.45;
+  // 鹿威しが石を打つ所は、石が画面の端で切れないよう少し左を見せる
+  if (t > T.land && t < T.kakon + 0.35) x = Math.min(x, 1190);
+  return clamp(x, 0, STAGE.WORLD_W - STAGE.W);
 }
 
 // ---- 3D のあみだ(玉の視点) ----
@@ -304,7 +350,7 @@ module.exports = {
   RAIL,
   LEDGE,
   EMA,
-  SPIRAL,
+  ZIG,
   BOARD,
   ARC,
   SHISHI,
