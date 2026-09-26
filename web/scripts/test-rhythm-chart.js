@@ -6,7 +6,7 @@
 // 確かめること:
 // - どの音符も、曲で実際に鳴っている音と同じ時刻にある(叩くと曲と合う)
 // - 同じレーンの間隔と、長押しの間の空きが守られている
-// - 同時に押すのは 2 本まで
+// - 同時に押すのは 2 本まで(長押しで押している指も数える)
 // - 修行は参拝より音符が多く、長押しがある。密度が人の手で叩ける範囲
 // - 判定と点数・評価の計算
 
@@ -39,6 +39,11 @@ for (const level of Object.keys(C.LEVELS)) {
   const at = new Map();
   for (const x of n) at.set(x.t.toFixed(6), (at.get(x.t.toFixed(6)) || 0) + 1);
   assert.ok(Math.max(...at.values()) <= 2, `${level}: 3 本同時押しがある`);
+  // 長押しの途中に来る音符も、押している指と合わせて 2 本まで
+  for (const x of n) {
+    const holding = n.filter((h) => h.end != null && h.t < x.t - 1e-6 && h.end > x.t - 1e-6).length;
+    assert.ok(at.get(x.t.toFixed(6)) + holding <= 2, `${level}: 長押しの途中で 3 本同時押しになる (${x.t.toFixed(2)} 秒)`);
+  }
   // 1 秒あたりの最大の叩く数(1 秒の窓で)
   let maxRate = 0;
   for (let i = 0; i < n.length; i++) {
