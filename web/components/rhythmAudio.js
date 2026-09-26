@@ -2,7 +2,7 @@
 //
 // - 曲: rhythmSong.js の音の並びを、少し先読みしながら予約して鳴らす(先読み 0.15 秒)
 // - 楽器: 三味線・琴(弦をはじく音の物理モデル = Karplus-Strong を先に計算して使い回す)、
-//   和太鼓・鈴・笛、キック・スネア・ハット・クラップ、分厚いシンセ(のこぎり波を 5 本
+//   和太鼓・鈴・笛、キック・スネア・ハット・クラップ、分厚いシンセ(のこぎり波を 3 本
 //   ずらして重ねる)、FM のピアノ、ベース
 // - ボーカルチョップ: のこぎり波を 3 つの帯域フィルタ(声の「フォルマント」)に通して
 //   母音(あいうえお)を作る。音の頭で下からずり上げる(しゃくり)、長い音にはビブラート
@@ -29,7 +29,7 @@ function createEngine(ctx) {
 
   // ---- 出口: コンプレッサ → マスター ----
   const master = ctx.createGain();
-  master.gain.value = 0.9;
+  master.gain.value = 0.8;
   const comp = ctx.createDynamicsCompressor();
   comp.threshold.value = -14;
   comp.knee.value = 8;
@@ -42,7 +42,7 @@ function createEngine(ctx) {
   // 残響(減衰するノイズを畳み込む)
   const reverb = ctx.createConvolver();
   {
-    const len = Math.floor(sr * 2.2);
+    const len = Math.floor(sr * 1.8);
     const ir = ctx.createBuffer(2, len, sr);
     for (let ch = 0; ch < 2; ch++) {
       const d = ir.getChannelData(ch);
@@ -92,7 +92,7 @@ function createEngine(ctx) {
   }
   const B = {
     drums: bus(0.9, 0.08),
-    bass: bus(0.55),
+    bass: bus(0.38),
     synth: bus(0.32, 0.25),
     piano: bus(0.22, 0.2, 0.15),
     vox: bus(0.5, 0.3, 0.35),
@@ -151,17 +151,22 @@ function createEngine(ctx) {
     const damp = kind === "koto" ? 0.996 : 0.985;
     let idx = 0;
     let prev = 0;
+    let peak = 0;
     for (let i = 0; i < len; i++) {
       const cur = line[idx];
       const next = line[(idx + 1) % period];
-      // 三味線は「さわり」(弦が棹に触れてビリつく)を少し足す
-      let v = damp * 0.5 * (cur + next);
-      if (kind === "shamisen") v = v + 0.08 * Math.tanh(v * 6) * (i < sr * 0.15 ? 1 : 0.3);
-      line[idx] = v;
-      d[i] = cur * 0.9 + prev * 0.1;
+      line[idx] = damp * 0.5 * (cur + next);
+      let out = cur * 0.9 + prev * 0.1;
+      // 三味線は「さわり」(弦が棹に触れてビリつく)を出力にだけ足す(繰り返しの中に入れると
+      // エネルギーが増え続けて音が割れた)
+      if (kind === "shamisen") out += 0.25 * Math.tanh(out * 5);
+      d[i] = out;
+      if (Math.abs(out) > peak) peak = Math.abs(out);
       prev = cur;
       idx = (idx + 1) % period;
     }
+    // 音の大きさをそろえる
+    for (let i = 0; i < len; i++) d[i] *= 0.5 / (peak || 1);
     plucked.set(key, buf);
     return buf;
   }
@@ -359,7 +364,7 @@ function createEngine(ctx) {
       g.connect(B.bass);
     },
     saw(t, e) {
-      // 分厚いシンセ: のこぎり波を 5 本ずらして重ねた和音
+      // 分厚いシンセ: のこぎり波を少しずつずらして重ねた和音
       const lp = ctx.createBiquadFilter();
       lp.type = "lowpass";
       lp.frequency.setValueAtTime(e.pad ? 1200 : 5000, t);
@@ -369,10 +374,11 @@ function createEngine(ctx) {
       g.connect(pump);
       for (const midi of e.midis) {
         const f = mtof(midi);
-        for (const cents of [-14, -6, 0, 6, 14]) {
+        // スマホでも重くならないよう、ずらす本数は 3 本に抑える
+        for (const cents of [-12, 0, 12]) {
           const o = osc("sawtooth", f * Math.pow(2, cents / 1200), t, e.len + 0.3);
           const og = ctx.createGain();
-          og.gain.value = 0.09;
+          og.gain.value = 0.13;
           o.connect(og);
           og.connect(lp);
         }
@@ -397,22 +403,19 @@ function createEngine(ctx) {
       const f = mtof(e.midi);
       const len = e.len * 0.92;
       const form = (VOWELS[e.vowel] || VOWELS.a).map((x) => x * FORMANT_SHIFT);
-      const src = ctx.createGain();
-      for (const cents of [-7, 7]) {
-        const o = osc("sawtooth", f * 0.94, t, len + 0.1);
-        // しゃくり: 下からずり上げる
-        o.frequency.setValueAtTime(f * 0.94 * Math.pow(2, cents / 1200), t);
-        o.frequency.exponentialRampToValueAtTime(f * Math.pow(2, cents / 1200), t + 0.05);
-        if (len > 0.3) {
-          const vib = osc("sine", 6, t, len);
-          const vg = ctx.createGain();
-          vg.gain.setValueAtTime(0, t);
-          vg.gain.setValueAtTime(0, t + 0.18);
-          vg.gain.linearRampToValueAtTime(f * 0.018, t + 0.35);
-          vib.connect(vg);
-          vg.connect(o.frequency);
-        }
-        o.connect(src);
+      // 発振器は 1 つ(スマホでも重くならないように)
+      const src = osc("sawtooth", f * 0.94, t, len + 0.1);
+      // しゃくり: 下からずり上げる
+      src.frequency.exponentialRampToValueAtTime(f, t + 0.05);
+      if (len > 0.3) {
+        // 長い音は遅れてビブラート
+        const vib = osc("sine", 6, t, len);
+        const vg = ctx.createGain();
+        vg.gain.setValueAtTime(0, t);
+        vg.gain.setValueAtTime(0, t + 0.18);
+        vg.gain.linearRampToValueAtTime(f * 0.018, t + 0.35);
+        vib.connect(vg);
+        vg.connect(src.frequency);
       }
       const out = env(t, 0.55 * e.vel, 0.008, 0.05, Math.max(0, len - 0.06));
       form.forEach((ff, i) => {
@@ -421,7 +424,7 @@ function createEngine(ctx) {
         bp.frequency.value = ff;
         bp.Q.value = [7, 11, 14][i];
         const g = ctx.createGain();
-        g.gain.value = [1, 0.6, 0.3][i] * 1.6;
+        g.gain.value = [1, 0.6, 0.3][i] * 2.2;
         src.connect(bp);
         bp.connect(g);
         g.connect(out);

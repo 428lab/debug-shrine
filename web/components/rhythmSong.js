@@ -80,8 +80,8 @@ const SHAMI_B = [[0, "D5"], [2, "Eb5"], [4, "G5"], [6, "A5"], [7, "Bb5"], [8, "A
 const SECTIONS = [
   { name: "intro", label: "イントロ", bars: 4, chords: ["Dm", "Dm", "Dm", "Dm"] },
   { name: "intro2", label: "イントロ(太鼓)", bars: 4, chords: ["Dm", "Dm", "Dm", "Dm"] },
-  { name: "verse", label: "A メロ", bars: 8, chords: ["Dm", "Bb", "C", "Am", "Dm", "Bb", "C", "Am"] },
-  { name: "pre", label: "B メロ", bars: 8, chords: ["Gm", "Am", "Bb", "C", "Gm", "Am", "Bb", "A"] },
+  { name: "verse", label: "A メロ", energy: 0.72, bars: 8, chords: ["Dm", "Bb", "C", "Am", "Dm", "Bb", "C", "Am"] },
+  { name: "pre", label: "B メロ", energy: 0.82, bars: 8, chords: ["Gm", "Am", "Bb", "C", "Gm", "Am", "Bb", "A"] },
   { name: "chorus", label: "サビ", bars: 8, chords: ["Bb", "C", "Am", "Dm", "Gm", "C", "A", "A"] },
   { name: "chorus2", label: "サビ 2", bars: 8, chords: ["Bb", "C", "Am", "Dm", "Gm", "C", "A", "A"] },
   { name: "break", label: "和のブレイク", bars: 4, chords: ["Dm", "Dm", "Dm", "A"] },
@@ -93,10 +93,15 @@ function buildSong() {
   const events = [];
   const sections = [];
   let bar0 = 0;
+  let energy = 1;
   const add = (bar, step, inst, props = {}) => {
-    events.push(Object.assign({ t: (bar * 16 + step) * STEP, bar, step, inst }, props));
+    const e = Object.assign({ t: (bar * 16 + step) * STEP, bar, step, inst }, props);
+    if (e.vel != null) e.vel *= energy;
+    events.push(e);
   };
   for (const sec of SECTIONS) {
+    // 区間の強さ(A メロ・B メロは控えめにして、サビで一気に広がるように)
+    energy = sec.energy || 1;
     const key = sec.key || 0;
     sections.push({ name: sec.name, label: sec.label, startBar: bar0, bars: sec.bars, start: bar0 * BAR, key });
     for (let b = 0; b < sec.bars; b++) {
