@@ -47,7 +47,7 @@
           </button>
         </div>
         <div class="rg-help">
-          スマホ: 下の 3 か所をタップ / PC: D・F・J キー<br />
+          スマホ: 下の 3 か所をタップ / PC: F・G(H)・J キー<br />
           長い音符は押したまま。iPhone は消音スイッチをオフに
         </div>
       </div>
@@ -57,30 +57,32 @@
         <div class="rg-title">一時停止中</div>
         <div class="rg-sub">タップで再開</div>
       </div>
-    </div>
 
-    <!-- 結果の札(そのままスクショ・画像保存で共有しやすい) -->
-    <div v-if="phase === 'result' && result" class="rg-card">
-      <div class="rg-card-name">{{ title }}「{{ result.songTitle }}」{{ result.levelLabel }}</div>
-      <div class="rg-card-rank">{{ result.rank }}</div>
-      <div class="rg-card-score">{{ result.score.toLocaleString() }}</div>
-      <div v-if="result.badge" class="rg-card-badge">{{ result.badge }}</div>
-      <div class="rg-card-best" :class="{ hot: result.newBest }">{{ result.bestLine }}</div>
-      <div class="rg-card-counts">
-        <span class="c-kiwami">極 {{ result.counts.kiwami }}</span>
-        <span class="c-ryo">良 {{ result.counts.ryo }}</span>
-        <span class="c-ka">可 {{ result.counts.ka }}</span>
-        <span class="c-fuka">不可 {{ result.counts.fuka }}</span>
+      <!-- 結果の札(そのままスクショ・画像保存で共有しやすい) -->
+      <div v-if="phase === 'result' && result" class="rg-over rg-over-result">
+        <div class="rg-card">
+          <div class="rg-card-name">{{ title }}「{{ result.songTitle }}」{{ result.levelLabel }}</div>
+          <div class="rg-card-score">{{ result.score.toLocaleString() }}</div>
+          <div class="rg-card-acc">正確さ {{ result.accuracy }}%</div>
+          <div v-if="result.badge" class="rg-card-badge">{{ result.badge }}</div>
+          <div class="rg-card-best" :class="{ hot: result.newBest }">{{ result.bestLine }}</div>
+          <div class="rg-card-counts">
+            <span class="c-kiwami">極 {{ result.counts.kiwami }}</span>
+            <span class="c-ryo">良 {{ result.counts.ryo }}</span>
+            <span class="c-ka">可 {{ result.counts.ka }}</span>
+            <span class="c-fuka">不可 {{ result.counts.fuka }}</span>
+          </div>
+          <div class="rg-card-meta">最大コンボ {{ result.maxCombo }} / {{ result.date }}</div>
+          <div class="rg-card-site">でばっぐ神社 {{ siteHost }}</div>
+        </div>
+        <div class="rg-actions">
+          <button type="button" class="btn btn-warning" @click="start(level)">もう1回</button>
+          <button type="button" class="btn btn-outline-light" @click="toTitle">曲を選ぶ</button>
+          <button type="button" class="btn btn-outline-light" @click="saveImage">
+            <i class="fas fa-download fa-fw"></i> 画像を保存
+          </button>
+        </div>
       </div>
-      <div class="rg-card-meta">最大コンボ {{ result.maxCombo }} / {{ result.date }}</div>
-      <div class="rg-card-site">でばっぐ神社 {{ siteHost }}</div>
-    </div>
-    <div v-if="phase === 'result'" class="rg-actions">
-      <button type="button" class="btn btn-warning" @click="start(level)">もう1回</button>
-      <button type="button" class="btn btn-outline-light" @click="toTitle">曲を選ぶ</button>
-      <button type="button" class="btn btn-outline-light" @click="saveImage">
-        <i class="fas fa-download fa-fw"></i> 画像を保存
-      </button>
     </div>
   </div>
 </template>
@@ -93,7 +95,7 @@ import Audio from "@/components/rhythmAudio";
 const W = 420; // 論理の幅(高さは画面の縦横比で決める)
 const LEAD = 2.0; // 曲が始まるまでの間(音符が遠くから来る時間)
 const VISIBLE = 1.5; // この秒数先の音符まで見える
-const KEYS = { KeyD: 0, KeyF: 1, KeyJ: 2 };
+const KEYS = { KeyF: 0, KeyG: 1, KeyH: 1, KeyJ: 2 };
 const LANE_COLOR = ["#ffd84a", "#ef5b3f", "#f4f1ea"];
 const JUDGE_TEXT = { kiwami: "極", ryo: "良", ka: "可", fuka: "不可" };
 const JUDGE_COLOR = { kiwami: "#ffd84a", ryo: "#ff7a52", ka: "#c9b8a0", fuka: "#7a7a88" };
@@ -135,13 +137,14 @@ export default {
   },
   data() {
     return {
-      phase: "title", // title | play | paused | result
+      phase: "title", // title | play | paused | ending | result
       level: "easy",
       levels: Chart.LEVELS,
       songs: Songs.SONGS.map(({ id, title, genre, bpm }) => ({ id, title, genre, bpm })),
       songId: Songs.SONGS[0].id,
       best: {},
       result: null,
+      hasKeyboard: false,
     };
   },
   computed: {
@@ -160,6 +163,8 @@ export default {
   },
   mounted() {
     this.best = loadBest();
+    // キーボードとマウスがある端末では、叩く位置の下にキーを出す
+    this.hasKeyboard = !!(window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches);
     this.selectSong(loadSongId());
     this.resize();
     window.addEventListener("resize", this.resize);
@@ -485,7 +490,7 @@ export default {
         levelLabel: Chart.LEVELS[this.level].label,
         songTitle: this.songs.find((x) => x.id === this.songId).title,
         score,
-        rank: Chart.rankOf(score),
+        accuracy: (score / 10000).toFixed(1), // 満点 1,000,000 を 100.0 に
         counts: Object.assign({}, st.counts),
         maxCombo: st.maxCombo,
         badge,
@@ -493,7 +498,14 @@ export default {
         bestLine: newBest ? (prev ? `ベスト更新!(これまで ${prev.toLocaleString()})` : "はじめての記録!") : `ベスト ${prev.toLocaleString()}`,
         date: `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`,
       };
-      this.phase = "result";
+      // 最後の判定の文字が見えるよう少し待ってから、音を止めて結果へ
+      this.phase = "ending";
+      setTimeout(() => {
+        if (this.phase !== "ending") return;
+        if (this.engine) this.engine.stopSong();
+        if (this.ctx && this.ctx.state === "running") this.ctx.suspend();
+        this.phase = "result";
+      }, 700);
     },
 
     // ---- 演出 ----
@@ -539,7 +551,7 @@ export default {
       const H = this._H;
       g.setTransform(this._scale, 0, 0, this._scale, 0, 0);
       const st = this.st;
-      const playing = st && (this.phase === "play" || this.phase === "paused" || this.phase === "result");
+      const playing = st && (this.phase === "play" || this.phase === "paused" || this.phase === "ending");
       const t = playing ? this.heardTime(now) : -LEAD;
 
       // 拍に合わせて脈打つ(キック・和太鼓)
@@ -636,6 +648,19 @@ export default {
         }
         // 長押し中・判定済みでも尾が残っているもの
         for (const n of st.notes) if (n.end != null && n.judged && n.tail == null && n.judged !== "fuka") this.drawNote(g, n, t);
+      }
+
+      // キーボードの端末では、叩く位置の下にキーを出す
+      if (this.hasKeyboard && (this.phase === "play" || this.phase === "paused")) {
+        const keyLabels = ["F", "G / H", "J"];
+        g.font = "700 14px sans-serif";
+        g.textAlign = "center";
+        g.globalAlpha = 0.7;
+        for (let lane = 0; lane < 3; lane++) {
+          g.fillStyle = LANE_COLOR[lane];
+          g.fillText(keyLabels[lane], this.laneX(lane, 0), this.hitY() + 40);
+        }
+        g.globalAlpha = 1;
       }
 
       // 火花・花びら・判定の文字・コンボ
@@ -811,8 +836,9 @@ export default {
         g.fillText(text, 540, y);
       };
       line(`${this.title}「${r.songTitle}」${r.levelLabel}`, 170, `800 54px ${mincho}`, "#fff8e1");
-      line(r.rank, 400, `900 220px ${mincho}`, "#ffd84a");
-      line(r.score.toLocaleString(), 540, "900 96px 'IBM Plex Mono', ui-monospace, monospace", "#fff8e1");
+      // 満点 "1,000,000" の 9 文字が枠(1000px)に収まる大きさ
+      line(r.score.toLocaleString(), 400, "900 140px 'IBM Plex Mono', ui-monospace, monospace", "#fff8e1");
+      line(`正確さ ${r.accuracy}%`, 540, "700 56px sans-serif", "#c9b8a0");
       if (r.badge) line(r.badge, 620, "800 44px sans-serif", "#ff7a52");
       line(`極 ${r.counts.kiwami}  良 ${r.counts.ryo}  可 ${r.counts.ka}  不可 ${r.counts.fuka}`, 720, "700 40px sans-serif", "#efe6d2");
       line(`最大コンボ ${r.maxCombo}  /  ${r.date}`, 790, "500 34px sans-serif", "#c9b8a0");
@@ -958,6 +984,14 @@ export default {
   font-size: 0.8rem;
   opacity: 0.75;
 }
+.rg-over-result {
+  overflow-y: auto;
+  justify-content: flex-start;
+  padding-top: 24px;
+}
+.rg-over-result .rg-card {
+  width: 100%;
+}
 @media (max-width: 360px) {
   .rg-over {
     gap: 8px;
@@ -980,18 +1014,17 @@ export default {
   text-align: center;
 }
 .rg-card-name,
-.rg-card-rank,
 .rg-card-site {
   font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
   font-weight: 900;
 }
-.rg-card-rank {
-  font-size: 4rem;
-  line-height: 1.1;
-  color: #ffd84a;
-}
 .rg-card-score {
-  font: 900 2.2rem "IBM Plex Mono", ui-monospace, monospace;
+  font: 900 4rem "IBM Plex Mono", ui-monospace, monospace;
+  line-height: 1.1;
+}
+.rg-card-acc {
+  color: #c9b8a0;
+  font-weight: 700;
 }
 .rg-card-badge {
   color: #ff7a52;
