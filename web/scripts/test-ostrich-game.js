@@ -10,7 +10,8 @@
 // - 同じサボテンを跳び越せる「押してよいタイミングの幅」が、走った時間とともに狭くなる
 //   (少しのミスで終わる難しさ)。ただし人に無理な狭さにはしない。
 // - 堀は羽ばたかないと越えられない(跳ぶだけでは落ちる)
-// - 黄色の勾玉で無敵になり、無敵の間は障害物に当たっても壊して進める
+// - 黄色の勾玉で無敵になり、無敵の間は障害物に当たっても壊して進める。堀には落ちる
+// - 当たり判定は難しさで変わらない
 // - 何もしなければ最初のサボテンで終わる
 
 /* eslint-disable no-console */
@@ -116,14 +117,12 @@ function run(seed, seconds, opts) {
 function survey(label, seeds, seconds, opts, offset = 0) {
   let ok = 0;
   const deaths = {};
-  let kinds = {};
   let items = 0;
   for (let s = 1; s <= seeds; s++) {
     const g = run(s + offset, seconds, opts);
     items += g.taken;
     if (!g.over) ok++;
     else deaths[g.hit.kind] = (deaths[g.hit.kind] || 0) + 1;
-    kinds = kinds; // eslint
   }
   const rate = ok / seeds;
   console.log(
@@ -135,8 +134,36 @@ function survey(label, seeds, seconds, opts, offset = 0) {
 // 反応の遅れなし: 難しさが最大(150 秒)を過ぎても走り切れる = よけようのない配置が無い
 const perfectHigh = survey("先読み(鳥居は上だけ)", SEEDS, 200, { gate: "high" });
 const perfect = survey("先読み(鳥居は上下どちらでも)", SEEDS, 200, {}, 5000);
+const late = survey("先読み・反応 60ms 遅れ", SEEDS, 200, { delay: 0.06 }, 8000);
 assert.ok(perfectHigh >= 0.95, "上のすき間をくぐれない鳥居がある");
 assert.ok(perfect >= 0.95, "よけようのない配置がある");
+assert.ok(late >= 0.95, "少し反応が遅れるだけでよけられない配置がある");
+
+// 堀の上(水の上)に次の障害物が置かれない
+{
+  let moats = 0;
+  for (let s = 1; s <= 20; s++) {
+    const g = G.newGame(seeded(s + 40000));
+    g.invUntil = 1e9; // 何もしないで走り続ける(堀以外は壊す)
+    while (g.t < 200) {
+      const before = g.spawned;
+      // 堀の手前で跳び、上では羽ばたいて浮いておく
+      if (g.onGround && g.obstacles.some((o) => o.kind === "moat" && o.x - G.BIRD.x < g.speed * 0.1 && o.x + o.w > G.BIRD.x)) G.press(g);
+      if (!g.onGround && g.y > G.GROUND - 80 && g.vy > 0) G.press(g);
+      G.step(g);
+      if (g.over) break;
+      if (g.spawned > before) {
+        const last = g.obstacles[g.obstacles.length - 1];
+        for (const o of g.obstacles) {
+          if (o === last || o.kind !== "moat") continue;
+          moats++;
+          assert.ok(last.x >= o.x + o.w, `堀の上に ${last.kind} が置かれた`);
+        }
+      }
+    }
+  }
+  assert.ok(moats > 20, "堀が出てこない");
+}
 
 // 鳥居の下のすき間は、地面を走ったままで抜けられる(難しさが最大でも)
 {
@@ -225,7 +252,7 @@ assert.ok(windows[windows.length - 1].ms >= 40, "後半のタイミングの幅�
       const ob = g.obstacles.find((o) => o.x + o.w > G.BIRD.x - G.BIRD.w / 2);
       if (ob && ob.kind === "moat") {
         met++;
-        // 堀の手前で1回跳ぶだけ(無敵なら水の上を走れるので、無敵と勾玉は消しておく)
+        // 堀の手前で1回跳ぶだけ(勾玉は消しておく)
         g.invUntil = 0;
         g.items = [];
         g.itemAt = 1e9;
@@ -259,6 +286,16 @@ assert.ok(windows[windows.length - 1].ms >= 40, "後半のタイミングの幅�
   while (!g.over && g.t < 6) G.step(g);
   assert.ok(!g.over, "無敵なのに終わった");
   assert.ok(g.smashed + g.events.filter((e) => e.type === "flee").length > 0, "無敵で何も壊していない");
+  // 無敵でも堀には落ちる
+  {
+    const m = G.newGame(seeded(4));
+    m.invUntil = 100;
+    m.nextAt = 1e9;
+    m.itemAt = 1e9;
+    m.obstacles = [{ kind: "moat", x: G.BIRD.x - 20, w: 400 }];
+    G.step(m);
+    assert.ok(m.over && m.hit.kind === "moat", "無敵なのに堀に落ちない");
+  }
   // 無敵が切れた後は当たると終わる
   while (!g.over && g.t < 30) G.step(g);
   assert.ok(g.over, "無敵が切れない");
@@ -271,15 +308,14 @@ assert.ok(windows[windows.length - 1].ms >= 40, "後半のタイミングの幅�
   assert.ok(g.over, "何もしないのに終わらない");
 }
 
-// 難しさ: 速さは上がり続け、当たり判定の甘さは減る
+// 難しさ: 速さは上がり続ける
 assert.ok(G.speedAt(120) > G.speedAt(60) && G.speedAt(200) > G.speedAt(120), "速さが途中で止まる");
 {
+  // 当たり判定は難しさで変わらない
   const a = G.newGame();
   const b = G.newGame();
   b.level = 1;
-  const wa = G.birdBox(a).x1 - G.birdBox(a).x0;
-  const wb = G.birdBox(b).x1 - G.birdBox(b).x0;
-  assert.ok(wb > wa, "難しくなっても当たり判定が変わらない");
+  assert.deepStrictEqual(G.birdBox(a), G.birdBox(b), "難しさで当たり判定が変わる");
 }
 
 // 称号

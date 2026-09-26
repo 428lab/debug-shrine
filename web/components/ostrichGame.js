@@ -8,9 +8,9 @@
 //   - 鳥居: 上のすき間(大きな勾玉がある)を羽ばたいてくぐるか、下のすき間を走り抜ける
 //   - 堀: 地面が長く途切れる。羽ばたき続けて越える(落ちたら終わり)
 //   - 勾玉: ときどき浮かんでいる。色で点が違う。黄色は 7 秒間の無敵(当たった障害物を
-//     壊す。カラスは当たる前に逃げる。堀の上も走れる)
-// 進むほど速く、障害物の間隔が詰まり、鳥居のすき間が狭く、当たり判定の甘さも減っていく
-// (少しの操作ミスでも終わるようになる)。
+//     壊す。カラスは当たる前に逃げる。堀には落ちる)
+// 進むほど速く、ジャンプが短く鋭くなり、障害物の間隔が詰まり、鳥居のすき間が狭くなる
+// (少しの操作ミスでも終わるようになる)。当たり判定は難しさで変えない。
 //
 // 設計の要:
 // - 固定の刻み(STEP 秒)で進める。描画の間隔に左右されず、同じ乱数なら同じ展開になる
@@ -205,7 +205,8 @@ function spawn(g) {
   }
   g.obstacles.push(ob);
   g.spawned += 1;
-  g.nextAt = after;
+  // 次は、この障害物の右端から after だけ空ける(幅の長い堀の上に次が置かれないように)
+  g.nextAt = ob.w + after;
 }
 
 // ときどき浮かぶ勾玉。障害物と重ならない所に置く(重なるなら少し後にずらす)
@@ -224,16 +225,16 @@ function spawnItem(g) {
   g.itemAt = g.speed * (1.6 + r() * 2.6);
 }
 
-// 当たり判定の箱。最初は見た目より少し小さく(かすっただけで終わると理不尽)、
-// 難しくなるほど見た目どおりに近づく
+// 当たり判定の箱。見た目より少し小さい(かすっただけで終わると理不尽)。
+// 難しさで変えない(同じ当たり方で結果が変わるのはおかしい)
 function birdBox(g) {
-  const m = 6 - 4 * g.level;
+  const m = 6;
   return { x0: BIRD.x - BIRD.w / 2 + m, x1: BIRD.x + BIRD.w / 2 - m, y0: g.y - BIRD.h + m, y1: g.y - 3 };
 }
 function hits(g, ob) {
   if (ob.broken || ob.fleeing || ob.kind === "moat") return false;
   const b = birdBox(g);
-  const m = 4 - 3 * g.level;
+  const m = 4;
   if (b.x1 < ob.x + m || b.x0 > ob.x + ob.w - m) return false;
   if (ob.kind === "gate") {
     // 上の柱、または真ん中の柱(上のすき間と下のすき間の間)に当たる
@@ -276,10 +277,12 @@ function step(g) {
       g.onGround = true;
     }
   }
-  // 堀に落ちる(無敵の間は水の上を走れる)
-  if (g.onGround && !inv && overMoat(g)) {
+  // 堀に落ちる(無敵でも落ちる。無敵で壊せるのは障害物だけ)
+  if (g.onGround && overMoat(g)) {
     g.over = true;
-    g.hit = g.obstacles.find((o) => o.kind === "moat");
+    g.hit = g.obstacles.find(
+      (o) => o.kind === "moat" && BIRD.x - 6 > o.x && BIRD.x + 6 < o.x + o.w
+    );
     return;
   }
 
@@ -293,7 +296,10 @@ function step(g) {
       ob.x += 260 * dt;
     }
   }
-  while (g.obstacles.length && g.obstacles[0].x + g.obstacles[0].w < -40) g.obstacles.shift();
+  // 画面の外に出たものを消す(逃げたカラスは流れが遅く順番が入れ替わるので filter で)
+  g.obstacles = g.obstacles.filter(
+    (o) => o.x + o.w > -40 && !(o.fleeing && o.y + o.h < -40) // 逃げたカラスは空の上に消えたら消す
+  );
   for (const it of g.items) it.x -= dx;
   g.items = g.items.filter((it) => !it.taken && it.x > -40);
   g.nextAt -= dx;
