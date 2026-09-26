@@ -44,15 +44,16 @@ const BELL = { x: 150, y: 190 }; // 描画は OmikujiPitagora.vue で 72 下げ�
 const RAIL = { x0: 178, y0: 258, x1: 520, y1: 372 };
 const LEDGE = { x0: 520, x1: 840, y: 372 }; // 玉の中心の高さ
 const EMA = { x0: 580, gap: 40, n: 6, baseY: 384 };
-// 鳥居の中のつづら折り(玉の中心の座標)。坂を転がって杭に当たり、下の坂へ落ちて向きを変える。
-// 最後の坂はそのまま外へ出て跳ね板へ続く。
+// 鳥居の中のつづら折り(玉の中心の座標)。坂の端から転がり落ち、すき間の奥の杭に当たって
+// 少し跳ね返り、下の坂へ落ちて向きを変える。最後の坂はそのまま外へ出て跳ね板へ続く。
+// 坂の板は x1 で終わる(すき間は玉の直径より広い = 落ちる玉が板を突き抜けない)。
 const ZIG = {
   ramps: [
-    { x0: 840, y0: 372, x1: 946, y1: 402 },
-    { x0: 938, y0: 446, x1: 858, y1: 472 },
-    { x0: 866, y0: 516, x1: 960, y1: 546 },
+    { x0: 840, y0: 372, x1: 926, y1: 396 },
+    { x0: 940, y0: 446, x1: 874, y1: 468 },
+    { x0: 860, y0: 516, x1: 960, y1: 546 },
   ],
-  stops: [956, 848], // 杭(坂の端)の x
+  stops: [956, 844], // 杭の x(玉は杭の手前 13 で当たる)
 };
 // 区間(転がる/落ちる)と長さの比。合計を ledgeEnd〜zigEnd に割り付ける。
 const ZIG_SEGS = (() => {
@@ -127,8 +128,14 @@ function zig2D(t) {
     const f = seg.v0 * u + (1 - seg.v0) * u * u; // 初速ありの等加速
     return { x: lerp(a.x0, a.x1, f), y: lerp(a.y0, a.y1, f), s: 1 };
   }
-  // 落ちる: 杭から跳ね返った横の動き(減速)+ 縦は自由落下
-  const x = lerp(seg.from.x1, seg.to.x0, 1 - (1 - u) * (1 - u));
+  // 落ちる: 坂の勢いで杭まで進んで当たり、少し跳ね返る + 縦は自由落下
+  const dir = Math.sign(seg.from.x1 - seg.from.x0);
+  const hitX = ZIG.stops[ZIG.ramps.indexOf(seg.from)] - dir * 13;
+  const HIT = 0.2;
+  const x =
+    u < HIT
+      ? lerp(seg.from.x1, hitX, 1 - (1 - u / HIT) * (1 - u / HIT))
+      : lerp(hitX, seg.to.x0, (u - HIT) / (1 - HIT));
   const y = lerp(seg.from.y1, seg.to.y0, u * u);
   return { x, y, s: 1 };
 }

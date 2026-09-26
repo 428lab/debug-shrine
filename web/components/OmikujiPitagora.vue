@@ -18,7 +18,7 @@
             <stop offset="1" stop-color="#3a2d2a" />
           </linearGradient>
         </defs>
-        <rect x="0" y="0" :width="G.STAGE.WORLD_W" height="760" fill="url(#pg-sky)" />
+        <rect x="0" y="-12" :width="G.STAGE.WORLD_W" height="784" fill="url(#pg-sky)" />
         <!-- 遠景の山 -->
         <path
           d="M0 520 L160 440 L300 500 L470 410 L640 480 L820 400 L1000 470 L1180 390 L1380 470 L1560 410 L1760 480 L1900 430 V760 H0 Z"
@@ -63,8 +63,8 @@
         </g>
         <path
           v-for="(r, k) in G.ZIG.ramps"
-          :key="'zr' + k"
-          :d="`M${r.x0 - (k ? 6 * Math.sign(r.x1 - r.x0) : 0)} ${r.y0 + 11} L${r.x1 + 10 * Math.sign(r.x1 - r.x0)} ${r.y1 + 11 + 3 * Math.sign(r.y1 - r.y0)}`"
+:key="'zr' + k"
+          :d="zigRail(r, k)"
           class="rail"
         />
         <rect
@@ -80,8 +80,8 @@
 
         <!-- ④ 跳ね板と谷 -->
         <path :d="`M${G.ZIG.ramps[2].x1 - 2} ${G.ZIG.ramps[2].y1 + 11} L${G.BOARD.x + 4} ${G.BOARD.y + 11}`" class="rail" />
-        <path d="M930 614 H1135 V760 H930 Z" class="ground" />
-        <path d="M1316 614 H1395 V642 H1900 V760 H1316 Z" class="ground" />
+        <path d="M930 614 H1135 V772 H930 Z" class="ground" />
+        <path d="M1316 614 H1395 V642 H1900 V772 H1316 Z" class="ground" />
         <path d="M1062 614 q-6 -8 0 -16 q6 -8 0 -16" class="spring" />
         <g :transform="`rotate(${boardTilt} 1062 600)`">
           <rect x="1030" y="596" width="96" height="8" rx="3" class="plank" />
@@ -329,6 +329,14 @@ export default {
     toLogicalY(clientY) {
       const r = this.$refs.inner.getBoundingClientRect();
       return ((clientY - r.top) / r.height) * G.STAGE.H;
+    },
+    // つづら折りの坂の板。手前側は下の坂に落ちてくる玉を受けるぶん少し伸ばす(傾きはそのまま)
+    zigRail(r, k) {
+      const dir = Math.sign(r.x1 - r.x0);
+      const slope = (r.y1 - r.y0) / (r.x1 - r.x0);
+      const ext = k ? 16 : 8;
+      const xs = r.x0 - dir * ext;
+      return `M${xs} ${r.y0 + 11 + slope * (xs - r.x0)} L${r.x1} ${r.y1 + 11}`;
     },
     emaPath(x, baseY) {
       // 絵馬(五角形)。左下 x、底 baseY、幅 22・高さ 34
