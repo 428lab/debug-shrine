@@ -3,15 +3,19 @@
     <h1 class="h4 text-center mb-3">ミニゲーム</h1>
     <div class="games">
       <nuxt-link v-for="g in games" :key="g.path" :to="g.path" class="game-card">
-        <div class="game-name">{{ g.name }}</div>
-        <div class="game-desc">{{ g.desc }}</div>
+        <img :src="g.icon" :alt="g.name" class="game-icon" width="72" height="72" />
+        <div class="game-text">
+          <div class="game-name">{{ g.name }}</div>
+          <div class="game-desc">{{ g.desc }}</div>
+        </div>
       </nuxt-link>
     </div>
   </div>
 </template>
 
 <script>
-// ミニゲームの一覧。ゲームを増やしたら games に足す(ページは pages/games/<id>.vue)。
+// ミニゲームの一覧。ゲームを増やしたら games に足す(ページは pages/games/<id>.vue、
+// アイコンは static/games/<id>.svg)。
 // ログインしなくても遊べる。
 export default {
   data() {
@@ -19,6 +23,7 @@ export default {
       games: [
         {
           path: "/games/ostrich",
+          icon: "/games/ostrich.svg",
           name: "ダチョウ走",
           desc: "走って跳んで羽ばたいて、鳥居をくぐれ。どこまで走れる？",
         },
@@ -40,7 +45,9 @@ export default {
   margin: 0 auto;
 }
 .game-card {
-  display: block;
+  display: flex;
+  gap: 14px;
+  align-items: center;
   padding: 16px;
   border-radius: 12px;
   background: #fff8e1;
@@ -50,6 +57,16 @@ export default {
 }
 .game-card:hover {
   background: #fff3cf;
+}
+.game-icon {
+  flex: none;
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+.game-text {
+  min-width: 0;
 }
 .game-name {
   font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
