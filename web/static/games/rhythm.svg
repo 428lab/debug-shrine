@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- ミニゲーム(リズムゲーム)のアイコン: 夜の鳥居、奥へ続く 3 本のレーン、光る音符 -->
+  <defs>
+    <linearGradient id="rgBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c0f16"/>
+      <stop offset="1" stop-color="#07060a"/>
+    </linearGradient>
+    <radialGradient id="rgGlow" cx="0.5" cy="0.28" r="0.6">
+      <stop offset="0" stop-color="#ff7a3c" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#ff7a3c" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="rgClip"><rect width="128" height="128" rx="26"/></clipPath>
+  </defs>
+  <g clip-path="url(#rgClip)">
+    <rect width="128" height="128" fill="url(#rgBg)"/>
+    <rect width="128" height="128" fill="url(#rgGlow)"/>
+    <!-- 鳥居 -->
+    <rect x="30" y="22" width="68" height="7" fill="#1c1216"/>
+    <rect x="34" y="30" width="60" height="4" fill="#b8412c"/>
+    <rect x="38" y="29" width="5" height="40" fill="#b8412c"/>
+    <rect x="85" y="29" width="5" height="40" fill="#b8412c"/>
+    <!-- レーン -->
+    <g stroke="#ffd84a" stroke-opacity="0.55" stroke-width="1.5">
+      <line x1="54" y1="42" x2="10" y2="128"/>
+      <line x1="61" y1="42" x2="47" y2="128"/>
+      <line x1="67" y1="42" x2="81" y2="128"/>
+      <line x1="74" y1="42" x2="118" y2="128"/>
+    </g>
+    <line x1="14" y1="104" x2="114" y2="104" stroke="#ffd84a" stroke-width="3"/>
+    <!-- 音符(鈴・太鼓・柏手) -->
+    <circle cx="36" cy="104" r="11" fill="#ffd84a" opacity="0.35"/>
+    <circle cx="36" cy="104" r="8" fill="#ffd84a" stroke="#1c1216" stroke-width="1.5"/>
+    <circle cx="61" cy="72" r="6" fill="#ef5b3f" stroke="#1c1216" stroke-width="1.2"/>
+    <circle cx="61" cy="72" r="3" fill="#f3ead8"/>
+    <path d="M 84 80 l 7 7 l -7 7 l -7 -7 z" fill="#f4f1ea" stroke="#1c1216" stroke-width="1.2"/>
+    <circle cx="56" cy="56" r="3.5" fill="#ffd84a"/>
+    <!-- 火花 -->
+    <g fill="#ffd84a">
+      <rect x="24" y="90" width="3" height="3"/>
+      <rect x="46" y="92" width="3" height="3"/>
+      <rect x="30" y="84" width="2" height="2"/>
+    </g>
+  </g>
+</svg>
