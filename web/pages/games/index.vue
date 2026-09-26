@@ -5,7 +5,9 @@
       <nuxt-link v-for="g in games" :key="g.path" :to="g.path" class="game-card">
         <img :src="g.icon" :alt="g.name" class="game-icon" width="72" height="72" />
         <div class="game-text">
-          <div class="game-name">{{ g.name }}</div>
+          <div class="game-name">
+            {{ g.name }}<span v-if="g.kana" class="game-kana">{{ g.kana }}</span>
+          </div>
           <div class="game-desc">{{ g.desc }}</div>
         </div>
       </nuxt-link>
@@ -24,7 +26,8 @@ export default {
         {
           path: "/games/ostrich",
           icon: "/games/ostrich.svg",
-          name: "ダチョウ走",
+          name: "韋駝天",
+          kana: "いだてん",
           desc: "走って跳んで羽ばたいて、鳥居をくぐれ。どこまで走れる？",
         },
       ],
@@ -73,6 +76,12 @@ export default {
   font-weight: 800;
   font-size: 1.3rem;
   color: #b8412c;
+}
+.game-kana {
+  margin-left: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #5a3f28;
 }
 .game-desc {
   margin-top: 4px;
