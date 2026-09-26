@@ -1,5 +1,5 @@
 <template>
-  <!-- ミニゲーム「ダチョウ走」。ルールは ostrichGame.js(純関数)、ここは描画と操作だけ。
+  <!-- ミニゲーム「韋駝天」。ルールは ostrichGame.js(純関数)、ここは描画と操作だけ。
        ハイスコアはこの端末にだけ保存する(DB には送らない)。終わった画面は、そのまま
        スクショしても共有しやすい1枚(スコア・ベスト・称号・日付・サイト名)にする。 -->
   <div class="ostrich">
@@ -13,7 +13,7 @@
     </div>
     <!-- 結果の札(スマホの縦画面でも大きく読める。ゲーム画面と一緒にスクショしやすい) -->
     <div v-if="phase === 'over' && result" class="os-card">
-      <div class="os-card-name">ダチョウ走</div>
+      <div class="os-card-name">韋駝天</div>
       <div class="os-card-score">{{ result.score }}</div>
       <div class="os-card-title">称号「{{ result.title }}」</div>
       <div class="os-card-best" :class="{ hot: result.newBest }">{{ result.bestLine }}</div>
@@ -603,7 +603,7 @@ export default {
       ctx.fillStyle = "#fff8e1";
       ctx.textAlign = "center";
       ctx.font = "900 40px 'Hiragino Mincho ProN', 'Yu Mincho', serif";
-      ctx.fillText("ダチョウ走", G.W / 2, 150);
+      ctx.fillText("韋駝天", G.W / 2, 150);
       ctx.font = "700 18px sans-serif";
       ctx.fillText("タップでスタート", G.W / 2, 200);
       ctx.font = "500 14px sans-serif";
@@ -670,7 +670,7 @@ export default {
       };
       ctx.textAlign = "center";
       const mincho = "'Hiragino Mincho ProN', 'Yu Mincho', serif";
-      line("ダチョウ走", 60, `800 36px ${mincho}`, "#3a2a20");
+      line("韋駝天", 60, `800 36px ${mincho}`, "#3a2a20");
       line(String(r.score), 190, "900 130px 'IBM Plex Mono', ui-monospace, monospace", "#b8412c");
       line(`称号「${r.title}」`, 265, `800 44px ${mincho}`, "#3a2a20");
       line(r.bestLine, 330, "700 30px sans-serif", r.newBest ? "#b8412c" : "#5a3f28");
