@@ -32,6 +32,9 @@
               >ランキング</nuxt-link
             >
           </li>
+          <li class="nav-item">
+            <nuxt-link class="nav-link active" to="/ostrich">ダチョウ走</nuxt-link>
+          </li>
           <!-- <li class="nav-item">
             <a class="nav-link" href="#">Link</a>
           </li> -->
