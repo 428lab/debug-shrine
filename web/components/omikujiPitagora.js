@@ -3,8 +3,9 @@
 // 演出の流れ(OmikujiPitagora.vue):
 //   鈴の緒を引く(ここでサーバーに抽選を頼む)
 //   → 横長の装置を玉が駆け抜ける(2D。カメラが玉を追う)
-//     絵馬ドミノ → 鳥居の螺旋 → 跳ね板で谷越え(スロー) → 鹿威し → 回転盤
-//   → 回転盤の玉にカメラが飛び込み、玉の視点(3D)であみだくじを走る
+//     絵馬ドミノ → 鳥居の中の螺旋 → 跳ね板で谷越え(スロー) → 鹿威し → 回転盤
+//   → 回転盤から出口のレールへ出た玉にカメラが寄り、同じ構図(真横)の 3D に切り替わって
+//     玉の後ろへ回り込み、玉の視点であみだくじを走る
 //   → 結果の門をくぐり、太鼓が鳴って巻物が広がる
 //
 // 設計の要:
@@ -28,7 +29,7 @@ const T = {
   railStart: 0.25, // 鈴から出た玉がレールに乗る
   railEnd: 1.1, // レールの終わり(絵馬の棚へ)
   ledgeEnd: 1.9, // 絵馬の棚の終わり(螺旋へ)
-  spiralEnd: 3.7, // 螺旋の終わり
+  helixEnd: 3.7, // 螺旋の終わり
   boardHit: 4.0, // 跳ね板に着く
   launch: 4.12, // 跳ね板が玉を打ち上げる
   land: 5.8, // 鹿威しの筒に入る(谷越えはスロー)
@@ -37,14 +38,27 @@ const T = {
   kakon: 6.55, // 反対側が石を打つ(カコーン)
   tableIn: 7.0, // 回転盤に乗る
   minLap: 1.1, // 回転盤で最低これだけ回る
-  dive: 0.8, // 玉に飛び込む長さ
+  exit: 0.55, // 回転盤から出口のレールへ出て、カメラが玉に寄る長さ
+  orbit: 1.1, // 3D でカメラが真横から玉の後ろへ回り込む長さ
 };
 
 const BELL = { x: 150, y: 190 }; // 描画は OmikujiPitagora.vue で 72 下げている
 const RAIL = { x0: 178, y0: 258, x1: 520, y1: 372 };
-const LEDGE = { x0: 520, x1: 840, y: 372 }; // 玉の中心の高さ
+const LEDGE = { x0: 520, x1: 900, y: 372 }; // 玉の中心の高さ
 const EMA = { x0: 580, gap: 40, n: 6, baseY: 384 };
-const SPIRAL = { cx: 900, r: 60, y0: 372, y1: 560, turns: 2.5 };
+// 鳥居の中の螺旋(真ん中の柱に巻き付く1本のレール)。玉は手前の真ん中(φ=0)から入って
+// turns 周まわりながら下り、また手前の真ん中から外へ出る。
+// 画面上の位置: x = cx + r·sin φ、y = 下り + ry·(cos φ − 1)。cos φ < 0 が柱の奥。
+const HELIX = { cx: 900, r: 52, ry: 22, y0: 372, y1: 548, turns: 3 };
+function helixPoint(phi) {
+  const total = HELIX.turns * 2 * Math.PI;
+  return {
+    x: HELIX.cx + HELIX.r * Math.sin(phi),
+    y: lerp(HELIX.y0, HELIX.y1, phi / total) + HELIX.ry * (Math.cos(phi) - 1),
+    s: 1 + 0.12 * (Math.cos(phi) - 1), // 奥ほど小さい
+    coilBack: Math.cos(phi) < 0,
+  };
+}
 const BOARD = { x: 1090, y: 592 };
 const ARC = { x0: 1090, y0: 592, apex: 360 }; // 終点は鹿威しの筒の口(下で設定)
 const SHISHI = { pivotX: 1420, pivotY: 590, len: 150, cupX: 1490, cupY: 548 };
@@ -61,6 +75,18 @@ const lerp = (a, b, f) => a + (b - a) * f;
 const easeIn = (f) => f * f;
 const easeInOut = (f) => f * f * (3 - 2 * f);
 
+// 螺旋の速さの係数(位置 = V0·u + (1−V0)·u²)。入口は棚の速さ、出口は跳ね板への初速にそろえる。
+const HELIX_V0 = (() => {
+  const ledgeV = (LEDGE.x1 - LEDGE.x0) / (T.ledgeEnd - T.railEnd);
+  const helixV = (HELIX.turns * 2 * Math.PI * HELIX.r) / (T.helixEnd - T.ledgeEnd); // 平均の速さ
+  return ledgeV / helixV;
+})();
+const HELIX_OUT_V0 = (() => {
+  const outV = ((2 - HELIX_V0) * HELIX.turns * 2 * Math.PI * HELIX.r) / (T.helixEnd - T.ledgeEnd);
+  const len = Math.hypot(BOARD.x - HELIX.cx, BOARD.y - HELIX.y1);
+  return clamp((outV * (T.boardHit - T.helixEnd)) / len, 0, 1);
+})();
+
 // 絵馬 i が倒れ始める時刻(玉が手前に来た時)
 function emaFallTime(i) {
   const x = EMA.x0 + i * EMA.gap - 14;
@@ -74,14 +100,48 @@ function slowMo(f) {
   return g(f) / g(1);
 }
 
-// 回転盤の上の位置(角度 a。0 で左端から入る)
+// 螺旋のレールの絵(SVG の path)。玉の下(中心から 11 下)を通る線を、柱の奥と手前に分ける。
+function helixRailPaths() {
+  const total = HELIX.turns * 2 * Math.PI;
+  const out = { back: [], front: [] };
+  let cur = null;
+  let curBack = null;
+  for (let i = 0; i <= 240; i++) {
+    const phi = (total * i) / 240;
+    const p = helixPoint(phi);
+    const pt = `${p.x.toFixed(1)} ${(p.y + 11 * p.s).toFixed(1)}`;
+    if (p.coilBack !== curBack) {
+      // 切れ目が空かないよう、前の区間の最後の点から始める
+      if (cur) out[curBack ? "back" : "front"].push(cur);
+      cur = cur ? `M${cur.slice(cur.lastIndexOf("L") + 1)} L${pt}` : `M${pt}`;
+      curBack = p.coilBack;
+    } else {
+      cur += ` L${pt}`;
+    }
+  }
+  out[curBack ? "back" : "front"].push(cur);
+  return out;
+}
+
+// 回転盤の上の位置(角度 a。0 で左端から入り、手前を右へ回る)。
+// a = π/2 + 2πk が手前の真ん中で、ここから出口のレールへまっすぐ右に出られる。
 function onTable(a) {
   return {
     x: TABLE.cx - TABLE.rx * Math.cos(a),
-    y: TABLE.cy - 8 + TABLE.ry * Math.sin(a) * -1,
-    s: 1 - 0.12 * Math.sin(a),
-    behind: Math.sin(a) > 0,
+    y: TABLE.cy - 8 + TABLE.ry * Math.sin(a),
+    s: 1 + 0.06 * Math.sin(a),
   };
+}
+// 回転盤の手前の真ん中から出口のレールへ出た玉(d = 出てからの距離)
+const EXIT_SPEED = TABLE.rx; // × 回転盤の角速度 = 回っていた時の速さのまま出る
+function onExit(d) {
+  const p = onTable(Math.PI / 2);
+  return { x: p.x + d, y: p.y, s: p.s };
+}
+// a より後で、最初に手前の真ん中に来る角度
+function nextExitAngle(a) {
+  const k = Math.ceil((a - Math.PI / 2) / (2 * Math.PI));
+  return Math.PI / 2 + Math.max(0, k) * 2 * Math.PI;
 }
 
 // 時刻 t(rang からの秒)の玉の位置。tableAngle は回転盤に乗ってからの角度。
@@ -98,19 +158,18 @@ function ball2D(t, tableAngle) {
     const f = (t - T.railEnd) / (T.ledgeEnd - T.railEnd);
     return { x: lerp(LEDGE.x0, LEDGE.x1, f), y: LEDGE.y, s: 1 };
   }
-  if (t < T.spiralEnd) {
-    const f = (t - T.ledgeEnd) / (T.spiralEnd - T.ledgeEnd);
-    const th = f * SPIRAL.turns * 2 * Math.PI;
-    return {
-      x: SPIRAL.cx - SPIRAL.r * Math.cos(th),
-      y: lerp(SPIRAL.y0, SPIRAL.y1, f),
-      s: 1 + 0.18 * Math.sin(th),
-      behind: Math.sin(th) < 0,
-    };
+  if (t < T.helixEnd) {
+    // 棚から入った速さで回り始め、下るほど少しずつ速くなる
+    const u = (t - T.ledgeEnd) / (T.helixEnd - T.ledgeEnd);
+    const f = HELIX_V0 * u + (1 - HELIX_V0) * u * u;
+    return helixPoint(f * HELIX.turns * 2 * Math.PI);
   }
   if (t < T.boardHit) {
-    const f = easeIn((t - T.spiralEnd) / (T.boardHit - T.spiralEnd));
-    return { x: lerp(SPIRAL.cx + SPIRAL.r, BOARD.x, f), y: lerp(SPIRAL.y1, BOARD.y, f), s: 1 };
+    const e = { x1: HELIX.cx, y1: HELIX.y1 };
+    // 螺旋を出た勢いのまま跳ね板へ(螺旋の出口の速さから入る)
+    const f = (t - T.helixEnd) / (T.boardHit - T.helixEnd);
+    const g = HELIX_OUT_V0 * f + (1 - HELIX_OUT_V0) * f * f;
+    return { x: lerp(e.x1, BOARD.x, g), y: lerp(e.y1, BOARD.y, g), s: 1 };
   }
   if (t < T.launch) return { x: BOARD.x, y: BOARD.y + 6, s: 1 };
   if (t < T.land) {
@@ -167,8 +226,11 @@ function emaAngle(i, t) {
 }
 
 // カメラの左端(世界座標)。玉を画面の中央やや左に置く。
-function cameraX(ballX) {
-  return clamp(ballX - STAGE.W * 0.45, 0, STAGE.WORLD_W - STAGE.W);
+function cameraX(ballX, t) {
+  let x = ballX - STAGE.W * 0.45;
+  // 鹿威しが石を打つ所は、石が画面の端で切れないよう少し左を見せる
+  if (t > T.land && t < T.kakon + 0.35) x = Math.min(x, 1190);
+  return clamp(x, 0, STAGE.WORLD_W - STAGE.W);
 }
 
 // ---- 3D のあみだ(玉の視点) ----
@@ -176,7 +238,7 @@ const POV = {
   laneGap: 6,
   rowGap: 7.5,
   rows: 10,
-  lead: 10, // 最初の横線までの直線
+  lead: 28, // 最初の横線までの直線(カメラが玉の後ろへ回り込む間はまっすぐ)
   tail: 12, // 最後の横線から門まで
   fillet: 1.6, // 曲がり角の丸み
   speed: 21, // 1秒あたりの距離
@@ -304,7 +366,12 @@ module.exports = {
   RAIL,
   LEDGE,
   EMA,
-  SPIRAL,
+  HELIX,
+  helixPoint,
+  helixRailPaths,
+  EXIT_SPEED,
+  onExit,
+  nextExitAngle,
   BOARD,
   ARC,
   SHISHI,
