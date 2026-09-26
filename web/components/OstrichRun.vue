@@ -7,7 +7,8 @@
       <canvas
         ref="canvas"
         class="os-canvas"
-        @pointerdown.prevent="onPress"
+        @pointerdown.prevent="onPointer"
+        @contextmenu.prevent
       ></canvas>
     </div>
     <!-- 結果の札(スマホの縦画面でも大きく読める。ゲーム画面と一緒にスクショしやすい) -->
@@ -21,7 +22,13 @@
       <div class="os-card-site">でばっぐ神社 {{ siteHost }}</div>
     </div>
     <div class="os-actions">
-      <button type="button" class="btn btn-warning" @click="onButton($event, restart)">
+      <!-- 走っている間は出さない(指の近くにあり、うっかり押すと走りが消える) -->
+      <button
+        v-if="phase === 'ready' || phase === 'over'"
+        type="button"
+        class="btn btn-warning"
+        @click="onButton($event, restart)"
+      >
         {{ phase === "over" ? "もう1回" : "はじめる" }}
       </button>
       <button v-if="phase === 'over'" type="button" class="btn btn-outline-light" @click="onButton($event, saveImage)">
@@ -80,7 +87,13 @@ export default {
     this.game = G.newGame();
     this.resize();
     window.addEventListener("resize", this.resize);
+    // 枠の幅だけ変わった時(スクロールバーが出た等)も測り直す
+    if (window.ResizeObserver) {
+      this._ro = new ResizeObserver(() => this.resize());
+      this._ro.observe(this.$refs.wrap);
+    }
     window.addEventListener("keydown", this.onKey);
+    document.addEventListener("visibilitychange", this.onVisibility);
     this._last = performance.now();
     this._acc = 0;
     this._raf = requestAnimationFrame(this.frame);
@@ -88,6 +101,8 @@ export default {
   beforeDestroy() {
     window.removeEventListener("resize", this.resize);
     window.removeEventListener("keydown", this.onKey);
+    document.removeEventListener("visibilitychange", this.onVisibility);
+    if (this._ro) this._ro.disconnect();
     if (this._raf) cancelAnimationFrame(this._raf);
   },
   methods: {
@@ -96,6 +111,7 @@ export default {
       const wrap = this.$refs.wrap;
       if (!c || !wrap) return;
       const w = wrap.clientWidth;
+      if (!w) return;
       const h = (w * G.H) / G.W;
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       c.style.height = h + "px";
@@ -107,12 +123,26 @@ export default {
       if (e.code !== "Space" && e.code !== "ArrowUp") return;
       // ボタンやテキスト入力にいる時は邪魔しない
       const tag = (e.target && e.target.tagName) || "";
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "BUTTON") return;
+      if (["INPUT", "TEXTAREA", "BUTTON", "SELECT"].includes(tag)) return;
+      if (e.target && e.target.isContentEditable) return;
       e.preventDefault(); // ページがスクロールしないように
       if (!e.repeat) this.onPress();
     },
+    // マウスは左ボタンだけ(右クリックでジャンプ・開始しない)
+    onPointer(e) {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      this.onPress();
+    },
+    // タブを離れたら一時停止する(戻った瞬間に走り出して、ぶつからないように)
+    onVisibility() {
+      if (document.hidden && this.phase === "play") this.phase = "paused";
+    },
     onPress() {
-      if (this.phase === "ready") {
+      if (this.phase === "paused") {
+        this.phase = "play";
+        this._acc = 0;
+        this._last = performance.now();
+      } else if (this.phase === "ready") {
         this.start();
         G.press(this.game);
       } else if (this.phase === "play") {
@@ -192,6 +222,7 @@ export default {
       this.drawHud(ctx, g, now);
       if (this.phase === "ready") this.drawReady(ctx);
       if (this.phase === "over") this.drawOver(ctx, g);
+      if (this.phase === "paused") this.drawPaused(ctx);
     },
     // 昼(0)〜夜(1)。スコア 1000 ごとに昼と夜が入れ替わる
     night(g) {
@@ -406,7 +437,7 @@ export default {
       }
       ctx.restore();
     },
-    drawHud(ctx, g, now) {
+    drawHud(ctx, g, now, forImage = false) {
       const light = this.night(g) > 0.5;
       ctx.fillStyle = light ? "#efe6d2" : "#3a2a20";
       ctx.font = "700 18px 'IBM Plex Mono', ui-monospace, monospace";
@@ -415,7 +446,7 @@ export default {
       ctx.textAlign = "left";
       // 門をくぐった時の「+20」
       this._popups = (this._popups || []).filter((p) => now - p.t < 800);
-      this._popups.forEach((p) => {
+      if (!forImage) this._popups.forEach((p) => {
         const u = (now - p.t) / 800;
         ctx.globalAlpha = 1 - u;
         ctx.fillStyle = "#b8412c";
@@ -424,7 +455,7 @@ export default {
         ctx.globalAlpha = 1;
       });
       // ベスト更新の瞬間
-      if (this._flashBest && now - this._flashBest < 1400) {
+      if (!forImage && this._flashBest && now - this._flashBest < 1400) {
         const u = (now - this._flashBest) / 1400;
         ctx.globalAlpha = 1 - u * u;
         ctx.fillStyle = "#b8412c";
@@ -449,6 +480,17 @@ export default {
       ctx.fillText("地面でタップ = ジャンプ / 空中でタップ = 羽ばたき", G.W / 2, 232);
       ctx.fillText("鳥居の柱のすき間をくぐると +20", G.W / 2, 254);
       if (this.best > 0) ctx.fillText(`ベスト ${this.best}`, G.W / 2, 290);
+      ctx.textAlign = "left";
+    },
+    drawPaused(ctx) {
+      ctx.fillStyle = "rgba(20,16,24,0.5)";
+      ctx.fillRect(0, 0, G.W, G.H);
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#fff8e1";
+      ctx.font = "800 26px sans-serif";
+      ctx.fillText("一時停止中", G.W / 2, 160);
+      ctx.font = "700 18px sans-serif";
+      ctx.fillText("タップで再開", G.W / 2, 200);
       ctx.textAlign = "left";
     },
     // 終わった時のゲーム画面(暗くして、スコアと「もう1回」だけ)
@@ -537,7 +579,7 @@ export default {
       ctx.scale(1200 / G.W, 750 / G.H);
       const now = performance.now();
       this.drawWorld(ctx, this.game, now);
-      this.drawHud(ctx, this.game, now);
+      this.drawHud(ctx, this.game, now, true);
       ctx.restore();
       this.drawCardImage(ctx, 60, 790, 1080, 510);
       if (!c.toBlob) return;
@@ -551,7 +593,8 @@ export default {
             return;
           }
         } catch (e) {
-          // シェアをやめた / 使えない → 保存にする
+          // 利用者がシェアシートを閉じただけなら何もしない。使えない時は保存にする
+          if (e && e.name === "AbortError") return;
         }
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -585,6 +628,7 @@ export default {
 .os-canvas {
   display: block;
   width: 100%;
+  aspect-ratio: 640 / 400; /* 大きさを測る前から、ゲーム画面と同じ縦横比にしておく */
   touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;

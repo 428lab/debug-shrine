@@ -7,7 +7,8 @@
 // - 単純な自動操縦でも、たいていは最高速度に達した後まで走り切れる
 //   (= よけようのない配置が出ていない)。人は自動操縦より下手なので、ここで
 //   落ちる配置は人にとって理不尽になる。
-// - 障害物どうしが、反応に要る距離より近くに置かれない
+// - 人の反応の遅れ(60ms)を入れた自動操縦でも、たいていは走り切れる
+// - 障害物どうしが、ジャンプして着地し、次に跳ぶまでの時間より近くに置かれない
 // - 門のすき間は、走ったままでは通れず、羽ばたけば届く高さにある
 // - 何もしなければ最初のサボテンで終わる(判定が効いている)
 
@@ -26,8 +27,8 @@ function seeded(seed) {
   };
 }
 
-// 単純な自動操縦: 目の前の障害物だけを見る
-function autopilot(g) {
+// 単純な自動操縦: 目の前の障害物だけを見る。press を返す関数を渡すと、押すのを遅らせられる
+function autopilot(g, press = G.press) {
   const front = G.BIRD.x + G.BIRD.w / 2;
   const ob = g.obstacles.find((o) => o.x + o.w > G.BIRD.x - G.BIRD.w / 2);
   if (!ob) return;
@@ -35,14 +36,14 @@ function autopilot(g) {
   if (ob.kind === "gate") {
     const target = ob.gapBottom - 30; // 足をすき間の下端より少し上に
     if (g.onGround) {
-      if (d < g.speed * 0.75) G.press(g);
+      if (d < g.speed * 0.75) press(g);
     } else if (g.y > target && g.vy > -150) {
-      G.press(g);
+      press(g);
     }
     return;
   }
   if (ob.kind === "crow" && !ob.low) return; // 高いカラスは走り抜ける
-  if (g.onGround && d < g.speed * 0.12 + 6 && d > -10) G.press(g);
+  if (g.onGround && d < g.speed * 0.12 + 6 && d > -10) press(g);
 }
 
 const SECONDS = 90;
@@ -92,11 +93,45 @@ assert.strictEqual(G.titleOf(100), "若鳥");
 assert.deepStrictEqual(G.nextTitle(80), { name: "若鳥", need: 20 });
 assert.strictEqual(G.nextTitle(99999), null);
 
+// 人の反応の遅れを入れた自動操縦: 押そうと決めてから DELAY 秒後に押す。遅れを見込んで、
+// その時の位置を先読みして判断する(人も慣れると先読みする)。
+const DELAY = 0.06;
+let survivedLate = 0;
+for (let seed = 1; seed <= SEEDS; seed++) {
+  const g = G.newGame(seeded(seed + 10000));
+  let pendingAt = -1;
+  while (!g.over && g.t < SECONDS) {
+    const front = G.BIRD.x + G.BIRD.w / 2;
+    const ob = g.obstacles.find((o) => o.x + o.w > G.BIRD.x - G.BIRD.w / 2);
+    if (ob && pendingAt < 0) {
+      const d = ob.x - g.speed * DELAY - front;
+      if (ob.kind === "gate") {
+        if (g.onGround) {
+          if (d < g.speed * 0.75) pendingAt = g.t + DELAY;
+        } else if (g.y + g.vy * DELAY > ob.gapBottom - 30 && g.vy > -150) {
+          pendingAt = g.t + DELAY;
+        }
+      } else if (!(ob.kind === "crow" && !ob.low)) {
+        if (g.onGround && d < g.speed * 0.12 + 6 && d > -10) pendingAt = g.t + DELAY;
+      }
+    }
+    if (pendingAt >= 0 && g.t >= pendingAt) {
+      G.press(g);
+      pendingAt = -1;
+    }
+    G.step(g);
+  }
+  if (!g.over) survivedLate++;
+}
+
 const rate = survived / SEEDS;
+const rateLate = survivedLate / SEEDS;
 console.log(
   `自動操縦 ${SEEDS} 回 × ${SECONDS} 秒: 走り切り ${(rate * 100).toFixed(1)}% / 終わった原因 ${JSON.stringify(deaths)} / ` +
     `門 平均 ${(gates / SEEDS).toFixed(1)} 回 / 最高 ${maxScore} 点 / 障害物の最小間隔 ${minGap.toFixed(2)} 秒`
 );
+console.log(`反応を ${DELAY * 1000}ms 遅らせた自動操縦: 走り切り ${(rateLate * 100).toFixed(1)}%`);
+assert.ok(rateLate >= 0.95, `反応が少し遅いと走り切れない配置が多い(${(rateLate * 100).toFixed(1)}%)`);
 assert.ok(rate >= 0.97, `自動操縦が走り切れない配置が多い(${(rate * 100).toFixed(1)}%)`);
-assert.ok(minGap >= 0.5, `障害物が近すぎる(${minGap.toFixed(2)} 秒)`);
+assert.ok(minGap >= 0.75, `障害物が近すぎる(${minGap.toFixed(2)} 秒)`);
 console.log("OK");

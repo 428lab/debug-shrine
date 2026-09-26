@@ -88,8 +88,10 @@ function press(g) {
 function spawn(g) {
   const r = g.rnd;
   const x = W + 40;
-  // 反応に要る距離(この秒数ぶんは必ず空ける)
-  const react = g.speed * 0.62;
+  // 次までの間隔は秒で決める(距離 = 速さ × 秒)。ジャンプの滞空(約 0.7 秒)の後、着地して
+  // から次に跳ぶまでの余裕が、どの速さでも残るようにする(距離で決めると、最高速で
+  // 着地した直前に次のサボテンが来て、人の反応では間に合わなかった)
+  const sec = (a, b) => g.speed * (a + r() * (b - a));
   const level = Math.min(1, (g.speed - SPEED.start) / (SPEED.max - SPEED.start));
   const roll = r();
   let ob;
@@ -101,21 +103,21 @@ function spawn(g) {
     const gapBottom = bottomMin + r() * (bottomMax - bottomMin);
     ob = { kind: "gate", x, w: GATE.w, gapTop: gapBottom - GATE.gap, gapBottom, passed: false };
     // 門の後は着地して体勢を整える分を多めに空ける
-    after = react + 260 + r() * 200;
+    after = sec(1.2, 1.7);
   } else if (g.dist > 800 && roll < 0.42 + 0.08 * level) {
     // カラス。低い(跳んで越える)か、高い(走り抜ける)か
     const low = r() < 0.5;
     const h = 26;
     const y = low ? GROUND - 30 - h : GROUND - BIRD.h - 34 - h; // 高い方は頭の上を通る
     ob = { kind: "crow", x, w: 40, y, h, low };
-    after = react + 140 + r() * 220;
+    after = sec(1.0, 1.6);
   } else {
     // サボテン。1〜3 本の塊
     const n = 1 + Math.floor(r() * (level > 0.4 ? 3 : 2));
     const w = 18 * n + 6 * (n - 1);
     const h = 38 + Math.floor(r() * 28);
     ob = { kind: "cactus", x, w, h, y: GROUND - h };
-    after = react + 60 + r() * 260;
+    after = sec(0.95, 1.5);
   }
   g.obstacles.push(ob);
   g.spawned += 1;
