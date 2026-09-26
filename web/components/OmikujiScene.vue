@@ -41,8 +41,11 @@
           <button class="btn btn-lg btn-accent" @click.stop="onRing">{{ hint.button }}</button>
         </div>
       </div>
-      <div v-else-if="phase === 'cascade' || phase === 'fox'" class="hint skip">
+      <div v-else-if="(phase === 'cascade' || phase === 'fox') && targetTier" class="hint skip">
         タップでスキップ
+      </div>
+      <div v-else-if="phase === 'cascade' || phase === 'fox'" class="hint skip">
+        結果を待っています…
       </div>
     </div>
   </div>
@@ -320,7 +323,7 @@ export default {
       // 2) それでも届かなければ狐を起こす
       this.later(tl.wakeMs, () => this.wakeFox());
       // 3) 全体フェイルセーフ
-      this.later(tl.failsafeMs, () => this.finish());
+      this.later(tl.failsafeMs, () => this.waitTargetThen(() => this.finish()));
     },
     waitTargetThen(cb) {
       if (this.targetTier) return cb();
@@ -426,6 +429,8 @@ export default {
       // 演出中はタップでスキップ(儀式中は誤爆防止のため無効。fallbackリンクを使う)
       // 鳴った直後の猶予中(_skipArmedAt前)も無効(onRing参照)。
       if (this._skipArmedAt && performance.now() < this._skipArmedAt) return;
+      // 結果(targetTier)が届くまではスキップさせない(結果なしで着地させないため)
+      if (!this.targetTier) return;
       if (this.phase === "cascade" || this.phase === "fox") this.finish();
     },
 
