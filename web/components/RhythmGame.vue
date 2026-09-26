@@ -63,7 +63,7 @@
     </div>
     <div v-if="phase === 'result'" class="rg-actions">
       <button type="button" class="btn btn-warning" @click="start(level)">もう1回</button>
-      <button type="button" class="btn btn-outline-light" @click="phase = 'title'">難易度を選ぶ</button>
+      <button type="button" class="btn btn-outline-light" @click="toTitle">難易度を選ぶ</button>
       <button type="button" class="btn btn-outline-light" @click="saveImage">
         <i class="fas fa-download fa-fw"></i> 画像を保存
       </button>
@@ -162,6 +162,10 @@ export default {
       const wrap = this.$refs.wrap;
       if (!c || !wrap) return;
       const w = wrap.clientWidth;
+      // 遊んでいる間は、幅が変わらない限り大きさを変えない(iOS のアドレスバーの出入りで
+      // 判定の線が動かないように)
+      if (this.phase === "play" && w === this._w) return;
+      this._w = w;
       const h = Math.min(window.innerHeight * 0.78, w * 1.7);
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       c.style.height = h + "px";
@@ -191,10 +195,12 @@ export default {
       const ctx = this.ctx;
       const st = this.st;
       if (!ctx || !st) return -LEAD;
-      if (ctx.getOutputTimestamp) {
+      // 音が止まっている間(一時停止・電話などの中断)は、止まった currentTime を使う。
+      // getOutputTimestamp は止まる直前の値を返し続けるので、足し算すると時刻だけ進んでしまう
+      if (ctx.state === "running" && ctx.getOutputTimestamp) {
         const ts = ctx.getOutputTimestamp();
-        if (ts && ts.contextTime > 0 && ts.performanceTime > 0) {
-          const now = perfNow != null ? perfNow : performance.now();
+        const now = perfNow != null ? perfNow : performance.now();
+        if (ts && ts.contextTime > 0 && ts.performanceTime > 0 && now - ts.performanceTime < 100) {
           return ts.contextTime + (now - ts.performanceTime) / 1000 - st.startAt;
         }
       }
@@ -226,19 +232,38 @@ export default {
         petals: [],
       };
       this._kickIdx = 0;
+      this._startedAt = performance.now();
       this.result = null;
       this.phase = "play";
     },
+    toTitle() {
+      if (this.engine) this.engine.silence();
+      this.engine = null;
+      this.st = null;
+      this.phase = "title";
+    },
     resume() {
       if (this.phase !== "paused") return;
-      this.ensureCtx();
-      this.phase = "play";
+      // 音が本当に動き出してから遊びに戻る(先に戻ると、止まっていた間の音符が一気に不可になる)
+      const ctx = this.ensureCtx();
+      const p = ctx.resume ? ctx.resume() : null;
+      const go = () => {
+        if (this.phase === "paused") this.phase = "play";
+      };
+      if (p && p.then) p.then(go, go);
+      else go();
     },
     onVisibility() {
-      if (document.hidden && this.phase === "play" && this.ctx) {
-        this.ctx.suspend();
-        this.phase = "paused";
-      }
+      if (document.hidden && this.phase === "play" && this.ctx) this.pause();
+    },
+    // 一時停止。押していた長押しは、その時点で離したことにする(止まっている間の指やキーは分からない)
+    pause() {
+      if (this.phase !== "play") return;
+      const t = this.heardTime();
+      if (this.st) for (let lane = 0; lane < 3; lane++) if (this.st.held[lane]) this.endHold(lane, t);
+      if (this._pointers) this._pointers = {};
+      if (this.ctx && this.ctx.state === "running") this.ctx.suspend();
+      this.phase = "paused";
     },
 
     // ---- 入力 ----
@@ -252,13 +277,19 @@ export default {
       const lane = this.laneAt(e.clientX);
       this._pointers = this._pointers || {};
       this._pointers[e.pointerId] = lane;
-      this.press(lane, e.timeStamp);
+      // 画面の外で離しても pointerup が届くように
+      try {
+        e.target.setPointerCapture(e.pointerId);
+      } catch (err) {
+        // 対応していない環境
+      }
+      this.press(lane, e.timeStamp, "p" + e.pointerId);
     },
     onPointerUp(e) {
       const lane = this._pointers && this._pointers[e.pointerId];
       if (lane == null) return;
       delete this._pointers[e.pointerId];
-      this.release(lane, e.timeStamp);
+      this.release(lane, e.timeStamp, "p" + e.pointerId);
     },
     onKeyDown(e) {
       if (!(e.code in KEYS)) return;
@@ -266,14 +297,15 @@ export default {
       if (["INPUT", "TEXTAREA", "SELECT"].includes(tag)) return;
       e.preventDefault();
       if (e.repeat || this.phase !== "play") return;
-      this.press(KEYS[e.code], e.timeStamp);
+      this.press(KEYS[e.code], e.timeStamp, "k" + e.code);
     },
     onKeyUp(e) {
       if (!(e.code in KEYS) || this.phase !== "play") return;
-      this.release(KEYS[e.code], e.timeStamp);
+      this.release(KEYS[e.code], e.timeStamp, "k" + e.code);
     },
     // 入力の時刻(イベントの timeStamp は performance.now と同じ時計)
-    press(lane, stamp) {
+    // who: 押した指やキー。長押しは、始めた指(キー)が離れた時だけ終わる
+    press(lane, stamp, who = "x") {
       const st = this.st;
       if (!st) return;
       const t = this.heardTime(stamp);
@@ -293,17 +325,23 @@ export default {
       this.applyJudge(hit, j, lane);
       if (hit.end != null) {
         hit.holding = true;
+        hit.who = who;
         st.held[lane] = hit;
       }
     },
-    release(lane, stamp) {
+    release(lane, stamp, who = "x") {
       const st = this.st;
       if (!st) return;
+      const n = st.held[lane];
+      if (!n || n.who !== who) return; // 別の指が離れただけなら長押しは続く
+      this.endHold(lane, this.heardTime(stamp));
+    },
+    endHold(lane, t) {
+      const st = this.st;
       const n = st.held[lane];
       if (!n) return;
       st.held[lane] = null;
       n.holding = false;
-      const t = this.heardTime(stamp);
       // 終わりの 0.12 秒前までに離したら、長押しは失敗
       if (n.tail == null) this.applyTail(n, t >= n.end - 0.12 ? "kiwami" : "fuka", lane);
     },
@@ -341,6 +379,11 @@ export default {
     },
     update(now) {
       const st = this.st;
+      // 電話などで音が止められた(visibilitychange が来ない)時も一時停止にする
+      if (this.ctx && this.ctx.state !== "running" && now - (this._startedAt || 0) > 1000) {
+        this.pause();
+        return;
+      }
       const t = this.heardTime(now);
       // 叩かれずに過ぎた音符は不可
       while (st.next < st.notes.length) {
@@ -526,6 +569,7 @@ export default {
         for (let i = st.next; i < st.notes.length; i++) {
           const n = st.notes[i];
           if (n.t - t > VISIBLE) break;
+          if (n.end != null && n.judged) continue; // 頭を叩いた長押しは下でまとめて描く
           this.drawNote(g, n, t);
         }
         // 長押し中・判定済みでも尾が残っているもの

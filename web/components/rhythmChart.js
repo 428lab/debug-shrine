@@ -5,7 +5,8 @@
 //
 // - 参拝(やさしい): 2 拍ごとの頭くらい(平均 2 個/秒ほど)。同じレーンは 4 ステップ(約 0.35 秒)以上あける
 // - 修行(むずかしい): ボーカルのメロディをなぞる。長い音は長押し。同じレーンは 2 ステップ以上
-// - どちらも、同時に押すのは 2 本まで。長押しの間、そのレーンに次の音は置かない
+// - どちらも、同時に押すのは 2 本まで(長押しで押している指も数える)。長押しの間、そのレーンに
+//   次の音は置かない
 //
 // 検証は scripts/test-rhythm-chart.js。
 
@@ -91,13 +92,15 @@ function buildChart(song, level = "easy") {
     }
   }
 
-  // 同時に押すのは 2 本まで(3 本重なったら、優先度の低いものを外す)
+  // 同時に押すのは 2 本まで。長押しの途中なら、押している指も数える(親指 2 本で遊べるように)
   kept.sort((a, b) => a.t - b.t || b.prio - a.prio);
   const notes = [];
   for (let i = 0; i < kept.length; ) {
     let j = i;
-    while (j < kept.length && Math.abs(kept[j].t - kept[i].t) < 1e-6) j++;
-    const group = kept.slice(i, j).sort((a, b) => b.prio - a.prio).slice(0, 2);
+    const t = kept[i].t;
+    while (j < kept.length && Math.abs(kept[j].t - t) < 1e-6) j++;
+    const holding = notes.filter((n) => n.end != null && n.t < t - 1e-6 && n.end > t - 1e-6).length;
+    const group = kept.slice(i, j).sort((a, b) => b.prio - a.prio).slice(0, Math.max(0, 2 - holding));
     for (const n of group) notes.push(n);
     i = j;
   }
