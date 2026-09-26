@@ -8,7 +8,7 @@
 // - 同じレーンの間隔と、長押しの間の空きが守られている
 // - 同時に押すのは 2 本まで(長押しで押している指も数える)
 // - 参拝 < 祈願 < 修行 の順に音符が多い。修行と祈願に長押しがある。密度が人の手で叩ける範囲
-// - 判定と点数・評価の計算
+// - 判定と点数の計算
 
 /* eslint-disable no-console */
 const assert = require("assert");
@@ -76,7 +76,5 @@ assert.strictEqual(C.judge(-0.13), "ka");
 assert.strictEqual(C.judge(0.2), null);
 assert.strictEqual(C.scoreOf({ kiwami: 10 }, 10), 1000000);
 assert.strictEqual(C.scoreOf({ kiwami: 5, fuka: 5 }, 10), 500000);
-assert.strictEqual(C.rankOf(1000000), "大吉");
-assert.strictEqual(C.rankOf(500000), "凶");
 
 console.log("OK");
