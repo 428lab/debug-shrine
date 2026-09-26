@@ -18,10 +18,11 @@
             <stop offset="1" stop-color="#3a2d2a" />
           </linearGradient>
         </defs>
-        <rect x="0" y="-12" :width="G.STAGE.WORLD_W" height="784" fill="url(#pg-sky)" />
+        <!-- 空と遠景は出口のレールの先(カメラが玉に寄る所)まで広げておく -->
+        <rect x="0" y="-12" width="2400" height="784" fill="url(#pg-sky)" />
         <!-- 遠景の山 -->
         <path
-          d="M0 520 L160 440 L300 500 L470 410 L640 480 L820 400 L1000 470 L1180 390 L1380 470 L1560 410 L1760 480 L1900 430 V760 H0 Z"
+          d="M0 520 L160 440 L300 500 L470 410 L640 480 L820 400 L1000 470 L1180 390 L1380 470 L1560 410 L1760 480 L1900 430 L2120 480 L2400 420 V772 H0 Z"
           class="hills"
         />
 
@@ -54,34 +55,29 @@
           </g>
         </g>
 
-        <!-- ③ 鳥居とつづら折り(玉は鳥居の手前を転がってくぐる) -->
+        <!-- ③ 鳥居と螺旋(柱に巻き付く1本のレール。奥 → 柱 → 奥の玉 → 手前の順に重ねる) -->
         <g class="torii">
           <rect x="800" y="300" width="200" height="14" rx="3" />
           <rect x="814" y="326" width="172" height="9" />
           <rect x="824" y="314" width="13" height="300" />
           <rect x="963" y="314" width="13" height="300" />
         </g>
-        <path
-          v-for="(r, k) in G.ZIG.ramps"
-:key="'zr' + k"
-          :d="zigRail(r, k)"
-          class="rail"
+        <path v-for="(d, k) in helixRails.back" :key="'hb' + k" :d="d" class="rail helix-back" />
+        <rect :x="G.HELIX.cx - 5" y="336" width="10" height="278" class="wood" />
+        <circle
+          v-if="phase !== 'ritual' && ball.coilBack"
+          :cx="ball.x"
+          :cy="ball.y"
+          :r="10 * (ball.s || 1)"
+          fill="url(#pg-ball)"
+          class="ball"
         />
-        <rect
-          v-for="(x, k) in G.ZIG.stops"
-          :key="'zs' + k"
-          :x="x - 3"
-          :y="G.ZIG.ramps[k].y1 - 14"
-          width="6"
-          height="30"
-          rx="2"
-          class="stake"
-        />
+        <path v-for="(d, k) in helixRails.front" :key="'hf' + k" :d="d" class="rail" />
 
         <!-- ④ 跳ね板と谷 -->
-        <path :d="`M${G.ZIG.ramps[2].x1 - 2} ${G.ZIG.ramps[2].y1 + 11} L${G.BOARD.x + 4} ${G.BOARD.y + 11}`" class="rail" />
+        <path :d="`M${G.HELIX.cx} ${G.HELIX.y1 + 11} L${G.BOARD.x + 4} ${G.BOARD.y + 11}`" class="rail" />
         <path d="M930 614 H1135 V772 H930 Z" class="ground" />
-        <path d="M1316 614 H1395 V642 H1900 V772 H1316 Z" class="ground" />
+        <path d="M1316 614 H1395 V642 H2400 V772 H1316 Z" class="ground" />
         <path d="M1062 614 q-6 -8 0 -16 q6 -8 0 -16" class="spring" />
         <g :transform="`rotate(${boardTilt} 1062 600)`">
           <rect x="1030" y="596" width="96" height="8" rx="3" class="plank" />
@@ -133,21 +129,22 @@
         <ellipse :cx="G.TABLE.cx" :cy="G.TABLE.cy + 6" :rx="G.TABLE.rx" :ry="G.TABLE.ry" class="table-side" />
         <ellipse :cx="G.TABLE.cx" :cy="G.TABLE.cy" :rx="G.TABLE.rx" :ry="G.TABLE.ry" class="table-top" />
         <ellipse :cx="G.TABLE.cx" :cy="G.TABLE.cy" :rx="G.TABLE.rx - 22" :ry="G.TABLE.ry - 7" class="table-groove" />
+        <!-- 出口のレール(回転盤の手前の真ん中から右へ。この先が 3D のあみだにつながる) -->
+        <path :d="`M${G.TABLE.cx + 4} ${G.TABLE.cy - 8 + G.TABLE.ry + 11} L2400 ${G.TABLE.cy - 8 + G.TABLE.ry + 11}`" class="rail" />
 
         <!-- 御神玉 -->
         <circle
-          v-if="phase !== 'ritual'"
+          v-if="phase !== 'ritual' && !ball.coilBack"
           :cx="ball.x"
           :cy="ball.y"
           :r="10 * (ball.s || 1)"
           fill="url(#pg-ball)"
           class="ball"
-          :opacity="ball.behind ? 0.55 : 1"
         />
       </svg>
 
       <!-- 3D のあみだ(玉の視点) -->
-      <canvas v-show="phase === 'pov'" ref="canvas" class="pg-canvas"></canvas>
+      <canvas v-show="phase === 'pov'" ref="canvas" class="pg-canvas" :style="{ opacity: povFade }"></canvas>
 
       <!-- 結果: 太鼓と巻物 -->
       <div v-if="phase === 'final'" class="final">
@@ -205,6 +202,13 @@ const TIER_COLORS = {
 
 const ROPE = { top: 160, rest: 300, pull: 48, max: 90 };
 const LAP_SPEED = (2 * Math.PI) / 1.2; // 回転盤の角速度(rad/s)
+// 出口でカメラが寄る倍率。3D の最初の構図(真横)はこの寄りの画面に合わせる
+// (玉の大きさ・位置・動く速さがそろうよう、EXIT_SIDE_DIST を決めている)。
+const EXIT_ZOOM = 3.2;
+// 2D の玉の半径(画面の幅に対する割合)= 3D の玉の半径 → 真横のカメラの距離
+const EXIT_SIDE_DIST = (0.9 * 0.42 * 480) / (10 * 1.06 * EXIT_ZOOM);
+// 真横のカメラの見下ろす角度: 地平線 = 玉の 38 上(回転盤の地面の縁)× EXIT_ZOOM
+const EXIT_PITCH = Math.atan((38 * EXIT_ZOOM) / 480 / 0.9);
 const FAILSAFE_MS = 25000; // 結果を待つ上限
 const FINAL_MS = 2300; // 巻物を見せる長さ
 const PLAQUE_UNIT = 64; // 門の札の画像の文字の大きさ(px)
@@ -217,11 +221,13 @@ export default {
   },
   data() {
     return {
-      phase: "ritual", // ritual | run | dive | pov | final | done
+      phase: "ritual", // ritual | run | exit | pov | final | done
       t: 0, // rang からの秒
       tableAngle: 0,
       camX: 0,
-      zoom: 1,
+      zoomF: 0, // 出口でカメラが玉に寄る度合い(0〜1)
+      exitD: 0, // 回転盤から出口のレールへ出てからの距離
+      povFade: 0, // 3D の絵を重ねていく度合い(2D と同じ構図から始めて、なじませる)
       flash: 0,
       pull: 0,
       bellSwing: 0,
@@ -231,17 +237,23 @@ export default {
   },
   computed: {
     show2D() {
-      return this.phase === "ritual" || this.phase === "run" || this.phase === "dive";
+      if (this.phase === "pov") return this.povFade < 1;
+      return this.phase === "ritual" || this.phase === "run" || this.phase === "exit";
     },
     ball() {
+      if (this.phase === "exit" || this.phase === "pov") return G.onExit(this.exitD);
       return G.ball2D(this.t, this.tableAngle);
     },
     viewBox() {
-      if (this.zoom > 1) {
-        const w = G.STAGE.W / this.zoom;
-        const h = G.STAGE.H / this.zoom;
+      if (this.zoomF > 0) {
+        // いつもの画面から、玉を真ん中にした寄りの画面へなめらかに移る
+        const zoom = 1 + (EXIT_ZOOM - 1) * this.zoomF;
+        const w = G.STAGE.W / zoom;
+        const h = G.STAGE.H / zoom;
         const b = this.ball;
-        return `${b.x - w / 2} ${b.y - h / 2} ${w} ${h}`;
+        const cx = this.camX + G.STAGE.W / 2 + (b.x - this.camX - G.STAGE.W / 2) * this.zoomF;
+        const cy = G.STAGE.H / 2 + (b.y - G.STAGE.H / 2) * this.zoomF;
+        return `${cx - w / 2} ${cy - h / 2} ${w} ${h}`;
       }
       return `${this.camX} ${this.shake} ${G.STAGE.W} ${G.STAGE.H}`;
     },
@@ -273,13 +285,14 @@ export default {
     },
     // 結果を待っている(この間はスキップできない)
     waiting() {
-      return (this.phase === "run" || this.phase === "dive") && !this.targetTier;
+      return (this.phase === "run" || this.phase === "exit") && !this.targetTier;
     },
   },
   created() {
     // 組み立てのモジュールは data に入れない(Vue 2 が中身までリアクティブ化して
     // __ob__ を生やし、検証スクリプトと共有しているモジュールを書き換えてしまう)
     this.G = G;
+    this.helixRails = G.helixRailPaths();
   },
   mounted() {
     this.reducedMotion =
@@ -330,14 +343,6 @@ export default {
       const r = this.$refs.inner.getBoundingClientRect();
       return ((clientY - r.top) / r.height) * G.STAGE.H;
     },
-    // つづら折りの坂の板。手前側は下の坂に落ちてくる玉を受けるぶん少し伸ばす(傾きはそのまま)
-    zigRail(r, k) {
-      const dir = Math.sign(r.x1 - r.x0);
-      const slope = (r.y1 - r.y0) / (r.x1 - r.x0);
-      const ext = k ? 16 : 8;
-      const xs = r.x0 - dir * ext;
-      return `M${xs} ${r.y0 + 11 + slope * (xs - r.x0)} L${r.x1} ${r.y1 + 11}`;
-    },
     emaPath(x, baseY) {
       // 絵馬(五角形)。左下 x、底 baseY、幅 22・高さ 34
       return `M${x} ${baseY} V${baseY - 26} L${x + 11} ${baseY - 36} L${x + 22} ${baseY - 26} V${baseY} Z`;
@@ -386,7 +391,7 @@ export default {
       // 待ちが長引いたら着地させる。ページは結果が無ければ状態を取り直す
       // (OmikujiScene の TIMELINE.failsafeMs と同じ扱い)。
       this.later(FAILSAFE_MS, () => {
-        if (this.phase === "run" || this.phase === "dive") this.finish();
+        if (this.phase === "run" || this.phase === "exit") this.finish();
       });
       if (this.reducedMotion) {
         this.waitThenFinal();
@@ -400,14 +405,18 @@ export default {
         this._last = now;
         this.t = (now - this._t0) / 1000;
         if (this.t > G.T.tableIn) this.tableAngle += LAP_SPEED * dt;
+        // 回転盤で最低1周し、結果が届いていれば、手前の真ん中に来た所で出口のレールへ出る
+        if (this._exitAt == null && this.t > G.T.tableIn + G.T.minLap && this.targetTier) {
+          this._exitAt = G.nextExitAngle(this.tableAngle);
+        }
+        if (this._exitAt != null && this.tableAngle >= this._exitAt) {
+          this.tableAngle = this._exitAt;
+          this.startExit();
+          return;
+        }
         // カメラは玉を追う(少し遅れてついていく)
         const target = G.cameraX(this.ball.x, this.t);
         this.camX += (target - this.camX) * Math.min(1, dt * 6);
-        // 回転盤で最低1周し、結果が届いていれば玉に飛び込む
-        if (this.t > G.T.tableIn + G.T.minLap && this.targetTier) {
-          this.startDive();
-          return;
-        }
         this._raf = requestAnimationFrame(tick);
       };
       this._raf = requestAnimationFrame(tick);
@@ -419,18 +428,20 @@ export default {
       else this.later(200, () => this.waitThenFinal());
     },
 
-    // 回転盤の玉にカメラが飛び込む
-    startDive() {
-      this.phase = "dive";
+    // 玉が回転盤から出口のレールへ出て、カメラが玉に寄っていく
+    startExit() {
+      this.phase = "exit";
       const t0 = performance.now();
       let last = t0;
       const tick = (now) => {
-        if (this.destroyed || this.phase !== "dive") return;
-        const f = Math.min(1, (now - t0) / (G.T.dive * 1000));
-        this.tableAngle += LAP_SPEED * Math.min(0.05, (now - last) / 1000);
+        if (this.destroyed || this.phase !== "exit") return;
+        const dt = Math.min(0.05, (now - last) / 1000);
         last = now;
-        this.zoom = 1 + 15 * f * f;
-        this.flash = f * f;
+        this.exitD += G.EXIT_SPEED * LAP_SPEED * dt;
+        // 寄る間もカメラは玉を追う(装置の右端で止めない。玉が画面の外へ逃げないように)
+        this.camX += (this.ball.x - G.STAGE.W / 2 - this.camX) * Math.min(1, dt * 10);
+        const f = Math.min(1, (now - t0) / (G.T.exit * 1000));
+        this.zoomF = f * f * (3 - 2 * f);
         if (f < 1) this._raf = requestAnimationFrame(tick);
         else this.startPov();
       };
@@ -455,6 +466,7 @@ export default {
       this._gates = gates;
       this._plaques = gates.map((tier) => [this.makePlaque(tier, false), this.makePlaque(tier, true)]);
       this._route = G.buildRoute(start, target);
+      this.povFade = 0;
       this._yaw = 0;
       this.phase = "pov";
       this.$nextTick(() => {
@@ -467,17 +479,23 @@ export default {
           const dt = Math.min(0.05, (now - last) / 1000);
           last = now;
           const el = (now - t0) / 1000;
-          // 走り出しは少しずつ加速
-          const s = G.POV.speed * (el < 0.5 ? (el * el) / 1.0 : el - 0.25);
-          this.flash = Math.max(0, 1 - el / 0.35) + Math.max(0, (s - (total - 3)) / 4);
-          this.drawPov(s, dt);
+          // 2D の玉と同じ速さのまま走る。最初は 2D の寄りの画面に 3D を重ねてなじませる
+          // (その間も 2D の玉は同じ速さで進める)
+          const s = G.POV.speed * el;
+          if (this.povFade < 1) {
+            this.povFade = Math.min(1, el / 0.25);
+            this.exitD += G.EXIT_SPEED * LAP_SPEED * dt;
+          }
+          this.flash = Math.max(0, (s - (total - 3)) / 4);
+          this.drawPov(s, dt, Math.min(1, el / G.T.orbit));
           if (s < total + 1.5) this._raf = requestAnimationFrame(tick);
           else this.showFinal();
         };
         this._raf = requestAnimationFrame(tick);
       });
     },
-    drawPov(s, dt) {
+    // o: カメラが真横から玉の後ろへ回り込む進み具合(0〜1)
+    drawPov(s, dt, o = 1) {
       const c = this.$refs.canvas;
       if (!c) return;
       const ctx = c.getContext("2d");
@@ -490,17 +508,24 @@ export default {
       while (d > Math.PI) d -= 2 * Math.PI;
       while (d < -Math.PI) d += 2 * Math.PI;
       this._yaw += d * Math.min(1, dt * 7);
-      const yaw = this._yaw;
+      // 最初は 2D の寄りの画面と同じ真横(玉が右へ転がって見える向き)から、玉を中心に
+      // 回り込んで、いつもの「玉のやや後ろ上」へ移る
+      const e = o * o * (3 - 2 * o);
+      const side = -Math.PI / 2;
+      const yaw = side + (this._yaw - side) * e;
+      const dist = EXIT_SIDE_DIST + (3.6 - EXIT_SIDE_DIST) * e;
+      // 真横でも少し見下ろす(2D の寄りの画面で玉の上に見えている地面の縁と、地平線の高さを合わせる)
+      const y0 = 0.45 + EXIT_SIDE_DIST * Math.tan(EXIT_PITCH);
       const cam = {
         // 玉のやや後ろ上から。玉が画面の下寄りに来て、進む先を隠さない高さ
-        x: p.x - Math.sin(yaw) * 3.6,
-        y: 2.6,
-        z: p.z - Math.cos(yaw) * 3.6,
+        x: p.x - Math.sin(yaw) * dist,
+        y: y0 + (2.6 - y0) * e,
+        z: p.z - Math.cos(yaw) * dist,
         yaw,
-        pitch: 0.36,
+        pitch: EXIT_PITCH + (0.36 - EXIT_PITCH) * e,
         f: W * 0.9,
         cx: W / 2,
-        cy: H * 0.4,
+        cy: H * (0.5 - 0.1 * e),
       };
 
       // 空と地面
@@ -734,6 +759,7 @@ export default {
 .tassel { fill: #cf4a30; }
 .rope-grab { cursor: grab; }
 .rail { stroke: #c79a64; stroke-width: 5; stroke-linecap: round; fill: none; }
+.helix-back { stroke: #8a6a48; }
 .ema { fill: #f3ead8; stroke: #5b3b23; stroke-width: 1.6; }
 .torii rect { fill: #b8412c; }
 .ground { fill: #2a211c; }
@@ -751,7 +777,6 @@ export default {
   fill: #7fa6d1;
   font: 700 16px "IBM Plex Mono", ui-monospace, monospace;
 }
-.stake { fill: #5b3b23; stroke: #c79a64; stroke-width: 1; }
 .impact ellipse { fill: none; stroke: #efe6d2; stroke-width: 2.5; }
 .impact line { stroke: #efe6d2; stroke-width: 3; stroke-linecap: round; }
 

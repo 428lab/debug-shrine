@@ -3,8 +3,9 @@
 // 演出の流れ(OmikujiPitagora.vue):
 //   鈴の緒を引く(ここでサーバーに抽選を頼む)
 //   → 横長の装置を玉が駆け抜ける(2D。カメラが玉を追う)
-//     絵馬ドミノ → 鳥居の中のつづら折り → 跳ね板で谷越え(スロー) → 鹿威し → 回転盤
-//   → 回転盤の玉にカメラが飛び込み、玉の視点(3D)であみだくじを走る
+//     絵馬ドミノ → 鳥居の中の螺旋 → 跳ね板で谷越え(スロー) → 鹿威し → 回転盤
+//   → 回転盤から出口のレールへ出た玉にカメラが寄り、同じ構図(真横)の 3D に切り替わって
+//     玉の後ろへ回り込み、玉の視点であみだくじを走る
 //   → 結果の門をくぐり、太鼓が鳴って巻物が広がる
 //
 // 設計の要:
@@ -27,8 +28,8 @@ const STAGE = { W: 480, H: 760, WORLD_W: 1900 };
 const T = {
   railStart: 0.25, // 鈴から出た玉がレールに乗る
   railEnd: 1.1, // レールの終わり(絵馬の棚へ)
-  ledgeEnd: 1.9, // 絵馬の棚の終わり(つづら折りへ)
-  zigEnd: 3.7, // つづら折りの終わり
+  ledgeEnd: 1.9, // 絵馬の棚の終わり(螺旋へ)
+  helixEnd: 3.7, // 螺旋の終わり
   boardHit: 4.0, // 跳ね板に着く
   launch: 4.12, // 跳ね板が玉を打ち上げる
   land: 5.8, // 鹿威しの筒に入る(谷越えはスロー)
@@ -37,43 +38,27 @@ const T = {
   kakon: 6.55, // 反対側が石を打つ(カコーン)
   tableIn: 7.0, // 回転盤に乗る
   minLap: 1.1, // 回転盤で最低これだけ回る
-  dive: 0.8, // 玉に飛び込む長さ
+  exit: 0.55, // 回転盤から出口のレールへ出て、カメラが玉に寄る長さ
+  orbit: 1.1, // 3D でカメラが真横から玉の後ろへ回り込む長さ
 };
 
 const BELL = { x: 150, y: 190 }; // 描画は OmikujiPitagora.vue で 72 下げている
 const RAIL = { x0: 178, y0: 258, x1: 520, y1: 372 };
-const LEDGE = { x0: 520, x1: 840, y: 372 }; // 玉の中心の高さ
+const LEDGE = { x0: 520, x1: 900, y: 372 }; // 玉の中心の高さ
 const EMA = { x0: 580, gap: 40, n: 6, baseY: 384 };
-// 鳥居の中のつづら折り(玉の中心の座標)。坂の端から転がり落ち、すき間の奥の杭に当たって
-// 少し跳ね返り、下の坂へ落ちて向きを変える。最後の坂はそのまま外へ出て跳ね板へ続く。
-// 坂の板は x1 で終わる(すき間は玉の直径より広い = 落ちる玉が板を突き抜けない)。
-const ZIG = {
-  ramps: [
-    { x0: 840, y0: 372, x1: 926, y1: 396 },
-    { x0: 940, y0: 446, x1: 874, y1: 468 },
-    { x0: 860, y0: 516, x1: 960, y1: 546 },
-  ],
-  stops: [956, 844], // 杭の x(玉は杭の手前 13 で当たる)
-};
-// 区間(転がる/落ちる)と長さの比。合計を ledgeEnd〜zigEnd に割り付ける。
-const ZIG_SEGS = (() => {
-  const r = ZIG.ramps;
-  const segs = [
-    { kind: "roll", a: r[0], w: 0.5, v0: 0.55 },
-    { kind: "drop", from: r[0], to: r[1], w: 0.2 },
-    { kind: "roll", a: r[1], w: 0.42, v0: 0.4 },
-    { kind: "drop", from: r[1], to: r[2], w: 0.2 },
-    { kind: "roll", a: r[2], w: 0.38, v0: 0.4 },
-  ];
-  const sum = segs.reduce((a, s) => a + s.w, 0);
-  let acc = 0;
-  for (const s of segs) {
-    s.t0 = T.ledgeEnd + (acc / sum) * (T.zigEnd - T.ledgeEnd);
-    acc += s.w;
-    s.t1 = T.ledgeEnd + (acc / sum) * (T.zigEnd - T.ledgeEnd);
-  }
-  return segs;
-})();
+// 鳥居の中の螺旋(真ん中の柱に巻き付く1本のレール)。玉は手前の真ん中(φ=0)から入って
+// turns 周まわりながら下り、また手前の真ん中から外へ出る。
+// 画面上の位置: x = cx + r·sin φ、y = 下り + ry·(cos φ − 1)。cos φ < 0 が柱の奥。
+const HELIX = { cx: 900, r: 56, ry: 22, y0: 372, y1: 548, turns: 3 };
+function helixPoint(phi) {
+  const total = HELIX.turns * 2 * Math.PI;
+  return {
+    x: HELIX.cx + HELIX.r * Math.sin(phi),
+    y: lerp(HELIX.y0, HELIX.y1, phi / total) + HELIX.ry * (Math.cos(phi) - 1),
+    s: 1 + 0.12 * (Math.cos(phi) - 1), // 奥ほど小さい
+    coilBack: Math.cos(phi) < 0,
+  };
+}
 const BOARD = { x: 1090, y: 592 };
 const ARC = { x0: 1090, y0: 592, apex: 360 }; // 終点は鹿威しの筒の口(下で設定)
 const SHISHI = { pivotX: 1420, pivotY: 590, len: 150, cupX: 1490, cupY: 548 };
@@ -103,41 +88,48 @@ function slowMo(f) {
   return g(f) / g(1);
 }
 
-// 回転盤の上の位置(角度 a。0 で左端から入る)
+// 螺旋のレールの絵(SVG の path)。玉の下(中心から 11 下)を通る線を、柱の奥と手前に分ける。
+function helixRailPaths() {
+  const total = HELIX.turns * 2 * Math.PI;
+  const out = { back: [], front: [] };
+  let cur = null;
+  let curBack = null;
+  for (let i = 0; i <= 240; i++) {
+    const phi = (total * i) / 240;
+    const p = helixPoint(phi);
+    const pt = `${p.x.toFixed(1)} ${(p.y + 11 * p.s).toFixed(1)}`;
+    if (p.coilBack !== curBack) {
+      // 切れ目が空かないよう、前の区間の最後の点から始める
+      if (cur) out[curBack ? "back" : "front"].push(cur);
+      cur = cur ? `M${cur.slice(cur.lastIndexOf("L") + 1)} L${pt}` : `M${pt}`;
+      curBack = p.coilBack;
+    } else {
+      cur += ` L${pt}`;
+    }
+  }
+  out[curBack ? "back" : "front"].push(cur);
+  return out;
+}
+
+// 回転盤の上の位置(角度 a。0 で左端から入り、手前を右へ回る)。
+// a = π/2 + 2πk が手前の真ん中で、ここから出口のレールへまっすぐ右に出られる。
 function onTable(a) {
   return {
     x: TABLE.cx - TABLE.rx * Math.cos(a),
-    y: TABLE.cy - 8 + TABLE.ry * Math.sin(a) * -1,
-    s: 1 - 0.12 * Math.sin(a),
-    behind: Math.sin(a) > 0,
+    y: TABLE.cy - 8 + TABLE.ry * Math.sin(a),
+    s: 1 + 0.06 * Math.sin(a),
   };
 }
-
-// つづら折りの上の玉。坂は転がるほど速く、杭に当たると少し跳ね返って下の坂へ落ちる。
-function zig2D(t) {
-  let seg = ZIG_SEGS[ZIG_SEGS.length - 1];
-  for (const s of ZIG_SEGS) {
-    if (t < s.t1) {
-      seg = s;
-      break;
-    }
-  }
-  const u = clamp((t - seg.t0) / (seg.t1 - seg.t0), 0, 1);
-  if (seg.kind === "roll") {
-    const a = seg.a;
-    const f = seg.v0 * u + (1 - seg.v0) * u * u; // 初速ありの等加速
-    return { x: lerp(a.x0, a.x1, f), y: lerp(a.y0, a.y1, f), s: 1 };
-  }
-  // 落ちる: 坂の勢いで杭まで進んで当たり、少し跳ね返る + 縦は自由落下
-  const dir = Math.sign(seg.from.x1 - seg.from.x0);
-  const hitX = ZIG.stops[ZIG.ramps.indexOf(seg.from)] - dir * 13;
-  const HIT = 0.2;
-  const x =
-    u < HIT
-      ? lerp(seg.from.x1, hitX, 1 - (1 - u / HIT) * (1 - u / HIT))
-      : lerp(hitX, seg.to.x0, (u - HIT) / (1 - HIT));
-  const y = lerp(seg.from.y1, seg.to.y0, u * u);
-  return { x, y, s: 1 };
+// 回転盤の手前の真ん中から出口のレールへ出た玉(d = 出てからの距離)
+const EXIT_SPEED = TABLE.rx; // × 回転盤の角速度 = 回っていた時の速さのまま出る
+function onExit(d) {
+  const p = onTable(Math.PI / 2);
+  return { x: p.x + d, y: p.y, s: p.s };
+}
+// a より後で、最初に手前の真ん中に来る角度
+function nextExitAngle(a) {
+  const k = Math.ceil((a - Math.PI / 2) / (2 * Math.PI));
+  return Math.PI / 2 + Math.max(0, k) * 2 * Math.PI;
 }
 
 // 時刻 t(rang からの秒)の玉の位置。tableAngle は回転盤に乗ってからの角度。
@@ -154,11 +146,15 @@ function ball2D(t, tableAngle) {
     const f = (t - T.railEnd) / (T.ledgeEnd - T.railEnd);
     return { x: lerp(LEDGE.x0, LEDGE.x1, f), y: LEDGE.y, s: 1 };
   }
-  if (t < T.zigEnd) return zig2D(t);
+  if (t < T.helixEnd) {
+    // 一定の速さで回る(棚から入る速さとほぼ同じ)
+    const f = (t - T.ledgeEnd) / (T.helixEnd - T.ledgeEnd);
+    return helixPoint(f * HELIX.turns * 2 * Math.PI);
+  }
   if (t < T.boardHit) {
-    const e = ZIG.ramps[2];
-    // 最後の坂の勢いのまま跳ね板へ(速さが途切れないよう一次で入る)
-    const f = (t - T.zigEnd) / (T.boardHit - T.zigEnd);
+    const e = { x1: HELIX.cx, y1: HELIX.y1 };
+    // 螺旋を出た勢いのまま跳ね板へ(速さが途切れないよう一次で入る)
+    const f = (t - T.helixEnd) / (T.boardHit - T.helixEnd);
     const g = 0.6 * f + 0.4 * f * f;
     return { x: lerp(e.x1, BOARD.x, g), y: lerp(e.y1, BOARD.y, g), s: 1 };
   }
@@ -229,7 +225,7 @@ const POV = {
   laneGap: 6,
   rowGap: 7.5,
   rows: 10,
-  lead: 10, // 最初の横線までの直線
+  lead: 26, // 最初の横線までの直線(カメラが玉の後ろへ回り込む間はまっすぐ)
   tail: 12, // 最後の横線から門まで
   fillet: 1.6, // 曲がり角の丸み
   speed: 21, // 1秒あたりの距離
@@ -357,7 +353,12 @@ module.exports = {
   RAIL,
   LEDGE,
   EMA,
-  ZIG,
+  HELIX,
+  helixPoint,
+  helixRailPaths,
+  EXIT_SPEED,
+  onExit,
+  nextExitAngle,
   BOARD,
   ARC,
   SHISHI,
