@@ -107,10 +107,17 @@ export default {
     // 音は押した時に初めて用意する(ブラウザは操作の前に音を出させない)
     ensureCtx() {
       if (!this.ctx) {
+        // iOS 17 以降: 消音スイッチがオンでも鳴らす(ゲームの音として扱う)
+        try {
+          if (navigator.audioSession) navigator.audioSession.type = "playback";
+        } catch (e) {
+          // 対応していない環境
+        }
         const AC = window.AudioContext || window.webkitAudioContext;
         this.ctx = new AC();
       }
-      if (this.ctx.state === "suspended") this.ctx.resume();
+      // 止まっている(Safari は電話などの後に "interrupted" になる)なら動かし直す
+      if (this.ctx.state !== "running") this.ctx.resume();
       return this.ctx;
     },
     newEngine() {

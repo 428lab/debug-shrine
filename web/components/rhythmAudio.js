@@ -173,6 +173,10 @@ function createEngine(ctx) {
   function pluck(t, midi, vel, kind, dest) {
     const s = ctx.createBufferSource();
     s.buffer = pluckBuffer(midi, kind);
+    // 弦の長さは整数サンプルに丸め、隣と平均する分だけ周期が半サンプル短くなって音程が上ずる。
+    // 再生の速さで補正する
+    const period = Math.max(2, Math.round(sr / mtof(midi)));
+    s.playbackRate.value = (mtof(midi) * (period - 0.5)) / sr;
     const hp = ctx.createBiquadFilter();
     hp.type = "highpass";
     hp.frequency.value = kind === "shamisen" ? 250 : 120;
@@ -545,6 +549,14 @@ function createEngine(ctx) {
     master.gain.cancelScheduledValues(now);
     master.gain.setValueAtTime(master.gain.value, now);
     master.gain.linearRampToValueAtTime(0, now + 0.08);
+    // 鳴り終わったら出口ごと外す(残すと残響やディレイが処理を食い続ける)
+    setTimeout(() => {
+      try {
+        master.disconnect();
+      } catch (e) {
+        // すでに外れている
+      }
+    }, 150);
   }
 
   return { ctx, master, analyserTarget: master, play, sfx, startSong, stopSong, songTime, silence, prepare: pluckBuffer };
