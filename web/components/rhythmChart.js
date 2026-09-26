@@ -4,6 +4,8 @@
 // 曲で実際に鳴っている音に合わせて置くので、叩くと曲とぴったり合う。
 //
 // - 参拝(やさしい): 2 拍ごとの頭くらい(平均 2 個/秒ほど)。同じレーンは 4 ステップ(約 0.35 秒)以上あける
+// - 祈願(ふつう): 拍の頭のメロディと、小節の頭・真ん中の太鼓、2・4 拍目の柏手。特に長い音だけ
+//   長押し。同じレーンは 3 ステップ以上
 // - 修行(むずかしい): ボーカルのメロディをなぞる。長い音は長押し。同じレーンは 2 ステップ以上
 // - どちらも、同時に押すのは 2 本まで(長押しで押している指も数える)。長押しの間、そのレーンに
 //   次の音は置かない
@@ -14,13 +16,15 @@ const LANES = ["suzu", "taiko", "clap"];
 
 const LEVELS = {
   easy: { label: "参拝", minGap: 4, hold: false },
-  hard: { label: "修行", minGap: 2, hold: true },
+  normal: { label: "祈願", minGap: 3, hold: true, holdMin: 8 },
+  hard: { label: "修行", minGap: 2, hold: true, holdMin: 6 },
 };
 
 // 曲の音を、どのレーンに置くか(候補)。prio が大きいものを優先して残す
 function candidates(song, level) {
   const out = [];
   const easy = level === "easy";
+  const normal = level === "normal";
   const secAt = (bar) => {
     let s = song.sections[0];
     for (const x of song.sections) if (bar >= x.startBar) s = x;
@@ -33,23 +37,27 @@ function candidates(song, level) {
     switch (e.inst) {
       case "vox":
         if (easy && e.step % 8 !== 0) break;
+        if (normal && e.step % 4 !== 0) break; // 祈願は拍の頭のメロディだけ
         out.push({ t: e.t, lane: 0, prio: 3, len: e.len });
         break;
       case "shamisen":
         // イントロとブレイクのメロディ役
-        if (easy ? e.step % 8 === 0 : e.step % 2 === 0) out.push({ t: e.t, lane: 0, prio: 2, len: 0 });
+        if (e.step % (easy ? 8 : normal ? 4 : 2) === 0) out.push({ t: e.t, lane: 0, prio: 2, len: 0 });
         break;
       case "kick":
         if (easy && !(chorus && e.step === 8)) break;
+        if (normal && e.step % 8 !== 0) break; // 祈願は小節の頭と真ん中
         out.push({ t: e.t, lane: 1, prio: 2, len: 0 });
         break;
       case "taiko":
         if (easy && e.step !== 0) break;
+        if (normal && e.step % 8 !== 0) break;
         out.push({ t: e.t, lane: 1, prio: 3, len: 0 });
         break;
       case "snare":
         // 連打(フィル)は修行だけ、それも 8 分まで
         if (easy && !(chorus && e.step === 12)) break;
+        if (normal && !(e.step === 4 || e.step === 12)) break; // 祈願はフィルなし、2 拍目と 4 拍目
         if (!easy && e.step % 2 !== 0) break;
         out.push({ t: e.t, lane: 2, prio: 2, len: 0 });
         break;
@@ -67,7 +75,7 @@ function buildChart(song, level = "easy") {
   const cfg = LEVELS[level];
   if (!cfg) throw new Error(`unknown level ${level}`);
   const gap = cfg.minGap * song.step - 1e-6;
-  const holdMin = 6 * song.step; // これより長いボーカルは長押し
+  const holdMin = (cfg.holdMin || 6) * song.step; // これより長いボーカルは長押し
   const cands = candidates(song, level).sort((a, b) => a.t - b.t || b.prio - a.prio);
 
   // 同じ時刻・同じレーンの重複をまとめる

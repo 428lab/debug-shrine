@@ -834,12 +834,14 @@ export default {
 }
 .rg-levels {
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
 }
 .rg-level {
   display: flex;
   flex-direction: column;
-  min-width: 120px;
+  min-width: 96px;
   color: #fff;
   font-weight: 800;
   font-size: 1.3rem;
@@ -851,6 +853,10 @@ export default {
 }
 .rg-level-easy {
   background: #b8412c;
+}
+.rg-level-normal {
+  background: #7a2e22;
+  border: 1px solid #e0a53a;
 }
 .rg-level-hard {
   background: #3a1f5a;

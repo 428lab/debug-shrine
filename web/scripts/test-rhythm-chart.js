@@ -7,7 +7,7 @@
 // - どの音符も、曲で実際に鳴っている音と同じ時刻にある(叩くと曲と合う)
 // - 同じレーンの間隔と、長押しの間の空きが守られている
 // - 同時に押すのは 2 本まで(長押しで押している指も数える)
-// - 修行は参拝より音符が多く、長押しがある。密度が人の手で叩ける範囲
+// - 参拝 < 祈願 < 修行 の順に音符が多い。修行と祈願に長押しがある。密度が人の手で叩ける範囲
 // - 判定と点数・評価の計算
 
 /* eslint-disable no-console */
@@ -53,10 +53,12 @@ for (const level of Object.keys(C.LEVELS)) {
   }
   res[level] = { notes: n.length, holds: n.filter((x) => x.end != null).length, maxRate, perSec: n.length / song.duration };
 }
-assert.ok(res.hard.notes > res.easy.notes * 1.5, "修行が参拝より十分に多くない");
+assert.ok(res.normal.notes > res.easy.notes * 1.2, "祈願が参拝より十分に多くない");
+assert.ok(res.hard.notes > res.normal.notes * 1.2, "修行が祈願より十分に多くない");
 assert.ok(res.hard.holds > 5, "修行に長押しが無い");
 assert.strictEqual(res.easy.holds, 0, "参拝に長押しがある");
 assert.ok(res.easy.maxRate <= 8, `参拝が忙しすぎる(1 秒に ${res.easy.maxRate})`);
+assert.ok(res.normal.maxRate <= 11, `祈願が忙しすぎる(1 秒に ${res.normal.maxRate})`);
 assert.ok(res.hard.maxRate <= 16, `修行が忙しすぎる(1 秒に ${res.hard.maxRate})`);
 
 // 判定
