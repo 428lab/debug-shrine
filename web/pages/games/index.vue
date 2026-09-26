@@ -3,7 +3,7 @@
     <h1 class="h4 text-center mb-3">ミニゲーム</h1>
     <div class="games">
       <nuxt-link v-for="g in games" :key="g.path" :to="g.path" class="game-card">
-        <img :src="g.icon" :alt="g.name" class="game-icon" width="72" height="72" />
+        <img :src="g.icon" alt="" class="game-icon" width="72" height="72" />
         <div class="game-text">
           <div class="game-name">
             {{ g.name }}<span v-if="g.kana" class="game-kana">{{ g.kana }}</span>

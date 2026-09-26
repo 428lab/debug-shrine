@@ -1,7 +1,7 @@
 <template>
   <div class="container py-3">
     <div class="mb-2"><nuxt-link to="/games">&lt; ミニゲーム一覧</nuxt-link></div>
-    <h1 class="h4 text-center mb-3">韋駝天 <small class="fs-6 opacity-75">いだてん</small></h1>
+    <h1 class="h4 text-center mb-3">韋駝天 <small class="fs-6 kana">いだてん</small></h1>
     <OstrichRun :site-url="$config.baseUrl" />
   </div>
 </template>
@@ -17,3 +17,9 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.kana {
+  opacity: 0.75;
+}
+</style>

@@ -9,7 +9,7 @@
   </defs>
   <g clip-path="url(#r)">
     <rect width="128" height="128" fill="url(#sky)"/>
-    <circle cx="100" cy="30" r="12" fill="#ffab5c"/>
+    <circle cx="62" cy="24" r="11" fill="#ffab5c"/>
     <path d="M0 104 L28 78 L50 94 L78 66 L104 90 L128 76 V128 H0 Z" fill="#d9a877"/>
     <rect y="104" width="128" height="24" fill="#8b6a48"/>
     <rect y="104" width="128" height="3" fill="#5a3f28"/>
