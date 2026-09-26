@@ -260,7 +260,6 @@ function step(g) {
   g.speed = speedAt(g.t);
   const dx = g.speed * dt;
   g.dist += dx;
-  const inv = invincible(g);
 
   // ダチョウ
   if (!g.onGround) {
