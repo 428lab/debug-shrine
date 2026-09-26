@@ -53,6 +53,12 @@
               次のおみくじまで
               <span class="fw-bold">{{ omikujiRemainingText }}</span>
             </div>
+            <!-- ミニゲームへの入口(ログイン後に見える) -->
+            <div class="mt-3">
+              <nuxt-link to="/games" class="btn btn-lg btn-outline-warning">
+                <i class="fas fa-fw fa-gamepad"></i> ミニゲームで遊ぶ
+              </nuxt-link>
+            </div>
             <div class="mt-4 p-2 d-inline-block">
               <div class="rounded border p-2 w-100 mb-2" v-if="isLogin">
                 <img

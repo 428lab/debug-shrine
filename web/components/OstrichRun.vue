@@ -18,7 +18,7 @@
       <div class="os-card-title">称号「{{ result.title }}」</div>
       <div class="os-card-best" :class="{ hot: result.newBest }">{{ result.bestLine }}</div>
       <div class="os-card-next">{{ result.nextLine }}</div>
-      <div class="os-card-meta">門を {{ result.gates }} 回くぐった / {{ result.date }}</div>
+      <div class="os-card-meta">勾玉 {{ result.taken }} 個 / 壊した {{ result.smashed }} / {{ result.date }}</div>
       <div class="os-card-site">でばっぐ神社 {{ siteHost }}</div>
     </div>
     <div class="os-actions">
@@ -35,13 +35,25 @@
         <i class="fas fa-download fa-fw"></i> 画像を保存
       </button>
     </div>
-    <p class="os-help">タップ / スペースキーでジャンプ。空中でタップすると羽ばたく。</p>
+    <p class="os-help">
+      タップ / スペースキーでジャンプ。空中でタップすると羽ばたく。<br />
+      勾玉を取ると点(色で違う)。黄色の勾玉は 7 秒間無敵。
+    </p>
   </div>
 </template>
 
 <script>
 import G from "@/components/ostrichGame";
 
+// 勾玉の色
+const MAGA_COLOR = {
+  white: ["#f4f1ea", "#b9b2a4"],
+  blue: ["#6fa8e8", "#2d5f9e"],
+  green: ["#6fc27a", "#2f7a3b"],
+  red: ["#ef6a5a", "#a2291c"],
+  purple: ["#b98ae6", "#6b3d9c"],
+  yellow: ["#ffd84a", "#c98f00"],
+};
 const BEST_KEY = "debug-shrine:ostrich:best";
 const OVER_LOCK_MS = 600; // 終わった直後のタップでうっかり再開しない
 const DYING_MS = 700; // ぶつかってから結果の画面まで
@@ -157,6 +169,7 @@ export default {
       this.newBest = false;
       this._startBest = this.best;
       this._popups = [];
+      this._parts = [];
       this._flashBest = 0;
       this._acc = 0;
       this._last = performance.now();
@@ -177,12 +190,12 @@ export default {
       const g = this.game;
       if (this.phase === "play") {
         this._acc += dt;
-        const gatesBefore = g.gates;
         while (this._acc >= G.STEP && !g.over) {
           G.step(g);
           this._acc -= G.STEP;
         }
-        if (g.gates > gatesBefore) this._popups.push({ text: "+20 くぐった！", t: now });
+        // ルールが積んだ出来事(勾玉を拾った・壊した・カラスが逃げた)を演出にする
+        for (const e of g.events.splice(0)) this.onEvent(e, now);
         if (!this.newBest && this._startBest > 0 && g.score > this._startBest) {
           this.newBest = true;
           this._flashBest = now;
@@ -202,6 +215,26 @@ export default {
         this.result = this.makeResult(g);
       }
       this.draw(now);
+    },
+
+    onEvent(e, now) {
+      if (e.type === "item") {
+        const c = MAGA_COLOR[e.color] || MAGA_COLOR.white;
+        this._popups.push({ text: e.invincible ? "無敵！" : `+${e.pts}`, color: c[1], x: e.x, y: e.y, t: now, big: e.big || e.invincible });
+        this.burst(e.x, e.y, c[0], e.big ? 18 : 10, now);
+      } else if (e.type === "smash") {
+        this._popups.push({ text: `+${e.pts}`, color: "#c98f00", x: e.x, y: e.y - 20, t: now });
+        this.burst(e.x, e.y, e.kind === "cactus" ? "#4f7a3a" : e.kind === "gate" ? "#b8412c" : "#1c1a22", 16, now);
+      }
+    },
+    // はじける粒(勾玉を拾った・障害物を壊した)
+    burst(x, y, color, n, now) {
+      this._parts = this._parts || [];
+      for (let i = 0; i < n; i++) {
+        const a = (Math.PI * 2 * i) / n + Math.random() * 0.4;
+        const v = 120 + Math.random() * 180;
+        this._parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 80, color, t: now });
+      }
     },
 
     // ---- 描画 ----
@@ -279,20 +312,25 @@ export default {
         ctx.fillRect(x + 7, G.GROUND + 12, 6, 3);
         ctx.fillRect(x + 37, G.GROUND + 26, 4, 2);
       }
+      // 堀(地面が途切れて水)
+      for (const ob of g.obstacles) if (ob.kind === "moat") this.drawMoat(ctx, ob, now, n);
       // ベストの位置の旗(もう少しで届くのが見える)
       this.drawBestFlag(ctx, g);
       for (const ob of g.obstacles) {
+        if (ob.broken) continue;
         if (ob.kind === "cactus") this.drawCactus(ctx, ob);
         else if (ob.kind === "crow") this.drawCrow(ctx, ob, now);
-        else this.drawGate(ctx, ob, n);
+        else if (ob.kind === "gate") this.drawGate(ctx, ob, n);
       }
+      for (const it of g.items) this.drawMagatama(ctx, it, now);
       this.drawOstrich(ctx, g, now);
+      this.drawParts(ctx, now);
     },
     drawBestFlag(ctx, g) {
       const best = this._startBest || 0;
       if (best <= 0 || this.phase === "ready") return;
-      // ベストのスコアに相当する距離(門のボーナスを除いた、今の走りでの位置の目安)
-      const need = best - g.gates * 20;
+      // ベストのスコアに相当する距離(勾玉などの点を除いた、今の走りでの位置の目安)
+      const need = best - g.bonus;
       const x = G.BIRD.x + (need / 0.1 - g.dist);
       if (x < -20 || x > G.W + 20) return;
       ctx.strokeStyle = "#5a3f28";
@@ -348,15 +386,84 @@ export default {
       ctx.fill();
     },
     drawGate(ctx, ob, n) {
-      // 鳥居の柱: 上から下がる柱と、下から立つ柱。すき間の縁に笠木(黒い横木)
+      // 鳥居の柱: 上から下がる柱と、真ん中の柱。上のすき間(勾玉)は羽ばたいてくぐり、
+      // 下のすき間は走り抜けられる
       const x = ob.x;
       const w = ob.w;
-      ctx.fillStyle = ob.passed ? "#d9603f" : "#b8412c";
+      const dark = n > 0.5 ? "#0e0c12" : "#2a211c";
+      ctx.fillStyle = "#b8412c";
       ctx.fillRect(x + 6, -10, w - 12, ob.gapTop + 10);
-      ctx.fillRect(x + 6, ob.gapBottom, w - 12, G.GROUND - ob.gapBottom);
-      ctx.fillStyle = n > 0.5 ? "#0e0c12" : "#2a211c";
-      ctx.fillRect(x - 8, ob.gapTop - 12, w + 16, 12);
-      ctx.fillRect(x - 4, ob.gapBottom, w + 8, 9);
+      ctx.fillRect(x + 6, ob.gapBottom, w - 12, ob.passTop - ob.gapBottom);
+      ctx.fillStyle = dark;
+      ctx.fillRect(x - 8, ob.gapTop - 12, w + 16, 12); // 笠木
+      ctx.fillRect(x - 4, ob.gapBottom, w + 8, 8);
+      ctx.fillRect(x - 2, ob.passTop - 8, w + 4, 8);
+    },
+    drawMoat(ctx, ob, now, n) {
+      const x0 = ob.x;
+      const x1 = ob.x + ob.w;
+      ctx.fillStyle = n > 0.5 ? "#141322" : "#2a211c";
+      ctx.fillRect(x0, G.GROUND, ob.w, G.H - G.GROUND + 10);
+      const water = ctx.createLinearGradient(0, G.GROUND + 14, 0, G.H);
+      water.addColorStop(0, n > 0.5 ? "#2c4c7a" : "#4c86c2");
+      water.addColorStop(1, n > 0.5 ? "#16263f" : "#2a4f7c");
+      ctx.fillStyle = water;
+      ctx.fillRect(x0 + 4, G.GROUND + 14, ob.w - 8, G.H - G.GROUND);
+      // さざ波
+      ctx.strokeStyle = "rgba(255,255,255,0.35)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let x = x0 + 12 + ((now / 20) % 40); x < x1 - 12; x += 40) {
+        ctx.moveTo(x, G.GROUND + 22);
+        ctx.lineTo(x + 14, G.GROUND + 22);
+      }
+      ctx.stroke();
+      // 岸
+      ctx.fillStyle = "#5a3f28";
+      ctx.fillRect(x0 - 3, G.GROUND, 6, 16);
+      ctx.fillRect(x1 - 3, G.GROUND, 6, 16);
+    },
+    // 勾玉(頭の丸と、くるりと巻く尾)。大きいものは鳥居の上のすき間にある
+    drawMagatama(ctx, it, now) {
+      const c = MAGA_COLOR[it.color] || MAGA_COLOR.white;
+      const r = it.r;
+      const bob = Math.sin(now / 250 + it.x * 0.01) * 3;
+      ctx.save();
+      ctx.translate(it.x, it.y + bob);
+      // 光
+      ctx.fillStyle = c[0];
+      ctx.globalAlpha = it.color === "yellow" ? 0.45 : 0.25;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 1.7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.rotate(-0.4);
+      ctx.fillStyle = c[0];
+      ctx.strokeStyle = c[1];
+      ctx.lineWidth = Math.max(1.5, r * 0.14);
+      ctx.beginPath();
+      ctx.arc(0, -r * 0.25, r * 0.62, Math.PI * 0.95, Math.PI * 2.1);
+      ctx.quadraticCurveTo(r * 0.55, r * 0.9, -r * 0.35, r * 1.05);
+      ctx.quadraticCurveTo(-r * 0.05, r * 0.55, -r * 0.6, -r * 0.1);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // 穴
+      ctx.fillStyle = c[1];
+      ctx.beginPath();
+      ctx.arc(r * 0.05, -r * 0.3, r * 0.17, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    },
+    drawParts(ctx, now) {
+      this._parts = (this._parts || []).filter((p) => now - p.t < 600);
+      for (const p of this._parts) {
+        const u = (now - p.t) / 1000;
+        ctx.globalAlpha = Math.max(0, 1 - u / 0.6);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x + p.vx * u - 2, p.y + p.vy * u + 400 * u * u - 2, 4, 4);
+      }
+      ctx.globalAlpha = 1;
     },
     drawOstrich(ctx, g, now) {
       const x = G.BIRD.x;
@@ -364,6 +471,17 @@ export default {
       const dying = this.phase === "dying" || this.phase === "over";
       const run = g.onGround && !dying ? g.dist / 22 : 0;
       const flapping = !g.onGround && g.t - g.flapT < 0.18;
+      // 無敵: 金色に光る(切れる前の 1.5 秒は点滅)
+      const invLeft = g.invUntil - g.t;
+      if (invLeft > 0 && !dying && (invLeft > 1.5 || Math.floor(now / 90) % 2 === 0)) {
+        const glow = ctx.createRadialGradient(x, y - 32, 6, x, y - 32, 52);
+        glow.addColorStop(0, "rgba(255,216,74,0.85)");
+        glow.addColorStop(1, "rgba(255,216,74,0)");
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(x, y - 32, 52, 0, Math.PI * 2);
+        ctx.fill();
+      }
       ctx.save();
       if (dying) {
         ctx.translate(x, y - 30);
@@ -444,14 +562,27 @@ export default {
       ctx.textAlign = "right";
       ctx.fillText(`HI ${pad(Math.max(this.best, g.score))}  ${pad(g.score)}`, G.W - 16, 30);
       ctx.textAlign = "left";
-      // 門をくぐった時の「+20」
+      // 無敵の残り時間
+      const invLeft = g.invUntil - g.t;
+      if (invLeft > 0 && !forImage) {
+        ctx.fillStyle = "rgba(0,0,0,0.25)";
+        ctx.fillRect(16, 18, 120, 10);
+        ctx.fillStyle = "#ffd84a";
+        ctx.fillRect(16, 18, 120 * (invLeft / G.INVINCIBLE_SECONDS), 10);
+        ctx.fillStyle = light ? "#efe6d2" : "#3a2a20";
+        ctx.font = "700 12px sans-serif";
+        ctx.fillText("無敵", 142, 28);
+      }
+      // 勾玉を拾った・壊した時の点
       this._popups = (this._popups || []).filter((p) => now - p.t < 800);
       if (!forImage) this._popups.forEach((p) => {
         const u = (now - p.t) / 800;
         ctx.globalAlpha = 1 - u;
-        ctx.fillStyle = "#b8412c";
-        ctx.font = "800 16px sans-serif";
-        ctx.fillText(p.text, G.BIRD.x + 20, g.y - 80 - u * 24);
+        ctx.fillStyle = p.color || "#b8412c";
+        ctx.font = `800 ${p.big ? 22 : 16}px sans-serif`;
+        ctx.textAlign = "center";
+        ctx.fillText(p.text, p.x, p.y - 20 - u * 28);
+        ctx.textAlign = "left";
         ctx.globalAlpha = 1;
       });
       // ベスト更新の瞬間
@@ -478,8 +609,9 @@ export default {
       ctx.font = "500 14px sans-serif";
       ctx.fillStyle = "rgba(255,248,225,0.8)";
       ctx.fillText("地面でタップ = ジャンプ / 空中でタップ = 羽ばたき", G.W / 2, 232);
-      ctx.fillText("鳥居の柱のすき間をくぐると +20", G.W / 2, 254);
-      if (this.best > 0) ctx.fillText(`ベスト ${this.best}`, G.W / 2, 290);
+      ctx.fillText("勾玉を取ると点(色で違う)。黄色は 7 秒間無敵", G.W / 2, 254);
+      ctx.fillText("堀は羽ばたき続けて越える", G.W / 2, 276);
+      if (this.best > 0) ctx.fillText(`ベスト ${this.best}`, G.W / 2, 310);
       ctx.textAlign = "left";
     },
     drawPaused(ctx) {
@@ -517,7 +649,8 @@ export default {
         newBest: this.newBest,
         bestLine,
         nextLine: nt ? `次の称号「${nt.name}」まで あと ${nt.need}` : "最高の称号に到達！",
-        gates: g.gates,
+        taken: g.taken,
+        smashed: g.smashed,
         date: this.today(),
       };
     },
@@ -542,7 +675,7 @@ export default {
       line(`称号「${r.title}」`, 265, `800 44px ${mincho}`, "#3a2a20");
       line(r.bestLine, 330, "700 30px sans-serif", r.newBest ? "#b8412c" : "#5a3f28");
       line(r.nextLine, 378, "600 28px sans-serif", "#5a3f28");
-      line(`門を ${r.gates} 回くぐった / ${r.date}`, 424, "500 24px sans-serif", "#5a3f28");
+      line(`勾玉 ${r.taken} 個 / 壊した ${r.smashed} / ${r.date}`, 424, "500 24px sans-serif", "#5a3f28");
       line(`でばっぐ神社 ${this.siteHost}`, 482, `800 28px ${mincho}`, "#b8412c");
       ctx.textAlign = "left";
     },
