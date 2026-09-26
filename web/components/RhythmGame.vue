@@ -1,5 +1,5 @@
 <template>
-  <!-- リズムゲーム本体。譜面は rhythmChart.js、曲と音は rhythmSong.js / rhythmAudio.js。
+  <!-- リズムゲーム本体。譜面は rhythmChart.js、曲の一覧は rhythmSongs.js、音は rhythmAudio.js。
        ハイスコアはこの端末にだけ保存する(DB には送らない)。 -->
   <div class="rg" @dblclick.prevent>
     <div ref="wrap" class="rg-wrap">
@@ -19,6 +19,20 @@
       <div v-if="phase === 'title'" class="rg-over">
         <div class="rg-title">{{ title }}</div>
         <div class="rg-sub">鈴・太鼓・柏手を、曲に合わせて叩け</div>
+        <div class="rg-songs">
+          <button
+            v-for="s in songs"
+            :key="s.id"
+            type="button"
+            class="rg-song"
+            :class="{ on: s.id === songId }"
+            :aria-pressed="s.id === songId ? 'true' : 'false'"
+            @click="selectSong(s.id)"
+          >
+            <span class="rg-song-title">{{ s.title }}</span>
+            <small>{{ s.genre }} ♩{{ s.bpm }}</small>
+          </button>
+        </div>
         <div class="rg-levels">
           <button
             v-for="(lv, id) in levels"
@@ -29,7 +43,7 @@
             @click="start(id)"
           >
             {{ lv.label }}
-            <small>ベスト {{ best[id] || 0 }}</small>
+            <small>ベスト {{ songBest[id] || 0 }}</small>
           </button>
         </div>
         <div class="rg-help">
@@ -47,7 +61,7 @@
 
     <!-- 結果の札(そのままスクショ・画像保存で共有しやすい) -->
     <div v-if="phase === 'result' && result" class="rg-card">
-      <div class="rg-card-name">{{ title }}・{{ result.levelLabel }}</div>
+      <div class="rg-card-name">{{ title }}「{{ result.songTitle }}」{{ result.levelLabel }}</div>
       <div class="rg-card-rank">{{ result.rank }}</div>
       <div class="rg-card-score">{{ result.score.toLocaleString() }}</div>
       <div v-if="result.badge" class="rg-card-badge">{{ result.badge }}</div>
@@ -63,7 +77,7 @@
     </div>
     <div v-if="phase === 'result'" class="rg-actions">
       <button type="button" class="btn btn-warning" @click="start(level)">もう1回</button>
-      <button type="button" class="btn btn-outline-light" @click="toTitle">難易度を選ぶ</button>
+      <button type="button" class="btn btn-outline-light" @click="toTitle">曲を選ぶ</button>
       <button type="button" class="btn btn-outline-light" @click="saveImage">
         <i class="fas fa-download fa-fw"></i> 画像を保存
       </button>
@@ -72,7 +86,7 @@
 </template>
 
 <script>
-import Song from "@/components/rhythmSong";
+import Songs from "@/components/rhythmSongs";
 import Chart from "@/components/rhythmChart";
 import Audio from "@/components/rhythmAudio";
 
@@ -83,13 +97,27 @@ const KEYS = { KeyD: 0, KeyF: 1, KeyJ: 2 };
 const LANE_COLOR = ["#ffd84a", "#ef5b3f", "#f4f1ea"];
 const JUDGE_TEXT = { kiwami: "極", ryo: "良", ka: "可", fuka: "不可" };
 const JUDGE_COLOR = { kiwami: "#ffd84a", ryo: "#ff7a52", ka: "#c9b8a0", fuka: "#7a7a88" };
-const BEST_KEY = "debug-shrine:rhythm:best";
+// ハイスコアは { 曲の id: { 難易度: 点数 } }。1 曲だけだった頃の記録(OLD_BEST_KEY)は「御神楽」に引き継ぐ
+const BEST_KEY = "debug-shrine:rhythm:best-by-song";
+const OLD_BEST_KEY = "debug-shrine:rhythm:best";
+const SONG_KEY = "debug-shrine:rhythm:song";
 
 function loadBest() {
   try {
-    return JSON.parse(window.localStorage.getItem(BEST_KEY)) || {};
+    const b = JSON.parse(window.localStorage.getItem(BEST_KEY));
+    if (b) return b;
+    const old = JSON.parse(window.localStorage.getItem(OLD_BEST_KEY));
+    return old ? { kagura: old } : {};
   } catch (e) {
     return {};
+  }
+}
+function loadSongId() {
+  try {
+    const id = window.localStorage.getItem(SONG_KEY);
+    return Songs.SONGS.some((s) => s.id === id) ? id : Songs.SONGS[0].id;
+  } catch (e) {
+    return Songs.SONGS[0].id;
   }
 }
 function saveBest(b) {
@@ -110,23 +138,29 @@ export default {
       phase: "title", // title | play | paused | result
       level: "easy",
       levels: Chart.LEVELS,
+      songs: Songs.SONGS.map(({ id, title, genre, bpm }) => ({ id, title, genre, bpm })),
+      songId: Songs.SONGS[0].id,
       best: {},
       result: null,
     };
   },
   computed: {
+    songBest() {
+      return this.best[this.songId] || {};
+    },
     siteHost() {
       return (this.siteUrl || "").replace(/^https?:\/\//, "").replace(/\/$/, "");
     },
   },
   created() {
     // 曲・譜面・遊んでいる状態は毎フレーム書き換わるので data に入れない
-    this.song = Song.buildSong();
-    this.kicks = this.song.events.filter((e) => e.inst === "kick" || e.inst === "taiko").map((e) => e.t);
+    this.songCache = {};
+    this.useSong(this.songId);
     this.st = null;
   },
   mounted() {
     this.best = loadBest();
+    this.selectSong(loadSongId());
     this.resize();
     window.addEventListener("resize", this.resize);
     window.addEventListener("keydown", this.onKeyDown);
@@ -207,10 +241,31 @@ export default {
       return ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0) - st.startAt;
     },
 
+    // ---- 曲 ----
+    useSong(id) {
+      if (!this.songCache[id]) {
+        const song = Songs.SONGS.find((s) => s.id === id).build();
+        const kicks = song.events.filter((e) => e.inst === "kick" || e.inst === "taiko").map((e) => e.t);
+        this.songCache[id] = { song, kicks };
+      }
+      this.song = this.songCache[id].song;
+      this.kicks = this.songCache[id].kicks;
+    },
+    selectSong(id) {
+      this.songId = id;
+      this.useSong(id);
+      try {
+        window.localStorage.setItem(SONG_KEY, id);
+      } catch (e) {
+        // 保存できない環境
+      }
+    },
+
     // ---- 遊ぶ ----
     start(level) {
       const ctx = this.ensureCtx();
       if (this.engine) this.engine.silence();
+      this.useSong(this.songId);
       this.level = level;
       this.chart = Chart.buildChart(this.song, level);
       this.engine = Audio.createEngine(ctx);
@@ -416,10 +471,10 @@ export default {
     finish() {
       const st = this.st;
       const score = Chart.scoreOf(st.counts, st.total);
-      const prev = this.best[this.level] || 0;
+      const prev = this.songBest[this.level] || 0;
       const newBest = score > prev;
       if (newBest) {
-        this.best = Object.assign({}, this.best, { [this.level]: score });
+        this.best = Object.assign({}, this.best, { [this.songId]: Object.assign({}, this.songBest, { [this.level]: score }) });
         saveBest(this.best);
       }
       let badge = "";
@@ -428,6 +483,7 @@ export default {
       const d = new Date();
       this.result = {
         levelLabel: Chart.LEVELS[this.level].label,
+        songTitle: this.songs.find((x) => x.id === this.songId).title,
         score,
         rank: Chart.rankOf(score),
         counts: Object.assign({}, st.counts),
@@ -754,7 +810,7 @@ export default {
         g.fillStyle = color;
         g.fillText(text, 540, y);
       };
-      line(`${this.title}・${r.levelLabel}`, 170, `800 54px ${mincho}`, "#fff8e1");
+      line(`${this.title}「${r.songTitle}」${r.levelLabel}`, 170, `800 54px ${mincho}`, "#fff8e1");
       line(r.rank, 400, `900 220px ${mincho}`, "#ffd84a");
       line(r.score.toLocaleString(), 540, "900 96px 'IBM Plex Mono', ui-monospace, monospace", "#fff8e1");
       if (r.badge) line(r.badge, 620, "800 44px sans-serif", "#ff7a52");
@@ -816,7 +872,9 @@ export default {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
+  justify-content: safe center; /* 低い画面でも上が切れないように */
+  overflow-y: auto;
+  gap: 12px;
   background: rgba(8, 6, 10, 0.72);
   color: #fff8e1;
   text-align: center;
@@ -825,23 +883,57 @@ export default {
 .rg-title {
   font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
   font-weight: 900;
-  font-size: 2.2rem;
+  font-size: clamp(1.7rem, 9vw, 2.2rem);
   color: #ffd84a;
   text-shadow: 0 0 18px rgba(255, 120, 60, 0.6);
 }
 .rg-sub {
   font-weight: 700;
 }
+.rg-songs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+  max-width: 360px;
+}
+.rg-song {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 4px;
+  border-radius: 10px;
+  border: 2px solid rgba(255, 248, 225, 0.25);
+  background: rgba(28, 18, 22, 0.85);
+  color: #fff8e1;
+  line-height: 1.25;
+}
+.rg-song.on {
+  border-color: #ffd84a;
+  background: rgba(184, 65, 44, 0.55);
+  box-shadow: 0 0 12px rgba(255, 216, 74, 0.45);
+}
+.rg-song-title {
+  font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
+  font-weight: 900;
+  font-size: 1.1rem;
+}
+.rg-song small {
+  font-size: 0.68rem;
+  white-space: nowrap;
+  opacity: 0.8;
+}
 .rg-levels {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
 }
 .rg-level {
   display: flex;
   flex-direction: column;
-  min-width: 96px;
+  min-width: 80px;
+  padding: 0.3rem 0.7rem;
   color: #fff;
   font-weight: 800;
   font-size: 1.3rem;
@@ -865,6 +957,17 @@ export default {
 .rg-help {
   font-size: 0.8rem;
   opacity: 0.75;
+}
+@media (max-width: 360px) {
+  .rg-over {
+    gap: 8px;
+  }
+  .rg-sub {
+    font-size: 0.85rem;
+  }
+  .rg-help {
+    font-size: 0.7rem;
+  }
 }
 .rg-card {
   margin: 14px auto 0;

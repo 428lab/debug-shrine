@@ -1,6 +1,7 @@
 // リズムゲームの譜面を、曲の音の並び(rhythmSong.js)から作る。描画も音も含まない純関数。
 //
-// レーンは 3 本: 0 = 鈴(メロディ・三味線)、1 = 太鼓(キック・和太鼓)、2 = 柏手(スネア・クラップ)。
+// レーンは 3 本: 0 = 鈴(メロディ・掛け声・三味線など)、1 = 太鼓(キック・和太鼓)、
+// 2 = 柏手(スネア・クラップ・締太鼓)。
 // 曲で実際に鳴っている音に合わせて置くので、叩くと曲とぴったり合う。
 //
 // - 参拝(やさしい): 2 拍ごとの頭くらい(平均 2 個/秒ほど)。同じレーンは 4 ステップ(約 0.35 秒)以上あける
@@ -20,6 +21,9 @@ const LEVELS = {
   hard: { label: "修行", minGap: 2, hold: true, holdMin: 6 },
 };
 
+// メロディを受け持つ楽器(ボーカルチョップ・尺八・篠笛・篳篥)
+const MELODY = new Set(["vox", "shaku", "shino", "hichi"]);
+
 // 曲の音を、どのレーンに置くか(候補)。prio が大きいものを優先して残す
 function candidates(song, level) {
   const out = [];
@@ -30,19 +34,36 @@ function candidates(song, level) {
     for (const x of song.sections) if (bar >= x.startBar) s = x;
     return s.name;
   };
+  // メロディのある小節では、三味線・ギターのリフ・琴は鈴のレーンに置かない(メロディを優先)
+  const melodyBars = new Set(song.events.filter((e) => MELODY.has(e.inst)).map((e) => e.bar));
+  const riffStep = easy ? 8 : normal ? 4 : 2;
   for (const e of song.events) {
     const sec = secAt(e.bar);
     const chorus = sec.startsWith("chorus");
     if (sec === "outro" && e.step > 0) continue;
+    if (!Number.isInteger(e.step)) continue; // 鞨鼓の連打などの細かい音は置かない
     switch (e.inst) {
       case "vox":
+      case "shaku":
+      case "shino":
+      case "hichi":
         if (easy && e.step % 8 !== 0) break;
         if (normal && e.step % 4 !== 0) break; // 祈願は拍の頭のメロディだけ
         out.push({ t: e.t, lane: 0, prio: 3, len: e.len });
         break;
+      case "chant":
+        // 掛け声は目立つので優先する
+        if (easy && e.step % 4 !== 0) break;
+        if (normal && e.step % 2 !== 0) break;
+        out.push({ t: e.t, lane: 0, prio: 4, len: 0 });
+        break;
       case "shamisen":
-        // イントロとブレイクのメロディ役
-        if (e.step % (easy ? 8 : normal ? 4 : 2) === 0) out.push({ t: e.t, lane: 0, prio: 2, len: 0 });
+      case "koto":
+      case "gtr":
+        // メロディのない所(イントロ・ブレイク・リフ・ソロ)のメロディ役
+        if (melodyBars.has(e.bar)) break;
+        if (e.inst === "gtr" && !e.riff) break;
+        if (e.step % riffStep === 0) out.push({ t: e.t, lane: 0, prio: 2, len: 0 });
         break;
       case "kick":
         if (easy && !(chorus && e.step === 8)) break;
@@ -63,6 +84,13 @@ function candidates(song, level) {
         break;
       case "clap":
         out.push({ t: e.t, lane: 2, prio: 3, len: 0 });
+        break;
+      case "shime":
+        // 締太鼓: 祈願は 2・4 拍目、修行は拍の頭
+        if (easy) break;
+        if (normal && !(e.step === 4 || e.step === 12)) break;
+        if (e.step % 4 !== 0) break;
+        out.push({ t: e.t, lane: 2, prio: 1, len: 0 });
         break;
       default:
         break;
