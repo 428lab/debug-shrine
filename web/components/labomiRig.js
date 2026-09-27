@@ -164,12 +164,15 @@ function createLabomi(img) {
   Eyes.loadParts(BLINK_LEVELS)
     .then((parts) => {
       if (destroyed) return;
-      frames = parts.map((pt) => Eyes.composeFrame(img, pt.c > 0 ? pt.img : null));
+      // 絵とテクスチャが両方そろってから差し替える(途中で失敗しても、数が食い違わないように)
+      const next = parts.map((pt) => Eyes.composeFrame(img, pt.c > 0 ? pt.img : null));
       if (gl && !gl.isContextLost()) {
+        const nextTex = next.map((f) => makeTex(f));
         const old = texs;
-        texs = frames.map((f) => makeTex(f));
+        texs = nextTex;
         old.forEach((t) => gl.deleteTexture(t));
       }
+      frames = next;
     })
     .catch(() => {
       // 用意できなければ瞬きしない(元の絵のまま)
