@@ -3,14 +3,12 @@
 // - 絵に細かい網目(メッシュ)をかけ、頂点を動かしてゆがめる(Live2D 風)。WebGL で描く
 //   - 呼吸(足元を支点に少し伸び縮み)、髪先・袴のすその揺れ、指さしの手の上下
 //   - 祓串: 手元を支点に回す(swing。お祓いの一振り)
-// - 目: 元の絵はウインクなので、ふだんは左目も開ける(左目の閉じた線を消し、右目を左右反転して
-//   写す)。瞬きは両目で「半分」「閉じ」の絵に差し替える。半分は目全体を下まつげの所を支点に縦に
-//   つぶし、閉じはウインクしている左目の線(右目はそれを左右反転)。前髪は目より手前に残す。
-//   blink: 0 = 両目を開ける、1 = 半分、2 = 閉じ、3 = もとの絵(ウインク。決めの場面で使う)
+// - 瞬き: labomiEyes.js が作る「閉じ具合ごとの SVG の画像パーツ」を元の絵の目の所に重ねた絵を
+//   用意しておき、閉じ具合(pose.blink: 0 = 開き 〜 1 = 閉じ)で差し替える。パーツができるまでは元の絵
 // - WebGL が使えない時は、絵をそのまま少し揺らして描く
 //
 // 使い方: const rig = createLabomi(img); rig.render(t, pose) → rig.canvas を drawImage する。
-// pose = { swing: 祓串の角度(ラジアン、+ で振り下ろし), blink: 0 開き / 1 半分 / 2 閉じ / 3 ウインク,
+// pose = { swing: 祓串の角度(ラジアン、+ で振り下ろし), blink: 目の閉じ具合(0 = 開き 〜 1 = 閉じ),
 //          jump: 上への跳ね(px), squash: 縦の縮み(0〜0.2) }
 
 const IW = 360; // 元の絵の大きさ
@@ -21,8 +19,12 @@ const CH = IH + PAD;
 const GX = 36; // 網目の数
 const GY = 48;
 
-// 目と祓串の位置(元の絵の座標)
-const EYE = { cx: 201, cy: 122, rx: 17, ry: 15 };
+const Eyes = require("./labomiEyes");
+
+// 瞬きの絵を用意する閉じ具合(この間は近い方を使う)
+const BLINK_LEVELS = [0, 0.2, 0.4, 0.6, 0.8, 1];
+
+// 祓串の位置(元の絵の座標)
 const PIVOT = { x: 103, y: 183 }; // 祓串を持つ手
 const GOHEI = { cx: 78, cy: 148, rx: 46, ry: 78 }; // 祓串と紙垂のあたり
 const FOOT = 455;
@@ -30,160 +32,6 @@ const FOOT = 455;
 function smooth(e0, e1, x) {
   const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
   return t * t * (3 - 2 * t);
-}
-
-// ---- 目(図形で描き直す) ----
-// 元の絵の目は画素なので、開き具合を変えられない。両目(開いた右目とウインクの左目)を肌の色で
-// 消してから、線と塗りの図形(SVG のような描き方)で描き直す。open: 1 = 開き、0 = 閉じ。
-// 座標は元の絵の座標。左目は顔の中心(x = FACE_X)を挟んで右目と対になる位置
-const FACE_X = 182;
-const EYE_R = { cx: 201, cy: 122 }; // 右目の中心
-const EYE_L = { cx: 2 * FACE_X - EYE_R.cx, cy: EYE_R.cy };
-const isHairPx = (r, g, b) => (r > 170 && g < 140 && b < 110 && r - g > 70) || (r - b > 60 && g < 150); // 前髪とその縁の線
-const isBlushPx = (r, g, b) => r > 220 && g < 205 && r - b > 45; // 頬の赤み
-
-function lerp(a, b, t) {
-  return a + (b - a) * t;
-}
-function mix(p, q, t) {
-  return [lerp(p[0], q[0], t), lerp(p[1], q[1], t)];
-}
-
-// 1 つの目を描く。s = 1 は右目(目頭が -x、目尻が +x)、-1 は左目。
-// 上まつげは「目頭の端・平らな所の始まり・平らな所の終わり・目尻の端」の 4 点で表し、開きと閉じの間を
-// 動かす。形は元の絵を測った値(右目の中心 (201, 122) からの位置):
-//   開き: 上が平ら(y = -10.5)、目頭の端は少し下がり、目尻の端は下へ巻き込む
-//   閉じ: 元のウインクの線。下まぶたの高さ(y ≈ +10)で平ら、目尻の端だけ 5px ほど下がる(幅 16px)
-const LASH_OPEN = [[-13, -3], [-8.5, -10.5], [7, -10.5], [11.5, -1]];
-const LASH_CLOSED = [[-8, 10], [-4, 9.6], [2.5, 10], [7.2, 13.8]];
-
-function drawEye(g, cx, cy, s, open) {
-  const P = LASH_OPEN.map((p, k) => [lerp(LASH_CLOSED[k][0], p[0], open) * s, lerp(LASH_CLOSED[k][1], p[1], open)]);
-  const lash = () => {
-    // 角を丸めた線: P0 → (P1 で曲がる) → (P2 で曲がる) → P3
-    const m = mix(P[1], P[2], 0.5);
-    g.moveTo(P[0][0], P[0][1]);
-    g.quadraticCurveTo(P[1][0], P[1][1], m[0], m[1]);
-    g.quadraticCurveTo(P[2][0], P[2][1], P[3][0], P[3][1]);
-  };
-  g.save();
-  g.translate(cx, cy);
-  if (open > 0.12) {
-    // 白目: 上まつげと下まぶた(目尻 → 目頭の下向きのカーブ)の間
-    g.beginPath();
-    lash();
-    g.quadraticCurveTo(1 * s, 15, P[0][0], P[0][1]);
-    g.closePath();
-    g.fillStyle = "#fbfbff";
-    g.fill();
-    g.save();
-    g.clip();
-    // 黒目(大きな青)と、上側の濃い瞳。ハイライトは左上の大きな丸と右下の小さな丸
-    const ix = 1 * s;
-    const iy = 2.5;
-    const grd = g.createLinearGradient(0, iy - 9, 0, iy + 9);
-    grd.addColorStop(0, "#1a2f7a");
-    grd.addColorStop(0.5, "#2c6ad0");
-    grd.addColorStop(1, "#6fb0f2");
-    g.fillStyle = grd;
-    g.beginPath();
-    g.ellipse(ix, iy, 8.6, 8.8, 0, 0, Math.PI * 2);
-    g.fill();
-    g.strokeStyle = "#0f1d4a";
-    g.lineWidth = 1.1;
-    g.stroke();
-    g.fillStyle = "#0a0e2a";
-    g.beginPath();
-    g.ellipse(ix + 0.5, iy - 2.5, 5.2, 4.6, 0, 0, Math.PI * 2);
-    g.fill();
-    g.fillStyle = "#ffffff";
-    g.beginPath();
-    g.ellipse(ix - 4.2, iy - 5.2, 3.1, 3.4, 0, 0, Math.PI * 2);
-    g.fill();
-    g.beginPath();
-    g.arc(ix + 3.4, iy + 4.4, 1.3, 0, Math.PI * 2);
-    g.fill();
-    // まつげの下の影
-    g.strokeStyle = "rgba(30,25,45,0.4)";
-    g.lineWidth = 3.5;
-    g.beginPath();
-    lash();
-    g.stroke();
-    g.restore();
-  }
-  // 閉じる時の二重のしわ(元のウインクの上の薄い線)
-  if (open < 0.5) {
-    g.strokeStyle = `rgba(170,120,95,${0.7 * (1 - open * 2)})`;
-    g.lineWidth = 1.1;
-    g.beginPath();
-    g.moveTo(-6.5 * s, 5.3);
-    g.lineTo(0.5 * s, 5);
-    g.stroke();
-  }
-  // 上まつげ(太い黒)
-  g.strokeStyle = "#101010";
-  g.lineCap = "round";
-  g.lineJoin = "round";
-  g.lineWidth = lerp(2.8, 3.4, open);
-  g.beginPath();
-  lash();
-  g.stroke();
-  g.restore();
-}
-
-// 目の絵(open: 1 = 開き、0 = 閉じ)。元の目を消して、両目を描き直す
-function eyeFrame(img, open) {
-  const c = document.createElement("canvas");
-  c.width = IW;
-  c.height = IH;
-  const g = c.getContext("2d");
-  g.drawImage(img, 0, 0, IW, IH);
-  let d;
-  try {
-    d = g.getImageData(0, 0, IW, IH);
-  } catch (e) {
-    return c; // 画素が読めない時は元の絵のまま
-  }
-  const px = d.data;
-  const at = (x, y) => (y * IW + x) * 4;
-  const s0 = at(182, 128); // 目の間の肌の色
-  const skin = [px[s0], px[s0 + 1], px[s0 + 2]];
-  const paint = (x, y) => {
-    const i = at(x, y);
-    const r = px[i];
-    const gg = px[i + 1];
-    const b = px[i + 2];
-    if (isHairPx(r, gg, b) || isBlushPx(r, gg, b)) return;
-    px[i] = skin[0];
-    px[i + 1] = skin[1];
-    px[i + 2] = skin[2];
-  };
-  // 右目を消す
-  for (let y = 106; y <= 132; y++) for (let x = 184; x <= 219; x++) if (((x - 201) / 17) ** 2 + ((y - 120) / 14) ** 2 <= 1) paint(x, y);
-  // 左目(ウインクの線と上のしわ)を消す
-  for (let y = 122; y <= 140; y++) for (let x = 150; x <= 179; x++) paint(x, y);
-  g.putImageData(d, 0, 0);
-  // 描き直した目を別の絵に描いて、前髪の所を除いて重ねる(前髪は目より手前)
-  const e = document.createElement("canvas");
-  e.width = IW;
-  e.height = IH;
-  const eg = e.getContext("2d");
-  drawEye(eg, EYE_R.cx, EYE_R.cy, 1, open);
-  drawEye(eg, EYE_L.cx, EYE_L.cy, -1, open);
-  const ed = eg.getImageData(0, 0, IW, IH).data;
-  const base = g.getImageData(0, 0, IW, IH);
-  const bp = base.data;
-  for (let y = 100; y < 145; y++) {
-    for (let x = 140; x < 225; x++) {
-      const i = at(x, y);
-      const a = ed[i + 3] / 255;
-      if (a <= 0) continue;
-      if (isHairPx(bp[i], bp[i + 1], bp[i + 2])) continue;
-      for (let k = 0; k < 3; k++) bp[i + k] = Math.round(bp[i + k] * (1 - a) + ed[i + k] * a);
-    }
-  }
-  g.putImageData(base, 0, 0);
-  return c;
 }
 
 const VS = `
@@ -211,8 +59,9 @@ function createLabomi(img) {
   const canvas = document.createElement("canvas");
   canvas.width = CW;
   canvas.height = CH;
-  // 0 = 両目を開ける、1 = 半分、2 = 閉じ、3 = もとの絵(ウインク)
-  const frames = [eyeFrame(img, 1), eyeFrame(img, 0.45), eyeFrame(img, 0), img];
+  // 瞬きの絵(閉じ具合の順)。SVG の画像パーツができるまでは元の絵だけ
+  let frames = [img];
+  let destroyed = false;
   let gl = null;
   try {
     gl = canvas.getContext("webgl", { premultipliedAlpha: true, alpha: true, antialias: true });
@@ -297,19 +146,35 @@ function createLabomi(img) {
     gl.uniform2f(gl.getUniformLocation(prog, "uSize"), CW, CH);
     uFlash = gl.getUniformLocation(prog, "uFlash");
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
-    texs = frames.map((f) => {
-      const t = gl.createTexture();
-      gl.bindTexture(gl.TEXTURE_2D, t);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, f);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      return t;
-    });
+    texs = frames.map((f) => makeTex(f));
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
   }
+  function makeTex(f) {
+    const t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, f);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return t;
+  }
+  // 瞬きの絵を用意する(SVG を画像にするのは非同期)
+  Eyes.loadParts(BLINK_LEVELS)
+    .then((parts) => {
+      if (destroyed) return;
+      frames = parts.map((pt) => Eyes.composeFrame(img, pt.c > 0 ? pt.img : null));
+      if (gl && !gl.isContextLost()) {
+        const old = texs;
+        texs = frames.map((f) => makeTex(f));
+        old.forEach((t) => gl.deleteTexture(t));
+      }
+    })
+    .catch(() => {
+      // 用意できなければ瞬きしない(元の絵のまま)
+    });
+  const frameIndex = (c) => Math.max(0, Math.min(frames.length - 1, Math.round((c || 0) * (frames.length - 1))));
   // WebGL が使えない・失われた時の絵(WebGL の絵とは別のキャンバス。同じキャンバスでは 2D が取れない)
   const fb = document.createElement("canvas");
   fb.width = CW;
@@ -336,7 +201,7 @@ function createLabomi(img) {
       ctx2d.save();
       ctx2d.translate(PAD, PAD - jump + FOOT * (1 - breath));
       ctx2d.scale(1, breath);
-      ctx2d.drawImage(frames[pose.blink || 0], 0, 0, IW, IH);
+      ctx2d.drawImage(frames[frameIndex(pose.blink)], 0, 0, IW, IH);
       ctx2d.restore();
       return fb;
     }
@@ -367,7 +232,7 @@ function createLabomi(img) {
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, pos);
-    gl.bindTexture(gl.TEXTURE_2D, texs[pose.blink || 0]);
+    gl.bindTexture(gl.TEXTURE_2D, texs[frameIndex(pose.blink)]);
     gl.uniform1f(uFlash, pose.flash || 0);
     gl.drawElements(gl.TRIANGLES, idx.length, gl.UNSIGNED_SHORT, 0);
     return canvas;
@@ -375,6 +240,7 @@ function createLabomi(img) {
 
   // ページを離れる時に WebGL を手放す(残すと、来るたびに増えて古いものから落とされる)
   function destroy() {
+    destroyed = true;
     canvas.removeEventListener("webglcontextlost", onLost);
     const g = glRef;
     if (!g) return;
@@ -392,7 +258,22 @@ function createLabomi(img) {
     gl = null;
   }
 
-  return { canvas, render, destroy, frames, webgl: !!gl, W: CW, H: CH, PAD, IW, IH, PIVOT, EYE };
+  return {
+    canvas,
+    render,
+    destroy,
+    base: img, // 元の絵(ウインク)
+    get frames() {
+      return frames;
+    },
+    webgl: !!gl,
+    W: CW,
+    H: CH,
+    PAD,
+    IW,
+    IH,
+    PIVOT,
+  };
 }
 
-module.exports = { createLabomi, eyeFrame, drawEye, IW, IH, PAD, CW, CH, PIVOT, EYE };
+module.exports = { createLabomi, IW, IH, PAD, CW, CH, PIVOT };
