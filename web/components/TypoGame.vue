@@ -52,7 +52,10 @@ const MINCHO = "'Hiragino Mincho ProN', 'Yu Mincho', serif";
 const MONO = "'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace";
 const GOTHIC = "'Hiragino Sans', 'Noto Sans JP', 'Yu Gothic', sans-serif";
 const GOLD = "#ffd84a";
-const SPECIAL_MS = 1700; // 一斉お祓いの演出の長さ
+const SPECIAL_MS = 1900; // 一斉お祓いの演出の長さ
+// タップしてから、幻の祓串が左・右・左と振り終えて誤字が砕けるまで(ms)
+const SWING_MS = 330;
+const IMPACT = 340;
 const DYING_MS = 1100;
 // らぼみ(しめ縄の下、右寄りに立つ)
 const LB_SCALE = 0.44;
@@ -166,6 +169,11 @@ export default {
         rings: [], // 衝撃の輪
         pops: [], // 点数
         pillars: [], // 一斉お祓いの光の柱
+        goheis: [], // 言葉の上で左右左と振る、幻の祓串
+        rays: [], // 放射状の光
+        seals: [], // 「祓」の印
+        flashes: [], // 画面が白く光る
+        quakes: [], // あとで揺らす(砕けた瞬間)
         itemFx: {}, // 言葉ごとの演出(直した時刻・お手つき)
         shake: 0,
         swingAt: -1e9,
@@ -223,10 +231,7 @@ export default {
       if (this.phase === "paused") {
         // 一斉お祓いの途中で止めた時は、止まっていた分だけ演出の時刻をずらす
         const d = now - (this._pausedAt || now);
-        if (this.fx.special) {
-          this.fx.special += d;
-          this.fx.swingAt += d;
-        }
+        this.shiftFx(d, this._pausedAt || now);
         this.phase = "play";
         this._last = now;
         this.ensureAudio();
@@ -262,6 +267,10 @@ export default {
           this._acc -= G.STEP;
         }
         this.consumeEvents(now);
+        // コンボ 10 から、らぼみの周りに炎が立つ
+        if (g.combo >= 10 && Math.random() < Math.min(0.9, 0.3 + g.combo * 0.02)) {
+          fx.parts.push({ x: LB_FOOT.x + (Math.random() - 0.5) * 120, y: LB_FOOT.y - Math.random() * 150, vx: (Math.random() - 0.5) * 30, vy: -90 - Math.random() * 90, at: now, life: 500 + Math.random() * 300, shide: false, rot: 0, hue: g.combo >= 20 ? Math.random() * 0.7 : 0.75 + Math.random() * 0.25, fire: true });
+        }
         if (g.over) {
           this.phase = "dying";
           this._dieAt = now;
@@ -275,7 +284,15 @@ export default {
           for (const it of g.items) if (!it.done && !it.leaked) fx.pillars.push({ x: it.x + it.width / 2, at: now });
           G.special(g);
           this.consumeEvents(now);
-          fx.shake = 14;
+          fx.shake = 18;
+          // 真ん中に大きな「祓」の印と光、紙垂の嵐
+          fx.rays.push({ x: G.W / 2, y: 260, at: now, big: true, rot: 0 });
+          fx.rays.push({ x: G.W / 2, y: 260, at: now + 120, big: true, rot: 0.5 });
+          fx.seals.push({ x: G.W / 2, y: 300, at: now, rot: -0.12, size: 3.2 });
+          for (let k = 0; k < 4; k++) fx.rings.push({ x: G.W / 2, y: 260, at: now + k * 90, big: true });
+          for (let k = 0; k < 70; k++) {
+            fx.parts.push({ x: Math.random() * G.W, y: -20 - Math.random() * 200, vx: (Math.random() - 0.5) * 80, vy: 120 + Math.random() * 160, at: now, life: 1600, shide: Math.random() < 0.6, rot: Math.random() * 6, hue: Math.random() });
+          }
           this.sfx("pillar");
         }
         if (u > SPECIAL_MS) {
@@ -329,35 +346,49 @@ export default {
     },
     onFixSeg(it, e, now) {
       const f = this.itemFx(it.id);
-      f.fixedAt[e.from] = now;
+      const special = e.how === "special";
+      const hit = special ? now : now + IMPACT; // 誤字が砕ける時刻
+      f.fixedAt[e.from] = hit;
       const x0 = G.glyphX(it, e.from);
       const x1 = G.glyphX(it, e.to);
       const cx = (x0 + x1) / 2;
-      const cy = it.y - G.FS * 0.35;
-      if (e.how !== "special") {
+      // 2 か所ある言葉の 1 か所目は、砕けるまでの間も落ち続けるので、その時の位置を狙う
+      const cy = it.y - G.FS * 0.35 + (!special && !it.done ? (it.vy * IMPACT) / 1000 : 0);
+      const combo = this.game.combo;
+      const id = it.id;
+      if (!special) {
+        // らぼみが振る → 光が走る → 言葉の上に幻の祓串が現れて左・右・左
         this.fx.swingAt = now;
         const tip = this.goheiTip(now);
         this.fx.beams.push({ x0: tip.x, y0: tip.y, x1: cx, y1: cy, at: now });
+        this.fx.goheis.push({ id, x: cx, y: cy, at: now + 30, big: combo >= 20 });
         this.sfx("slash");
       }
-      this.fx.rings.push({ x: cx, y: cy, at: now + (e.how === "special" ? 0 : 90), big: e.how === "special" });
+      const big = special || combo >= 10;
+      this.fx.rings.push({ id, x: cx, y: cy, at: hit, big });
+      if (big) this.fx.rings.push({ id, x: cx, y: cy, at: hit + 90, big });
+      this.fx.rays.push({ id, x: cx, y: cy, at: hit, big, rot: Math.random() * Math.PI });
+      this.fx.flashes.push({ id, at: hit, power: special ? 0 : Math.min(0.45, 0.18 + combo * 0.01) });
+      this.fx.quakes.push({ id, at: hit, power: special ? 0 : Math.min(12, 4 + combo * 0.25) });
       // 間違いの文字が砕けて飛ぶ
       for (let i = e.from; i < e.to; i++) {
         const gx = G.glyphX(it, i) + G.glyphW(it.glyphs[i]) / 2;
         for (let k = 0; k < 3; k++) {
           const a = -Math.PI / 2 + (k - 1) * 0.9 + (Math.random() - 0.5) * 0.6;
-          const v = 160 + Math.random() * 160;
-          this.fx.shards.push({ ch: it.glyphs[i], kind: it.kind, k, x: gx, y: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, rot: (Math.random() - 0.5) * 12, at: now });
+          const v = 220 + Math.random() * 220;
+          this.fx.shards.push({ id, ch: it.glyphs[i], kind: it.kind, k, x: gx, y: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, rot: (Math.random() - 0.5) * 16, at: hit });
         }
       }
-      this.burst(cx, cy, 16, now, e.how === "special");
+      this.burst(cx, cy, Math.round(26 + Math.min(combo, 40) * 1.2), hit, big, id);
     },
     onDone(it, e, now) {
       const f = this.itemFx(it.id);
-      f.doneAt = now;
-      this.fx.pops.push({ text: `+${e.pts}`, x: it.x + it.width / 2, y: it.y - G.FS - 6, at: now, combo: e.combo });
-      if (e.combo >= 5) this.fx.comboAt = now;
-      this.sfx("done", e.combo);
+      const hit = e.how === "special" ? now : now + IMPACT;
+      f.doneAt = hit;
+      this.fx.pops.push({ text: `+${e.pts}`, x: it.x + it.width / 2, y: it.y - G.FS - 50, at: hit, combo: e.combo });
+      this.fx.seals.push({ x: it.x + it.width / 2, y: it.y - G.FS * 0.4, at: hit, rot: (Math.random() - 0.5) * 0.5 });
+      if (e.combo >= 5) this.fx.comboAt = hit;
+      this.sfx("done", e.combo, (hit - now) / 1000);
       if (e.how !== "special" && e.combo > 0 && e.combo % 10 === 0) {
         this.say(pick(LINES.combo));
         this.fx.jumpAt = now;
@@ -375,11 +406,34 @@ export default {
     },
     onLeak(e, now) {
       this.itemFx(e.id).leakAt = now;
+      // 1 か所目を直して砕ける前に漏れた言葉は、これからの演出を取りやめる
+      this.cancelFx(e.id, now);
       this.fx.shake = 10;
       this.fx.leakAt = now;
       this.fx.leakX = e.x;
       this.sfx("leak");
       this.say(pick(LINES.leak));
+    },
+    cancelFx(id, now) {
+      for (const k of ["goheis", "rings", "rays", "flashes", "quakes", "shards", "parts"]) {
+        this.fx[k] = this.fx[k].filter((x) => x.id !== id || x.at <= now);
+      }
+    },
+    // 一時停止していた分だけ、これからの演出の時刻をずらす
+    shiftFx(d, since) {
+      const fx = this.fx;
+      for (const k of ["beams", "goheis", "rings", "rays", "flashes", "quakes", "shards", "parts", "pops", "seals", "pillars"]) {
+        for (const x of fx[k]) if (x.at > since) x.at += d;
+      }
+      for (const f of Object.values(fx.itemFx)) {
+        for (const k of Object.keys(f.fixedAt)) if (f.fixedAt[k] > since) f.fixedAt[k] += d;
+        if (f.doneAt > since) f.doneAt += d;
+      }
+      if (fx.comboAt > since) fx.comboAt += d;
+      if (fx.special) {
+        fx.special += d;
+        fx.swingAt += d;
+      }
     },
     startSpecial(now) {
       this.fx.special = now;
@@ -392,14 +446,14 @@ export default {
     say(text) {
       this.fx.say = { text, at: performance.now() };
     },
-    burst(x, y, n, now, big) {
+    burst(x, y, n, now, big, id) {
       for (let i = 0; i < n; i++) {
         const a = Math.random() * Math.PI * 2;
-        const v = (big ? 140 : 90) + Math.random() * (big ? 260 : 180);
+        const v = (big ? 180 : 120) + Math.random() * (big ? 340 : 240);
         const shide = i % 4 === 0; // 紙垂(白いジグザグ)
-        this.fx.parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 60, at: now, life: 700 + Math.random() * 500, shide, rot: Math.random() * 6, hue: Math.random() });
+        this.fx.parts.push({ id, x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 60, at: now, life: 700 + Math.random() * 600, shide, rot: Math.random() * 6, hue: Math.random() });
       }
-      if (this.fx.parts.length > 500) this.fx.parts.splice(0, this.fx.parts.length - 500);
+      if (this.fx.parts.length > 700) this.fx.parts.splice(0, this.fx.parts.length - 700);
     },
     finish() {
       const g = this.game;
@@ -431,12 +485,27 @@ export default {
     },
 
     // ---- らぼみのポーズ ----
+    // らぼみの祓串: 左・右・左と振って戻す
     swingAngle(now) {
-      const u = (now - this.fx.swingAt) / 380;
+      const u = (now - this.fx.swingAt) / 460;
       if (u < 0 || u > 1) return 0;
-      if (u < 0.22) return -0.45 * (u / 0.22); // 振りかぶる
-      if (u < 0.42) return -0.45 + 1.0 * ((u - 0.22) / 0.2); // 振り下ろす
-      return 0.55 * Math.exp(-(u - 0.42) * 6) * Math.cos((u - 0.42) * 9); // 余韻
+      const keys = [
+        [0, 0],
+        [0.14, -0.55],
+        [0.36, 0.6],
+        [0.58, -0.45],
+        [0.8, 0.2],
+        [1, 0],
+      ];
+      for (let i = 1; i < keys.length; i++) {
+        if (u <= keys[i][0]) {
+          const [t0, a0] = keys[i - 1];
+          const [t1, a1] = keys[i];
+          const k = (u - t0) / (t1 - t0);
+          return a0 + (a1 - a0) * (k * k * (3 - 2 * k));
+        }
+      }
+      return 0;
     },
     pose(now) {
       const fx = this.fx;
@@ -470,6 +539,11 @@ export default {
       const s = this._scale || 1;
       const fx = this.fx;
       ctx.setTransform(s, 0, 0, s, 0, 0);
+      for (const q of fx.quakes) if (now >= q.at && !q.done) {
+        q.done = true;
+        fx.shake = Math.max(fx.shake, q.power);
+      }
+      fx.quakes = fx.quakes.filter((q) => !q.done);
       if (fx.shake > 0.2) {
         ctx.translate((Math.random() - 0.5) * fx.shake, (Math.random() - 0.5) * fx.shake);
         fx.shake *= 0.86;
@@ -479,6 +553,29 @@ export default {
       for (const it of this.game.items) this.drawItem(ctx, it, now);
       this.drawLabomi(ctx, now);
       this.drawFx(ctx, now);
+      // コンボ 20 から、画面の縁が金色に燃える
+      const cb = this.game.combo;
+      if (cb >= 20 && this.phase === "play") {
+        const a = Math.min(0.55, 0.25 + (cb - 20) * 0.01) * (0.75 + 0.25 * Math.sin(now / 90));
+        for (const [x0, y0, x1, y1, rx, ry, rw, rh] of [
+          [0, 0, 36, 0, 0, 0, 36, G.H],
+          [G.W, 0, G.W - 36, 0, G.W - 36, 0, 36, G.H],
+        ]) {
+          const grd = ctx.createLinearGradient(x0, y0, x1, y1);
+          grd.addColorStop(0, `rgba(255,190,60,${a})`);
+          grd.addColorStop(1, "rgba(255,190,60,0)");
+          ctx.fillStyle = grd;
+          ctx.fillRect(rx, ry, rw, rh);
+        }
+      }
+      // 誤字が砕けた瞬間、画面が白く光る
+      fx.flashes = fx.flashes.filter((fl) => now - fl.at < 160);
+      for (const fl of fx.flashes) {
+        const u = (now - fl.at) / 160;
+        if (u < 0 || !fl.power) continue;
+        ctx.fillStyle = `rgba(255,250,230,${fl.power * (1 - u)})`;
+        ctx.fillRect(-20, -20, G.W + 40, G.H + 40);
+      }
       this.drawHud(ctx, now);
       if (fx.special) this.drawSpecial(ctx, now);
       if (this.phase === "ready") this.drawReady(ctx, now);
@@ -584,7 +681,7 @@ export default {
       let dy = 0;
       let scale = 1;
       if (it.done) {
-        const u = (now - f.doneAt) / 900;
+        const u = Math.max(0, (now - f.doneAt) / 900);
         alpha = Math.max(0, 1 - Math.max(0, u - 0.35) / 0.65);
         dy = -Math.max(0, u - 0.25) * 60;
         scale = 1 + Math.min(1, u * 4) * 0.08;
@@ -639,6 +736,22 @@ export default {
           const fw = G.widthOf(seg.fix) || 1;
           const k = Math.min(1.2, (x1 - x0) / fw);
           const t0 = f.fixedAt[seg.from] || now;
+          if (now < t0) {
+            // 祓串を振っている間: 間違いの文字が白く熱を帯びて震える
+            const heat = Math.max(0, 1 - (t0 - now) / IMPACT);
+            ctx.save();
+            ctx.shadowColor = "#ffffff";
+            ctx.shadowBlur = 8 + heat * 20;
+            ctx.fillStyle = `rgb(255,${Math.round(140 + heat * 110)},${Math.round(120 + heat * 130)})`;
+            for (let k = seg.from; k < seg.to; k++) {
+              const ch = it.glyphs[k];
+              ctx.font = this.fontOf(it, ch);
+              ctx.fillText(ch, G.glyphX(it, k) + G.glyphW(ch) / 2 + (Math.random() - 0.5) * heat * 4, it.y + (Math.random() - 0.5) * heat * 4);
+            }
+            ctx.restore();
+            i = seg.to;
+            continue;
+          }
           const pop = Math.min(1, (now - t0) / 180);
           ctx.save();
           ctx.translate(x0, it.y);
@@ -711,6 +824,9 @@ export default {
     },
     drawFx(ctx, now) {
       const fx = this.fx;
+      this.drawRays(ctx, now);
+      this.drawGoheis(ctx, now);
+      this.drawSeals(ctx, now);
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
       // 祓串から走る光(曲がった軌跡)
@@ -762,9 +878,10 @@ export default {
       // 光の粒
       fx.parts = fx.parts.filter((p) => now - p.at < p.life);
       for (const p of fx.parts) {
+        if (now < p.at) continue;
         const u = (now - p.at) / 1000;
         const x = p.x + p.vx * u;
-        const y = p.y + p.vy * u + 140 * u * u;
+        const y = p.y + p.vy * u + (p.fire ? 0 : 140 * u * u);
         const a = 1 - (now - p.at) / p.life;
         if (p.shide) {
           ctx.globalAlpha = a;
@@ -785,6 +902,7 @@ export default {
       fx.shards = fx.shards.filter((sd) => now - sd.at < 650);
       for (const sd of fx.shards) {
         const u = (now - sd.at) / 1000;
+        if (u < 0) continue;
         ctx.save();
         ctx.globalAlpha = Math.max(0, 1 - u / 0.65);
         ctx.translate(sd.x + sd.vx * u, sd.y + sd.vy * u + 500 * u * u);
@@ -807,11 +925,15 @@ export default {
       fx.pops = fx.pops.filter((p) => now - p.at < 800);
       for (const p of fx.pops) {
         const u = (now - p.at) / 800;
+        if (u < 0) continue;
         ctx.globalAlpha = 1 - u * u;
         ctx.fillStyle = GOLD;
-        ctx.font = `900 20px ${MONO}`;
+        ctx.font = `900 ${p.combo >= 20 ? 26 : 22}px ${MONO}`;
         ctx.textAlign = "center";
-        ctx.fillText(p.text, p.x, p.y - u * 30);
+        ctx.shadowColor = "#ff7a2a";
+        ctx.shadowBlur = 10;
+        ctx.fillText(p.text, p.x, p.y - u * 34);
+        ctx.shadowBlur = 0;
       }
       ctx.globalAlpha = 1;
       // お手つきの印
@@ -850,6 +972,182 @@ export default {
       }
       ctx.restore();
     },
+    // 祓串の形(手元が原点、上へ伸びる)。lag は紙垂の遅れ(振る速さ)
+    drawGoheiShape(ctx, x, y, ang, sc, alpha, lag = 0) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(ang);
+      ctx.scale(sc, sc);
+      ctx.globalAlpha = alpha;
+      const L = 120;
+      const stick = ctx.createLinearGradient(-3, 0, 3, 0);
+      stick.addColorStop(0, "#8a5a2b");
+      stick.addColorStop(0.5, "#d9a060");
+      stick.addColorStop(1, "#8a5a2b");
+      ctx.fillStyle = stick;
+      ctx.fillRect(-3.5, -L, 7, L);
+      ctx.fillStyle = GOLD;
+      ctx.fillRect(-5, -L - 6, 10, 8);
+      // 紙垂(左右に 3 本ずつ、振る向きと逆へなびく)
+      ctx.shadowColor = "#ffffff";
+      ctx.shadowBlur = 12;
+      for (let k = 0; k < 6; k++) {
+        const side = k < 3 ? -1 : 1;
+        const j = k % 3;
+        ctx.save();
+        ctx.translate(side * (4 + j * 7), -L + 2 + j * 3);
+        ctx.rotate(side * (0.12 + j * 0.1) - lag * (0.5 + j * 0.25));
+        ctx.fillStyle = "#fbf8f0";
+        ctx.beginPath();
+        const w = 8;
+        ctx.moveTo(-w / 2, 0);
+        ctx.lineTo(w / 2, 0);
+        ctx.lineTo(w / 2, 14);
+        ctx.lineTo(w * 1.2, 14);
+        ctx.lineTo(w * 1.2, 30);
+        ctx.lineTo(w / 2 - 1, 30);
+        ctx.lineTo(w / 2 - 1, 46);
+        ctx.lineTo(-w / 2 - 1, 46);
+        ctx.lineTo(-w / 2 - 1, 30);
+        ctx.lineTo(-w * 0.1, 30);
+        ctx.lineTo(-w * 0.1, 14);
+        ctx.lineTo(-w / 2, 14);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+      ctx.restore();
+    },
+    // 幻の祓串: 言葉の上で 左・右・左 と振る。振った跡に光の刃が残る
+    goheiAngle(u) {
+      const keys = [
+        [0, 0.2],
+        [0.3, -1.05],
+        [0.64, 1.05],
+        [1, -0.95],
+      ];
+      for (let i = 1; i < keys.length; i++) {
+        if (u <= keys[i][0]) {
+          const [t0, a0] = keys[i - 1];
+          const [t1, a1] = keys[i];
+          const k = (u - t0) / (t1 - t0);
+          return a0 + (a1 - a0) * (1 - Math.pow(1 - k, 3));
+        }
+      }
+      return keys[keys.length - 1][1];
+    },
+    drawGoheis(ctx, now) {
+      const fx = this.fx;
+      fx.goheis = fx.goheis.filter((gh) => now - gh.at < SWING_MS + 220);
+      for (const gh of fx.goheis) {
+        const t = now - gh.at;
+        if (t < 0) continue;
+        const u = Math.min(1, t / SWING_MS);
+        const fade = t < 60 ? t / 60 : t > SWING_MS ? Math.max(0, 1 - (t - SWING_MS) / 220) : 1;
+        const sc = gh.big ? 1.15 : 0.95;
+        const px = gh.x;
+        const py = gh.y + 100 * sc; // 手元(言葉の下)
+        const ang = this.goheiAngle(u);
+        const prev = this.goheiAngle(Math.max(0, u - 0.08));
+        const lag = (ang - prev) * 2.5;
+        // 光の刃(直前の角度から今の角度まで、紙垂のあたりをなぞる)
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        const r = 112 * sc;
+        const a0 = Math.min(prev, ang) - Math.PI / 2;
+        const a1 = Math.max(prev, ang) - Math.PI / 2;
+        if (a1 - a0 > 0.02 && t <= SWING_MS) {
+          for (const [lw, al] of [[26, 0.25], [12, 0.55], [4, 1]]) {
+            ctx.strokeStyle = `rgba(255,236,170,${al * fade})`;
+            ctx.lineWidth = lw * sc;
+            ctx.lineCap = "round";
+            ctx.beginPath();
+            ctx.arc(px, py, r, a0, a1);
+            ctx.stroke();
+          }
+        }
+        // 残像
+        for (let k = 3; k >= 1; k--) {
+          const pa = this.goheiAngle(Math.max(0, u - k * 0.05));
+          this.drawGoheiShape(ctx, px, py, pa, sc, 0.18 * fade * (1 - k / 4), lag);
+        }
+        ctx.restore();
+        this.drawGoheiShape(ctx, px, py, ang, sc, 0.92 * fade, lag);
+        // 振り切った所で、紙垂の欠片が散る
+        if (t <= SWING_MS && Math.random() < 0.5) {
+          const ta = ang - Math.PI / 2;
+          fx.parts.push({ x: px + Math.cos(ta) * r, y: py + Math.sin(ta) * r, vx: (Math.random() - 0.5) * 160, vy: -40 - Math.random() * 80, at: now, life: 500, shide: Math.random() < 0.4, rot: Math.random() * 6, hue: Math.random() * 0.6 });
+        }
+      }
+    },
+    // 放射状の光(回りながら広がる)
+    drawRays(ctx, now) {
+      const fx = this.fx;
+      fx.rays = fx.rays.filter((r) => now - r.at < 520);
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      for (const r of fx.rays) {
+        const u = (now - r.at) / 520;
+        if (u < 0) continue;
+        const n = r.big ? 16 : 10;
+        const len = (r.big ? 230 : 150) * (0.4 + u * 0.8);
+        const w = (r.big ? 0.13 : 0.1) * (1 - u);
+        for (let k = 0; k < n; k++) {
+          const a = r.rot + u * 0.8 + (k * Math.PI * 2) / n;
+          const grd = ctx.createRadialGradient(r.x, r.y, 4, r.x, r.y, len);
+          grd.addColorStop(0, `rgba(255,248,210,${0.9 * (1 - u)})`);
+          grd.addColorStop(1, "rgba(255,200,80,0)");
+          ctx.fillStyle = grd;
+          ctx.beginPath();
+          ctx.moveTo(r.x, r.y);
+          ctx.arc(r.x, r.y, len, a - w, a + w);
+          ctx.closePath();
+          ctx.fill();
+        }
+        // 中心の光の玉
+        const core = ctx.createRadialGradient(r.x, r.y, 0, r.x, r.y, 60 * (1 - u) + 10);
+        core.addColorStop(0, `rgba(255,255,255,${1 - u})`);
+        core.addColorStop(1, "rgba(255,216,74,0)");
+        ctx.fillStyle = core;
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, 60 * (1 - u) + 10, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    },
+    // 「祓」の印(朱の丸に白い字。押された感じで縮んで止まる)
+    drawSeals(ctx, now) {
+      const fx = this.fx;
+      fx.seals = fx.seals.filter((sl) => now - sl.at < (sl.size ? 1000 : 700));
+      for (const sl of fx.seals) {
+        const t = now - sl.at;
+        if (t < 0) continue;
+        const k = (t < 110 ? 1.9 - 0.9 * (t / 110) : 1) * (sl.size || 1);
+        const a = t > 450 ? Math.max(0, 1 - (t - 450) / 250) : 1;
+        ctx.save();
+        ctx.globalAlpha = a * 0.92;
+        ctx.translate(sl.x, sl.y - 44);
+        ctx.rotate(sl.rot);
+        ctx.scale(k, k);
+        ctx.fillStyle = "#c0392b";
+        ctx.shadowColor = "#ff5a3a";
+        ctx.shadowBlur = 18;
+        ctx.beginPath();
+        ctx.arc(0, 0, 22, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = "#ffe3c0";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, 18, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = "#fff8e1";
+        ctx.font = `900 24px ${MINCHO}`;
+        ctx.textAlign = "center";
+        ctx.fillText("祓", 0, 9);
+        ctx.restore();
+      }
+    },
     drawHud(ctx, now) {
       const g = this.game;
       ctx.textAlign = "left";
@@ -870,7 +1168,7 @@ export default {
       ctx.globalAlpha = 1;
       // コンボ
       if (g.combo >= 3 && this.phase === "play") {
-        const u = Math.min(1, (now - this.fx.comboAt) / 200);
+        const u = Math.max(0, Math.min(1, (now - this.fx.comboAt) / 200));
         ctx.textAlign = "center";
         ctx.shadowColor = g.combo >= 20 ? GOLD : "#ff8a5a";
         ctx.shadowBlur = 16;
@@ -1088,10 +1386,10 @@ export default {
         this.ac = null;
       }
     },
-    sfx(kind, combo = 0) {
+    sfx(kind, combo = 0, delay = 0) {
       const ac = this.ac;
       if (!ac) return;
-      const t = ac.currentTime + 0.005;
+      const t = ac.currentTime + 0.005 + delay;
       const out = this.acOut;
       const tone = (f, dur, vol, type = "sine", at = t, f2 = null) => {
         const o = ac.createOscillator();
@@ -1125,9 +1423,11 @@ export default {
         s.stop(at + dur + 0.05);
       };
       if (kind === "slash") {
-        // 祓串が空を切る音 + 鈴
-        noise(0.14, 0.5, "bandpass", 2500, 7000);
-        for (const r of [1, 2.76]) tone(2400 * r, 0.3, 0.05 / r, "sine", t + 0.05);
+        // 祓串を 左・右・左 と振る「さっ、さっ、さっ」、砕ける瞬間に鈴と破裂音
+        for (const [dt, f0, f1] of [[0, 2200, 6500], [0.11, 2600, 7500], [0.22, 2400, 7000]]) noise(0.09, 0.45, "bandpass", f0, f1, t + dt);
+        noise(0.25, 0.5, "highpass", 1500, 6000, t + IMPACT / 1000);
+        tone(140, 0.25, 0.35, "sine", t + IMPACT / 1000, 60);
+        for (const r of [1, 2.76, 5.4]) tone(2600 * r, 0.45, 0.07 / r, "sine", t + IMPACT / 1000);
       } else if (kind === "done") {
         // コンボで上がっていく音(陽音階)
         const scale = [0, 2, 4, 7, 9];
