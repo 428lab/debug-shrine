@@ -972,6 +972,27 @@ export default {
       }
       ctx.restore();
     },
+    // カットインでらぼみが振る祓串の角度(u は一斉お祓いの進み 0〜1)
+    cutinAngle(u) {
+      const keys = [
+        [0, 0],
+        [0.18, -0.6],
+        [0.28, 0.7],
+        [0.38, -0.6],
+        [0.48, 0.7],
+        [0.6, 0],
+      ];
+      if (u <= 0 || u >= 0.6) return 0;
+      for (let i = 1; i < keys.length; i++) {
+        if (u <= keys[i][0]) {
+          const [t0, a0] = keys[i - 1];
+          const [t1, a1] = keys[i];
+          const k = (u - t0) / (t1 - t0);
+          return a0 + (a1 - a0) * (k * k * (3 - 2 * k));
+        }
+      }
+      return 0;
+    },
     // 祓串の形(手元が原点、上へ伸びる)。lag は紙垂の遅れ(振る速さ)
     drawGoheiShape(ctx, x, y, ang, sc, alpha, lag = 0) {
       ctx.save();
@@ -1242,12 +1263,42 @@ export default {
           ctx.lineTo(400, y + 6);
           ctx.stroke();
         }
-        // らぼみの顔(瞬きしてから、いつものウインク)
+        // らぼみ(上半身)が、祓串を 左・右・左・右 と大きく振る
         if (this.rig) {
-          const ft = u - 0.2;
-          const fi = ft > 0.06 && ft < 0.08 ? 1 : ft >= 0.08 && ft < 0.12 ? 2 : ft >= 0.12 && ft < 0.14 ? 1 : 0;
-          const src = this.rig.frames[fi];
-          ctx.drawImage(src, 110, 40, 180, 170, -210, -118, 250, 236);
+          const ang = this.cutinAngle(u);
+          const prev = this.cutinAngle(u - 0.03);
+          let cv = null;
+          try {
+            cv = this.rig.render(now / 1000, { swing: ang, blink: 0, flash: Math.min(0.3, Math.abs(ang - prev) * 1.5) });
+          } catch (e) {
+            cv = null;
+          }
+          // rig の絵の (70, 60) から 300 × 260 を切り出して、帯の左に大きく
+          const k = 1.05;
+          const ox = -195;
+          const oy = -120;
+          if (cv) ctx.drawImage(cv, 70, 60, 300, 260, ox, oy, 300 * k, 260 * k);
+          else ctx.drawImage(this.rig.frames[0], 10, 0, 300, 260, ox, oy, 300 * k, 260 * k);
+          // 祓串の先がなぞる光の刃(手元を中心に)
+          const px = ox + (103 + 60 - 70) * k;
+          const py = oy + (183 + 60 - 60) * k;
+          const r = 104 * k;
+          const base = Math.atan2(88 - 183, 64 - 103);
+          const a0 = base + Math.min(prev, ang);
+          const a1 = base + Math.max(prev, ang);
+          if (a1 - a0 > 0.03) {
+            ctx.save();
+            ctx.globalCompositeOperation = "lighter";
+            for (const [lw, al] of [[30, 0.25], [14, 0.55], [5, 1]]) {
+              ctx.strokeStyle = `rgba(255,236,170,${al})`;
+              ctx.lineWidth = lw;
+              ctx.lineCap = "round";
+              ctx.beginPath();
+              ctx.arc(px, py, r, a0, a1);
+              ctx.stroke();
+            }
+            ctx.restore();
+          }
         }
         ctx.restore();
         ctx.strokeStyle = GOLD;
@@ -1258,15 +1309,15 @@ export default {
         ctx.font = `900 34px ${MINCHO}`;
         ctx.lineWidth = 7;
         ctx.strokeStyle = "#2a0c10";
-        ctx.strokeText("あーしに", 30, -18);
-        ctx.strokeText("任せて!", 50, 30);
+        ctx.strokeText("あーしに", 62, -18);
+        ctx.strokeText("任せて!", 80, 30);
         ctx.fillStyle = "#fff8e1";
-        ctx.fillText("あーしに", 30, -18);
+        ctx.fillText("あーしに", 62, -18);
         ctx.fillStyle = GOLD;
-        ctx.fillText("任せて!", 50, 30);
+        ctx.fillText("任せて!", 80, 30);
         ctx.font = `800 14px ${GOTHIC}`;
         ctx.fillStyle = "#ffe7b0";
-        ctx.fillText("― 一斉お祓い ―", 44, 62);
+        ctx.fillText("― 一斉お祓い ―", 76, 62);
         ctx.restore();
       }
       // 光の柱の直前に、真っ白に光る
@@ -1442,6 +1493,8 @@ export default {
         tone(110, 0.6, 0.4, "sine", t, 55);
         noise(0.3, 0.3, "lowpass", 800, 200);
       } else if (kind === "special") {
+        // カットインで祓串を振る音(左・右・左・右)
+        for (const k of [0.36, 0.55, 0.74, 0.93]) noise(0.12, 0.5, "bandpass", 2000, 7000, t + k);
         noise(1.0, 0.35, "bandpass", 300, 6000);
         tone(80, 0.9, 0.5, "sine", t + 0.9, 45);
       } else if (kind === "pillar") {
