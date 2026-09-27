@@ -17,15 +17,22 @@ const RIGHT_EYE = {
   // 真ん中あたり、closed は閉じた線
   lid: {
     open: [[187.5, 116.5], [190, 111.5], [207, 111.5], [212.5, 116.5]],
-    closed: [[193, 132], [197, 131.2], [204, 132], [207.6, 134.6]],
+    // 顔が右へ少し上がっているので、元のウインクの線より 4px ほど上で、目尻側を少し上げて閉じる
+    closed: [[193, 128.3], [197, 127.3], [204, 127.4], [207.8, 129.8]],
   },
+  // 下まぶた(目頭 → 目尻)。開いた時は元の目の下の縁、閉じた時はまぶたの線と同じ所まで少し上がる。
+  // これより下(下の縁 lowerEdge まで)を肌色で被って、閉じた線の下に元の目が見えないようにする
+  lowerLid: {
+    open: [[188, 121], [191.5, 131.5], [204.5, 133], [211, 126]],
+  },
+  lowerEdge: [[211.5, 126], [211, 130], [207, 134], [200, 134.8], [194, 134], [189.5, 127], [187.5, 121]],
   // 被いの上側の縁(目頭の上 → 上まつげの上 → 目尻の外側の縦のまつげの外)。前髪の下に収める
   coverTop: [[185.5, 118], [187, 112], [190, 109.2], [206, 108.8], [211, 110.5], [215, 114], [214, 121], [213, 127]],
   // まぶたの線の太さ(開き → 閉じ)と色
   lineWidth: [4.4, 3],
   lineColor: "#141014",
   // 閉じた時の二重のしわ(元のウインクの上の薄い線を反転した位置)。c がこれより大きい時だけ
-  crease: { from: [194, 127.4], to: [201, 127.1], width: 1.1, color: "rgba(176,128,104,0.8)", after: 0.6 },
+  crease: { from: [194, 123.4], to: [201, 122.9], width: 1.1, color: "rgba(176,128,104,0.8)", after: 0.6 },
   // 肌の色を取る点(目の周りの、髪・頬の赤みでない所)
   skinAt: [[185, 123], [186, 128], [196, 136]],
 };
@@ -51,6 +58,19 @@ const lerpPt = (p, q, t) => [lerp(p[0], q[0], t), lerp(p[1], q[1], t)];
 // 閉じ具合 c のまぶたの線の 4 点
 function lidAt(eye, c) {
   return eye.lid.open.map((p, k) => lerpPt(p, eye.lid.closed[k], c));
+}
+// 閉じ具合 c の下まぶたの 4 点(閉じるとまぶたの線に重なる)
+function lowerAt(eye, c) {
+  const closed = eye.lid.closed;
+  return eye.lowerLid.open.map((p, k) => lerpPt(p, closed[k], c));
+}
+// 下側の被い: 下の縁をたどり、目尻側から下まぶたを目頭へ戻って閉じる
+function lowerCoverPath(eye, c) {
+  const [a, b, d, e] = lowerAt(eye, c);
+  let s = `M${e[0]} ${e[1]}`;
+  for (const p of eye.lowerEdge) s += ` L${p[0]} ${p[1]}`;
+  s += ` L${a[0]} ${a[1]} C${b[0]} ${b[1]} ${d[0]} ${d[1]} ${e[0]} ${e[1]} Z`;
+  return s;
 }
 // SVG のパスの文字列(確認用・Path2D 用)
 function lidPath(eye, c) {
@@ -108,6 +128,7 @@ function blinkCanvas(img, c, eye = RIGHT_EYE) {
   const cover = layer((lg) => {
     lg.fillStyle = `rgb(${skin.map(Math.round).join(",")})`;
     lg.fill(new Path2D(coverPath(eye, c)));
+    lg.fill(new Path2D(lowerCoverPath(eye, c)));
   });
   const line = layer((lg) => {
     lg.strokeStyle = eye.lineColor;
@@ -144,4 +165,4 @@ function blinkCanvas(img, c, eye = RIGHT_EYE) {
   return out;
 }
 
-module.exports = { RIGHT_EYE, TIMING, closureAt, lidPath, coverPath, blinkCanvas };
+module.exports = { RIGHT_EYE, TIMING, closureAt, lidPath, coverPath, lowerCoverPath, blinkCanvas };
