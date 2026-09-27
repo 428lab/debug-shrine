@@ -231,10 +231,7 @@ export default {
       if (this.phase === "paused") {
         // 一斉お祓いの途中で止めた時は、止まっていた分だけ演出の時刻をずらす
         const d = now - (this._pausedAt || now);
-        if (this.fx.special) {
-          this.fx.special += d;
-          this.fx.swingAt += d;
-        }
+        this.shiftFx(d, this._pausedAt || now);
         this.phase = "play";
         this._last = now;
         this.ensureAudio();
@@ -355,32 +352,34 @@ export default {
       const x0 = G.glyphX(it, e.from);
       const x1 = G.glyphX(it, e.to);
       const cx = (x0 + x1) / 2;
-      const cy = it.y - G.FS * 0.35;
+      // 2 か所ある言葉の 1 か所目は、砕けるまでの間も落ち続けるので、その時の位置を狙う
+      const cy = it.y - G.FS * 0.35 + (!special && !it.done ? (it.vy * IMPACT) / 1000 : 0);
       const combo = this.game.combo;
+      const id = it.id;
       if (!special) {
         // らぼみが振る → 光が走る → 言葉の上に幻の祓串が現れて左・右・左
         this.fx.swingAt = now;
         const tip = this.goheiTip(now);
         this.fx.beams.push({ x0: tip.x, y0: tip.y, x1: cx, y1: cy, at: now });
-        this.fx.goheis.push({ x: cx, y: cy, at: now + 30, big: combo >= 20 });
+        this.fx.goheis.push({ id, x: cx, y: cy, at: now + 30, big: combo >= 20 });
         this.sfx("slash");
       }
       const big = special || combo >= 10;
-      this.fx.rings.push({ x: cx, y: cy, at: hit, big });
-      if (big) this.fx.rings.push({ x: cx, y: cy, at: hit + 90, big });
-      this.fx.rays.push({ x: cx, y: cy, at: hit, big, rot: Math.random() * Math.PI });
-      this.fx.flashes.push({ at: hit, power: special ? 0 : Math.min(0.45, 0.18 + combo * 0.01) });
-      this.fx.quakes.push({ at: hit, power: special ? 0 : Math.min(12, 4 + combo * 0.25) });
+      this.fx.rings.push({ id, x: cx, y: cy, at: hit, big });
+      if (big) this.fx.rings.push({ id, x: cx, y: cy, at: hit + 90, big });
+      this.fx.rays.push({ id, x: cx, y: cy, at: hit, big, rot: Math.random() * Math.PI });
+      this.fx.flashes.push({ id, at: hit, power: special ? 0 : Math.min(0.45, 0.18 + combo * 0.01) });
+      this.fx.quakes.push({ id, at: hit, power: special ? 0 : Math.min(12, 4 + combo * 0.25) });
       // 間違いの文字が砕けて飛ぶ
       for (let i = e.from; i < e.to; i++) {
         const gx = G.glyphX(it, i) + G.glyphW(it.glyphs[i]) / 2;
         for (let k = 0; k < 3; k++) {
           const a = -Math.PI / 2 + (k - 1) * 0.9 + (Math.random() - 0.5) * 0.6;
           const v = 220 + Math.random() * 220;
-          this.fx.shards.push({ ch: it.glyphs[i], kind: it.kind, k, x: gx, y: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, rot: (Math.random() - 0.5) * 16, at: hit });
+          this.fx.shards.push({ id, ch: it.glyphs[i], kind: it.kind, k, x: gx, y: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, rot: (Math.random() - 0.5) * 16, at: hit });
         }
       }
-      this.burst(cx, cy, Math.round(26 + Math.min(combo, 40) * 1.2), hit, big);
+      this.burst(cx, cy, Math.round(26 + Math.min(combo, 40) * 1.2), hit, big, id);
     },
     onDone(it, e, now) {
       const f = this.itemFx(it.id);
@@ -407,11 +406,34 @@ export default {
     },
     onLeak(e, now) {
       this.itemFx(e.id).leakAt = now;
+      // 1 か所目を直して砕ける前に漏れた言葉は、これからの演出を取りやめる
+      this.cancelFx(e.id, now);
       this.fx.shake = 10;
       this.fx.leakAt = now;
       this.fx.leakX = e.x;
       this.sfx("leak");
       this.say(pick(LINES.leak));
+    },
+    cancelFx(id, now) {
+      for (const k of ["goheis", "rings", "rays", "flashes", "quakes", "shards", "parts"]) {
+        this.fx[k] = this.fx[k].filter((x) => x.id !== id || x.at <= now);
+      }
+    },
+    // 一時停止していた分だけ、これからの演出の時刻をずらす
+    shiftFx(d, since) {
+      const fx = this.fx;
+      for (const k of ["beams", "goheis", "rings", "rays", "flashes", "quakes", "shards", "parts", "pops", "seals", "pillars"]) {
+        for (const x of fx[k]) if (x.at > since) x.at += d;
+      }
+      for (const f of Object.values(fx.itemFx)) {
+        for (const k of Object.keys(f.fixedAt)) if (f.fixedAt[k] > since) f.fixedAt[k] += d;
+        if (f.doneAt > since) f.doneAt += d;
+      }
+      if (fx.comboAt > since) fx.comboAt += d;
+      if (fx.special) {
+        fx.special += d;
+        fx.swingAt += d;
+      }
     },
     startSpecial(now) {
       this.fx.special = now;
@@ -424,12 +446,12 @@ export default {
     say(text) {
       this.fx.say = { text, at: performance.now() };
     },
-    burst(x, y, n, now, big) {
+    burst(x, y, n, now, big, id) {
       for (let i = 0; i < n; i++) {
         const a = Math.random() * Math.PI * 2;
         const v = (big ? 180 : 120) + Math.random() * (big ? 340 : 240);
         const shide = i % 4 === 0; // 紙垂(白いジグザグ)
-        this.fx.parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 60, at: now, life: 700 + Math.random() * 600, shide, rot: Math.random() * 6, hue: Math.random() });
+        this.fx.parts.push({ id, x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 60, at: now, life: 700 + Math.random() * 600, shide, rot: Math.random() * 6, hue: Math.random() });
       }
       if (this.fx.parts.length > 700) this.fx.parts.splice(0, this.fx.parts.length - 700);
     },
@@ -716,7 +738,7 @@ export default {
           const t0 = f.fixedAt[seg.from] || now;
           if (now < t0) {
             // 祓串を振っている間: 間違いの文字が白く熱を帯びて震える
-            const heat = 1 - (t0 - now) / IMPACT;
+            const heat = Math.max(0, 1 - (t0 - now) / IMPACT);
             ctx.save();
             ctx.shadowColor = "#ffffff";
             ctx.shadowBlur = 8 + heat * 20;
@@ -1146,7 +1168,7 @@ export default {
       ctx.globalAlpha = 1;
       // コンボ
       if (g.combo >= 3 && this.phase === "play") {
-        const u = Math.min(1, (now - this.fx.comboAt) / 200);
+        const u = Math.max(0, Math.min(1, (now - this.fx.comboAt) / 200));
         ctx.textAlign = "center";
         ctx.shadowColor = g.combo >= 20 ? GOLD : "#ff8a5a";
         ctx.shadowBlur = 16;
