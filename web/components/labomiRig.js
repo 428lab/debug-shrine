@@ -23,12 +23,6 @@ const GY = 48;
 
 // 目と祓串の位置(元の絵の座標)
 const EYE = { cx: 201, cy: 122, rx: 17, ry: 15 };
-// ウインクしている左目の線のある所と、右目へ写す時の反転の軸(x → mirror - x)と上下のずれ
-const WINK = { x0: 153, x1: 176, y0: 124, y1: 139, mirror: 364, dy: 0 };
-// 左目を開ける時: 右目の写す範囲(s)と、左目の消す範囲(c)
-const LEFT = { sx0: 181, sx1: 222, sy0: 100, sy1: 134, cx0: 152, cx1: 178, cy0: 119, cy1: 140 };
-// 開いている右目の下まつげの高さ(半分閉じる時は、ここを支点に縦につぶす)
-const LOWER = 135;
 const PIVOT = { x: 103, y: 183 }; // 祓串を持つ手
 const GOHEI = { cx: 78, cy: 148, rx: 46, ry: 78 }; // 祓串と紙垂のあたり
 const FOOT = 455;
@@ -38,8 +32,110 @@ function smooth(e0, e1, x) {
   return t * t * (3 - 2 * t);
 }
 
-// 瞬きの絵(close: 0.5 = 半分、1 = 閉じ)
-function blinkFrame(img, close) {
+// ---- 目(図形で描き直す) ----
+// 元の絵の目は画素なので、開き具合を変えられない。両目(開いた右目とウインクの左目)を肌の色で
+// 消してから、線と塗りの図形(SVG のような描き方)で描き直す。open: 1 = 開き、0 = 閉じ。
+// 座標は元の絵の座標。左目は顔の中心(x = FACE_X)を挟んで右目と対になる位置
+const FACE_X = 182;
+const EYE_R = { cx: 201, cy: 122 }; // 右目の中心
+const EYE_L = { cx: 2 * FACE_X - EYE_R.cx, cy: EYE_R.cy };
+const isHairPx = (r, g, b) => (r > 170 && g < 140 && b < 110 && r - g > 70) || (r - b > 60 && g < 150); // 前髪とその縁の線
+const isBlushPx = (r, g, b) => r > 220 && g < 205 && r - b > 45; // 頬の赤み
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+function mix(p, q, t) {
+  return [lerp(p[0], q[0], t), lerp(p[1], q[1], t)];
+}
+
+// 1 つの目を描く。s = 1 は右目(目尻が +x)、-1 は左目
+function drawEye(g, cx, cy, s, open) {
+  // まぶたの端(目頭・目尻)と上まぶたの山。閉じると、下向きのゆるいカーブ 1 本になる
+  const inner = mix([-11.5 * s, 4], [-9.5 * s, 5], 1 - open);
+  const outer = mix([12 * s, -2], [10 * s, 4], 1 - open);
+  const upCtl = mix([1 * s, -23], [0, 8], 1 - open); // 上まぶたの制御点
+  const lowCtl = [0.5 * s, 18]; // 下まぶたの制御点
+  g.save();
+  g.translate(cx, cy);
+  const upper = () => {
+    g.moveTo(inner[0], inner[1]);
+    g.quadraticCurveTo(upCtl[0], upCtl[1], outer[0], outer[1]);
+  };
+  if (open > 0.08) {
+    // 白目(上まぶたと下まぶたの間)
+    g.beginPath();
+    upper();
+    g.quadraticCurveTo(lowCtl[0], lowCtl[1], inner[0], inner[1]);
+    g.closePath();
+    g.fillStyle = "#fbfbff";
+    g.fill();
+    g.save();
+    g.clip();
+    // 黒目(青)と瞳孔、ハイライト(光は左上から、両目とも同じ向き)
+    const ix = 1 * s;
+    const iy = 2.5;
+    const grd = g.createLinearGradient(0, iy - 9, 0, iy + 9);
+    grd.addColorStop(0, "#1d3a8f");
+    grd.addColorStop(0.55, "#2f6fd0");
+    grd.addColorStop(1, "#7fb8f5");
+    g.fillStyle = grd;
+    g.beginPath();
+    g.ellipse(ix, iy, 8, 9.6, 0, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = "#12225a";
+    g.lineWidth = 1.2;
+    g.stroke();
+    g.fillStyle = "#0b1030";
+    g.beginPath();
+    g.ellipse(ix + 0.3, iy - 0.5, 4, 5, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "#ffffff";
+    g.beginPath();
+    g.ellipse(ix - 3.2, iy - 3.8, 3, 3.4, 0, 0, Math.PI * 2);
+    g.fill();
+    g.beginPath();
+    g.arc(ix + 3, iy + 4.2, 1.3, 0, Math.PI * 2);
+    g.fill();
+    // 上まぶたの影
+    g.strokeStyle = "rgba(40,30,50,0.35)";
+    g.lineWidth = 4;
+    g.beginPath();
+    upper();
+    g.stroke();
+    g.restore();
+    // 下まつげ(目尻側だけ細く)
+    g.strokeStyle = "rgba(70,40,35,0.8)";
+    g.lineWidth = 1;
+    g.beginPath();
+    for (let k = 0; k <= 8; k++) {
+      // 下まぶたの曲線の、目尻側 1/3 をなぞる
+      const t = 0.06 + (k / 8) * 0.34;
+      const x = (1 - t) * (1 - t) * outer[0] + 2 * (1 - t) * t * lowCtl[0] + t * t * inner[0];
+      const y = (1 - t) * (1 - t) * outer[1] + 2 * (1 - t) * t * lowCtl[1] + t * t * inner[1];
+      if (k === 0) g.moveTo(x, y);
+      else g.lineTo(x, y);
+    }
+    g.stroke();
+  }
+  // 上まつげ(太い黒)と目尻の跳ね
+  g.strokeStyle = "#141014";
+  g.lineCap = "round";
+  g.lineJoin = "round";
+  g.lineWidth = lerp(2.6, 3.4, open);
+  g.beginPath();
+  upper();
+  g.stroke();
+  g.lineWidth = 2.2;
+  g.beginPath();
+  g.moveTo(outer[0], outer[1]);
+  g.lineTo(outer[0] + 3 * s, outer[1] - 2.5 * open - 1);
+  g.stroke();
+  g.restore();
+}
+
+// 目の絵(open: 1 = 開き、0 = 閉じ)。元の目を消して、両目を描き直す
+function eyeFrame(img, open) {
   const c = document.createElement("canvas");
   c.width = IW;
   c.height = IH;
@@ -49,131 +145,48 @@ function blinkFrame(img, close) {
   try {
     d = g.getImageData(0, 0, IW, IH);
   } catch (e) {
-    return c; // 画素が読めない(別のドメインの絵など)時は瞬きしない
+    return c; // 画素が読めない時は元の絵のまま
   }
   const px = d.data;
-  const src = new Uint8ClampedArray(px); // 塗る前の絵(まつげを写すのに使う)
   const at = (x, y) => (y * IW + x) * 4;
-  const s = at(182, 128); // 目の横の肌の色
-  const skin = [px[s], px[s + 1], px[s + 2]];
-  if (close <= 0) {
-    // 開き: 右目はそのまま、左目を開けるだけ
-    openLeft(px, src, skin, at);
-    g.putImageData(d, 0, 0);
-    return c;
-  }
-  // 閉じ: 目の上側(白目・黒目・上まつげ)を肌の色で塗る
-  const lidY = 131;
-  for (let y = 100; y < 142 && close >= 1; y++) {
-    for (let x = 178; x < 224; x++) {
-      const e = ((x - EYE.cx) / EYE.rx) ** 2 + ((y - EYE.cy) / EYE.ry) ** 2;
-      if (e > 1 || y > lidY) continue;
-      const i = at(x, y);
-      const r = px[i];
-      const gg = px[i + 1];
-      const b = px[i + 2];
-      const hair = r > 170 && gg < 140 && b < 110 && r - gg > 70; // 前髪(橙)は残す
-      if (hair) continue;
-      px[i] = skin[0];
-      px[i + 1] = skin[1];
-      px[i + 2] = skin[2];
-    }
-  }
-  if (close >= 1) {
-    // 閉じた目は、もともとウインクしている左目の線(と上のしわ)を左右反転して貼る。
-    // 肌より暗い所だけを、暗さに応じて重ねる(周りの肌や髪はそのまま)
-    const skinL = skin[0] + skin[1] + skin[2];
-    for (let y = WINK.y0; y <= WINK.y1; y++) {
-      for (let x = WINK.x0; x <= WINK.x1; x++) {
-        const si = at(x, y);
-        const a = Math.max(0, Math.min(1, (skinL - (src[si] + src[si + 1] + src[si + 2])) / 150));
-        if (a <= 0) continue;
-        const dx = WINK.mirror - x;
-        const dy = y + WINK.dy;
-        const di = at(dx, dy);
-        for (let k = 0; k < 3; k++) px[di + k] = Math.round(px[di + k] * (1 - a) + src[si + k] * a);
-      }
-    }
-    openLeft(px, src, skin, at);
-    g.putImageData(d, 0, 0);
-    return c;
-  }
-  // 半分: 目全体(まつげ・白目・黒目)を、下まつげの所を支点に縦につぶす。
-  // (上の塗りつぶしは使わず、元の目の範囲を肌で消してから、つぶした目を描き直す)
-  const k = 1 - close * 0.9; // 高さの割合
-  const inBox = (x, y) => ((x - EYE.cx) / (EYE.rx + 4)) ** 2 + ((y - EYE.cy) / (EYE.ry + 3)) ** 2 <= 1;
-  const isHair = (r, gg, b) => r > 170 && gg < 140 && b < 110 && r - gg > 70;
-  const eyeish = (i) => {
-    const r = src[i];
-    const gg = src[i + 1];
-    const b = src[i + 2];
-    if (isHair(r, gg, b) || r - b > 40) return false; // 前髪・肌・頬の赤み
-    return Math.abs(r - skin[0]) + Math.abs(gg - skin[1]) + Math.abs(b - skin[2]) >= 40;
-  };
-  for (let y = EYE.cy - EYE.ry - 4; y <= EYE.cy + EYE.ry + 3; y++) {
-    for (let x = EYE.cx - EYE.rx - 5; x <= EYE.cx + EYE.rx + 5; x++) {
-      if (!inBox(x, y)) continue;
-      const i = at(x, y);
-      if (isHair(src[i], src[i + 1], src[i + 2])) continue;
-      // つぶした後にここへ来る元の画素
-      const sy = Math.round(LOWER - (LOWER - y) / k);
-      const si = sy >= 0 ? at(x, sy) : -1;
-      if (y <= LOWER && si >= 0 && inBox(x, sy) && eyeish(si)) {
-        px[i] = src[si];
-        px[i + 1] = src[si + 1];
-        px[i + 2] = src[si + 2];
-      } else if (eyeish(i)) {
-        px[i] = skin[0];
-        px[i + 1] = skin[1];
-        px[i + 2] = skin[2];
-      }
-    }
-  }
-  openLeft(px, src, skin, at);
-  g.putImageData(d, 0, 0);
-  return c;
-}
-
-// ウインクしている左目を開ける: 左目の閉じた線を肌の色で消し、右目(今の状態: 開き・半分・閉じ)を
-// 左右反転して写す。前髪(橙)は目より手前にあるので、写した目で上書きしない
-function openLeft(px, src, skin, at) {
-  const isHair = (r, g, b) => r > 170 && g < 140 && b < 110 && r - g > 70;
-  const near = (i) => Math.abs(px[i] - skin[0]) + Math.abs(px[i + 1] - skin[1]) + Math.abs(px[i + 2] - skin[2]);
-  // 右目の今の画素を先に取っておく(左へ写す元)
-  const eye = [];
-  for (let y = LEFT.sy0; y <= LEFT.sy1; y++) {
-    for (let x = LEFT.sx0; x <= LEFT.sx1; x++) {
-      // 目の輪郭の中だけ(髪飾り・前髪の縁・頬の赤みは写さない)
-      if (((x - EYE.cx) / (EYE.rx + 3)) ** 2 + ((y - EYE.cy + 1) / (EYE.ry + 2)) ** 2 > 1) continue;
-      const i = at(x, y);
-      const r = px[i];
-      const gg = px[i + 1];
-      const b = px[i + 2];
-      if (isHair(r, gg, b)) continue;
-      if (r - b > 40) continue; // 肌・頬の赤み・前髪の縁(赤み・橙み)。目は黒・白・青だけ
-      if (near(i) < 40) continue; // 肌はそのまま(左の肌を使う)
-      eye.push([WINK.mirror - x, y - WINK.dy, px[i], px[i + 1], px[i + 2]]);
-    }
-  }
-  // 左目の閉じた線(としわ)を消す
-  for (let y = LEFT.cy0; y <= LEFT.cy1; y++) {
-    for (let x = LEFT.cx0; x <= LEFT.cx1; x++) {
-      const i = at(x, y);
-      if (isHair(src[i], src[i + 1], src[i + 2])) continue;
-      if (Math.abs(src[i] - skin[0]) + Math.abs(src[i + 1] - skin[1]) + Math.abs(src[i + 2] - skin[2]) < 25) continue;
-      px[i] = skin[0];
-      px[i + 1] = skin[1];
-      px[i + 2] = skin[2];
-    }
-  }
-  for (const [x, y, r, g, b] of eye) {
+  const s0 = at(182, 128); // 目の間の肌の色
+  const skin = [px[s0], px[s0 + 1], px[s0 + 2]];
+  const paint = (x, y) => {
     const i = at(x, y);
-    // 前髪(橙)とその縁の線(赤茶)は目より手前
-    if (isHair(src[i], src[i + 1], src[i + 2]) || (src[i] - src[i + 2] > 60 && src[i + 1] < 150)) continue;
-    px[i] = r;
-    px[i + 1] = g;
-    px[i + 2] = b;
+    const r = px[i];
+    const gg = px[i + 1];
+    const b = px[i + 2];
+    if (isHairPx(r, gg, b) || isBlushPx(r, gg, b)) return;
+    px[i] = skin[0];
+    px[i + 1] = skin[1];
+    px[i + 2] = skin[2];
+  };
+  // 右目を消す
+  for (let y = 106; y <= 132; y++) for (let x = 184; x <= 219; x++) if (((x - 201) / 17) ** 2 + ((y - 120) / 14) ** 2 <= 1) paint(x, y);
+  // 左目(ウインクの線と上のしわ)を消す
+  for (let y = 122; y <= 140; y++) for (let x = 150; x <= 179; x++) paint(x, y);
+  g.putImageData(d, 0, 0);
+  // 描き直した目を別の絵に描いて、前髪の所を除いて重ねる(前髪は目より手前)
+  const e = document.createElement("canvas");
+  e.width = IW;
+  e.height = IH;
+  const eg = e.getContext("2d");
+  drawEye(eg, EYE_R.cx, EYE_R.cy, 1, open);
+  drawEye(eg, EYE_L.cx, EYE_L.cy, -1, open);
+  const ed = eg.getImageData(0, 0, IW, IH).data;
+  const base = g.getImageData(0, 0, IW, IH);
+  const bp = base.data;
+  for (let y = 100; y < 145; y++) {
+    for (let x = 140; x < 225; x++) {
+      const i = at(x, y);
+      const a = ed[i + 3] / 255;
+      if (a <= 0) continue;
+      if (isHairPx(bp[i], bp[i + 1], bp[i + 2])) continue;
+      for (let k = 0; k < 3; k++) bp[i + k] = Math.round(bp[i + k] * (1 - a) + ed[i + k] * a);
+    }
   }
+  g.putImageData(base, 0, 0);
+  return c;
 }
 
 const VS = `
@@ -202,7 +215,7 @@ function createLabomi(img) {
   canvas.width = CW;
   canvas.height = CH;
   // 0 = 両目を開ける、1 = 半分、2 = 閉じ、3 = もとの絵(ウインク)
-  const frames = [blinkFrame(img, 0), blinkFrame(img, 0.5), blinkFrame(img, 1), img];
+  const frames = [eyeFrame(img, 1), eyeFrame(img, 0.45), eyeFrame(img, 0), img];
   let gl = null;
   try {
     gl = canvas.getContext("webgl", { premultipliedAlpha: true, alpha: true, antialias: true });
@@ -385,4 +398,4 @@ function createLabomi(img) {
   return { canvas, render, destroy, frames, webgl: !!gl, W: CW, H: CH, PAD, IW, IH, PIVOT, EYE };
 }
 
-module.exports = { createLabomi, blinkFrame, IW, IH, PAD, CW, CH, PIVOT, EYE };
+module.exports = { createLabomi, eyeFrame, drawEye, IW, IH, PAD, CW, CH, PIVOT, EYE };
