@@ -1269,7 +1269,7 @@ export default {
           const prev = this.cutinAngle(u - 0.03);
           let cv = null;
           try {
-            cv = this.rig.render(now / 1000, { swing: ang, blink: 0, flash: Math.min(0.3, Math.abs(ang - prev) * 1.5) });
+            cv = this.rig.render(now / 1000, { swing: ang, blink: 3, flash: Math.min(0.3, Math.abs(ang - prev) * 1.5) });
           } catch (e) {
             cv = null;
           }
@@ -1278,7 +1278,7 @@ export default {
           const ox = -195;
           const oy = -120;
           if (cv) ctx.drawImage(cv, 70, 60, 300, 260, ox, oy, 300 * k, 260 * k);
-          else ctx.drawImage(this.rig.frames[0], 10, 0, 300, 260, ox, oy, 300 * k, 260 * k);
+          else ctx.drawImage(this.rig.frames[3], 10, 0, 300, 260, ox, oy, 300 * k, 260 * k);
           // 祓串の先がなぞる光の刃(手元を中心に)
           const px = ox + (103 + 60 - 70) * k;
           const py = oy + (183 + 60 - 60) * k;
@@ -1523,7 +1523,7 @@ export default {
       ctx.strokeStyle = "#b8412c";
       ctx.lineWidth = 14;
       ctx.strokeRect(40, 40, 1000, 1000);
-      const img = this.rig ? this.rig.frames[0] : null;
+      const img = this.rig ? this.rig.frames[3] : null;
       if (img) ctx.drawImage(img, 640, 330, 405, 540);
       ctx.textAlign = "left";
       const line = (text, x, y, font, color) => {
