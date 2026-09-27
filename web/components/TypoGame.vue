@@ -47,6 +47,8 @@
 import G from "@/components/typoGame";
 import Rig from "@/components/labomiRig";
 import Eyes from "@/components/labomiEyes";
+import Music from "@/components/typoMusic";
+import Sfx from "@/components/typoSfx";
 
 const BEST_KEY = "debug-shrine:typo:best";
 const MINCHO = "'Hiragino Mincho ProN', 'Yu Mincho', serif";
@@ -146,6 +148,7 @@ export default {
     this._destroyed = true;
     if (this._raf) cancelAnimationFrame(this._raf);
     if (this.rig) this.rig.destroy();
+    if (this.music) this.music.stop(0);
     if (this.ac) this.ac.close();
   },
   methods: {
@@ -190,6 +193,7 @@ export default {
       if (document.hidden && this.phase === "play") {
         this.phase = "paused";
         this._pausedAt = performance.now();
+        if (this.music) this.music.stop(0.1);
       }
     },
     // 遊んでいる間だけ、タッチでページが動いたり拡大したりしないようにする
@@ -215,6 +219,7 @@ export default {
       this._acc = 0;
       this._last = performance.now();
       this.ensureAudio();
+      this.startMusic();
       this.say(pick(LINES.start));
     },
     // 画面の点 → 論理の座標
@@ -236,6 +241,7 @@ export default {
         this.phase = "play";
         this._last = now;
         this.ensureAudio();
+        this.startMusic();
         return;
       }
       if (this.phase !== "play" || this.fx.special) return;
@@ -268,6 +274,8 @@ export default {
           this._acc -= G.STEP;
         }
         this.consumeEvents(now);
+        // BGM は難しさ(時間)に合わせて音を重ねる
+        if (this.music) this.music.setLevel(G.tierAt(g.t) - 1);
         // コンボ 10 から、らぼみの周りに炎が立つ
         if (g.combo >= 10 && Math.random() < Math.min(0.9, 0.3 + g.combo * 0.02)) {
           fx.parts.push({ x: LB_FOOT.x + (Math.random() - 0.5) * 120, y: LB_FOOT.y - Math.random() * 150, vx: (Math.random() - 0.5) * 30, vy: -90 - Math.random() * 90, at: now, life: 500 + Math.random() * 300, shide: false, rot: 0, hue: g.combo >= 20 ? Math.random() * 0.7 : 0.75 + Math.random() * 0.25, fire: true });
@@ -275,6 +283,7 @@ export default {
         if (g.over) {
           this.phase = "dying";
           this._dieAt = now;
+          if (this.music) this.music.stop(0.6);
           this.sfx("over");
         }
       } else if (this.phase === "play" && fx.special) {
@@ -1414,7 +1423,7 @@ export default {
       ctx.closePath();
     },
 
-    // ---- 音(Web Audio でその場で作る) ----
+    // ---- 音(Web Audio でその場で作る。BGM は typoMusic.js、効果音は typoSfx.js) ----
     ensureAudio() {
       try {
         if (!this.ac) {
@@ -1424,87 +1433,35 @@ export default {
           this.acOut = this.ac.createGain();
           this.acOut.gain.value = 0.5;
           this.acOut.connect(this.ac.destination);
-          const len = this.ac.sampleRate;
-          this.noiseBuf = this.ac.createBuffer(1, len, this.ac.sampleRate);
-          const d = this.noiseBuf.getChannelData(0);
-          for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+          this.music = Music.createMusic(this.ac, this.acOut);
+          this.sfxEngine = Sfx.createSfx(this.ac, this.acOut);
         }
         if (this.ac.state !== "running") {
           const p = this.ac.resume();
           if (p && p.catch) p.catch(() => {});
         }
       } catch (e) {
+        // 途中で失敗したら、鳴っている BGM と音の出口を片付ける
+        try {
+          if (this.music) this.music.stop(0);
+          if (this.ac) this.ac.close();
+        } catch (e2) {
+          // すでに閉じている
+        }
         this.ac = null;
+        this.music = null;
+        this.sfxEngine = null;
       }
     },
+    // BGM を最初から鳴らす(一時停止から戻った時も)
+    startMusic() {
+      if (!this.music) return;
+      this.music.stop(0);
+      this.music.setLevel(G.tierAt(this.game.t) - 1);
+      this.music.start(1);
+    },
     sfx(kind, combo = 0, delay = 0) {
-      const ac = this.ac;
-      if (!ac) return;
-      const t = ac.currentTime + 0.005 + delay;
-      const out = this.acOut;
-      const tone = (f, dur, vol, type = "sine", at = t, f2 = null) => {
-        const o = ac.createOscillator();
-        o.type = type;
-        o.frequency.setValueAtTime(f, at);
-        if (f2) o.frequency.exponentialRampToValueAtTime(f2, at + dur);
-        const g = ac.createGain();
-        g.gain.setValueAtTime(0.0001, at);
-        g.gain.linearRampToValueAtTime(vol, at + 0.005);
-        g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
-        o.connect(g);
-        g.connect(out);
-        o.start(at);
-        o.stop(at + dur + 0.05);
-      };
-      const noise = (dur, vol, type, f0, f1, at = t) => {
-        const s = ac.createBufferSource();
-        s.buffer = this.noiseBuf;
-        const f = ac.createBiquadFilter();
-        f.type = type;
-        f.Q.value = 2;
-        f.frequency.setValueAtTime(f0, at);
-        f.frequency.exponentialRampToValueAtTime(f1, at + dur);
-        const g = ac.createGain();
-        g.gain.setValueAtTime(vol, at);
-        g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
-        s.connect(f);
-        f.connect(g);
-        g.connect(out);
-        s.start(at, Math.random() * 0.5);
-        s.stop(at + dur + 0.05);
-      };
-      if (kind === "slash") {
-        // 祓串を 左・右・左 と振る「さっ、さっ、さっ」、砕ける瞬間に鈴と破裂音
-        for (const [dt, f0, f1] of [[0, 2200, 6500], [0.11, 2600, 7500], [0.22, 2400, 7000]]) noise(0.09, 0.45, "bandpass", f0, f1, t + dt);
-        noise(0.25, 0.5, "highpass", 1500, 6000, t + IMPACT / 1000);
-        tone(140, 0.25, 0.35, "sine", t + IMPACT / 1000, 60);
-        for (const r of [1, 2.76, 5.4]) tone(2600 * r, 0.45, 0.07 / r, "sine", t + IMPACT / 1000);
-      } else if (kind === "done") {
-        // コンボで上がっていく音(陽音階)
-        const scale = [0, 2, 4, 7, 9];
-        const n = Math.min(combo, 24);
-        const semi = scale[n % 5] + 12 * Math.floor(n / 5);
-        const f = 523 * Math.pow(2, semi / 12);
-        tone(f, 0.35, 0.16, "triangle", t + 0.06);
-        tone(f * 2, 0.25, 0.05, "sine", t + 0.06);
-      } else if (kind === "miss") {
-        tone(180, 0.18, 0.25, "square", t, 90);
-      } else if (kind === "leak") {
-        tone(110, 0.6, 0.4, "sine", t, 55);
-        noise(0.3, 0.3, "lowpass", 800, 200);
-      } else if (kind === "special") {
-        // カットインで祓串を振る音(左・右・左・右)
-        for (const k of [0.36, 0.55, 0.74, 0.93]) noise(0.12, 0.5, "bandpass", 2000, 7000, t + k);
-        noise(1.0, 0.35, "bandpass", 300, 6000);
-        tone(80, 0.9, 0.5, "sine", t + 0.9, 45);
-      } else if (kind === "pillar") {
-        for (const [f, a] of [[1047, 0.12], [1319, 0.1], [1568, 0.1], [2093, 0.06]]) tone(f, 1.2, a, "sine");
-        noise(0.5, 0.3, "highpass", 3000, 8000);
-      } else if (kind === "over") {
-        tone(392, 0.3, 0.15, "triangle");
-        tone(330, 0.3, 0.15, "triangle", t + 0.25);
-        tone(262, 0.6, 0.15, "triangle", t + 0.5);
-      }
+      if (this.sfxEngine) this.sfxEngine.play(kind, { combo, delay, impact: IMPACT / 1000 });
     },
 
     // ---- 結果の画像(正方形。共有できる端末ではシェアシート) ----
