@@ -1441,6 +1441,13 @@ export default {
           if (p && p.catch) p.catch(() => {});
         }
       } catch (e) {
+        // 途中で失敗したら、鳴っている BGM と音の出口を片付ける
+        try {
+          if (this.music) this.music.stop(0);
+          if (this.ac) this.ac.close();
+        } catch (e2) {
+          // すでに閉じている
+        }
         this.ac = null;
         this.music = null;
         this.sfxEngine = null;

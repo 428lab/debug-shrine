@@ -215,6 +215,11 @@ function createMusic(ctx, out) {
     while (playing) {
       const t = startAt + nextStep * STEP;
       if (t >= until) break;
+      // 処理が止まっていて遅れた分は、まとめて鳴らさずに飛ばす(一度に鳴ると大きな音の塊になる)
+      if (t < ctx.currentTime - 0.01 && !ctx.startRendering) {
+        nextStep++;
+        continue;
+      }
       const s = nextStep % LOOP;
       for (const e of LOOP_EV) {
         if (e.step !== s) continue;
