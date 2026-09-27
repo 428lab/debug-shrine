@@ -24,7 +24,7 @@ const GY = 48;
 // 目と祓串の位置(元の絵の座標)
 const EYE = { cx: 201, cy: 122, rx: 17, ry: 15 };
 // ウインクしている左目の線のある所と、右目へ写す時の反転の軸(x → mirror - x)と上下のずれ
-const WINK = { x0: 153, x1: 176, y0: 124, y1: 139, mirror: 364, dy: -5 };
+const WINK = { x0: 153, x1: 176, y0: 124, y1: 139, mirror: 364, dy: 0 };
 // 左目を開ける時: 右目の写す範囲(s)と、左目の消す範囲(c)
 const LEFT = { sx0: 181, sx1: 222, sy0: 100, sy1: 134, cx0: 152, cx1: 178, cy0: 119, cy1: 140 };
 // 開いている右目の下まつげの高さ(半分閉じる時は、ここを支点に縦につぶす)
@@ -168,7 +168,8 @@ function openLeft(px, src, skin, at) {
   }
   for (const [x, y, r, g, b] of eye) {
     const i = at(x, y);
-    if (isHair(src[i], src[i + 1], src[i + 2])) continue;
+    // 前髪(橙)とその縁の線(赤茶)は目より手前
+    if (isHair(src[i], src[i + 1], src[i + 2]) || (src[i] - src[i + 2] > 60 && src[i + 1] < 150)) continue;
     px[i] = r;
     px[i + 1] = g;
     px[i + 2] = b;
