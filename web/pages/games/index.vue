@@ -30,6 +30,13 @@ export default {
           kana: "いだてん",
           desc: "走って跳んで羽ばたいて、鳥居をくぐれ。どこまで走れる？",
         },
+        {
+          path: "/games/rhythm",
+          icon: "/games/rhythm.svg",
+          name: "神楽ビート",
+          kana: "かぐらびーと",
+          desc: "和ロック・祭り EDM・雅楽トランスなど 4 曲。曲に合わせて鈴・太鼓・柏手を叩け。狙うは全極!",
+        },
       ],
     };
   },

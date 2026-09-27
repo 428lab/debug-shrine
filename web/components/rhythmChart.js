@@ -1,0 +1,170 @@
+// リズムゲームの譜面を、曲の音の並び(rhythmSong.js)から作る。描画も音も含まない純関数。
+//
+// レーンは 3 本: 0 = 鈴(メロディ・掛け声・三味線など)、1 = 太鼓(キック・和太鼓)、
+// 2 = 柏手(スネア・クラップ・締太鼓)。
+// 曲で実際に鳴っている音に合わせて置くので、叩くと曲とぴったり合う。
+//
+// - 参拝(やさしい): 2 拍ごとの頭くらい(平均 2 個/秒ほど)。同じレーンは 4 ステップ(約 0.35 秒)以上あける
+// - 祈願(ふつう): 拍の頭のメロディと、小節の頭・真ん中の太鼓、2・4 拍目の柏手。特に長い音だけ
+//   長押し。同じレーンは 3 ステップ以上
+// - 修行(むずかしい): ボーカルのメロディをなぞる。長い音は長押し。同じレーンは 2 ステップ以上
+// - どちらも、同時に押すのは 2 本まで(長押しで押している指も数える)。長押しの間、そのレーンに
+//   次の音は置かない
+//
+// 検証は scripts/test-rhythm-chart.js。
+
+const LANES = ["suzu", "taiko", "clap"];
+
+const LEVELS = {
+  easy: { label: "参拝", minGap: 4, hold: false },
+  normal: { label: "祈願", minGap: 3, hold: true, holdMin: 8 },
+  hard: { label: "修行", minGap: 2, hold: true, holdMin: 6 },
+};
+
+// メロディを受け持つ楽器(ボーカルチョップ・尺八・篠笛・篳篥)
+const MELODY = new Set(["vox", "shaku", "shino", "hichi"]);
+
+// 曲の音を、どのレーンに置くか(候補)。prio が大きいものを優先して残す
+function candidates(song, level) {
+  const out = [];
+  const easy = level === "easy";
+  const normal = level === "normal";
+  const secAt = (bar) => {
+    let s = song.sections[0];
+    for (const x of song.sections) if (bar >= x.startBar) s = x;
+    return s.name;
+  };
+  // メロディのある小節では、三味線・ギターのリフ・琴は鈴のレーンに置かない(メロディを優先)
+  const melodyBars = new Set(song.events.filter((e) => MELODY.has(e.inst)).map((e) => e.bar));
+  const riffStep = easy ? 8 : normal ? 4 : 2;
+  for (const e of song.events) {
+    const sec = secAt(e.bar);
+    const chorus = sec.startsWith("chorus");
+    if (sec === "outro" && e.step > 0) continue;
+    if (!Number.isInteger(e.step)) continue; // 鞨鼓の連打などの細かい音は置かない
+    switch (e.inst) {
+      case "vox":
+      case "shaku":
+      case "shino":
+      case "hichi":
+        if (easy && e.step % 8 !== 0) break;
+        if (normal && e.step % 4 !== 0) break; // 祈願は拍の頭のメロディだけ
+        out.push({ t: e.t, lane: 0, prio: 3, len: e.len });
+        break;
+      case "chant":
+        // 掛け声は目立つので優先する
+        if (easy && e.step % 4 !== 0) break;
+        if (normal && e.step % 2 !== 0) break;
+        out.push({ t: e.t, lane: 0, prio: 4, len: 0 });
+        break;
+      case "shamisen":
+      case "koto":
+      case "gtr":
+        // メロディのない所(イントロ・ブレイク・リフ・ソロ)のメロディ役
+        if (melodyBars.has(e.bar)) break;
+        if (e.inst === "gtr" && !e.riff) break;
+        if (e.step % riffStep === 0) out.push({ t: e.t, lane: 0, prio: 2, len: 0 });
+        break;
+      case "kick":
+        if (easy && !(chorus && e.step === 8)) break;
+        if (normal && e.step % 8 !== 0) break; // 祈願は小節の頭と真ん中
+        out.push({ t: e.t, lane: 1, prio: 2, len: 0 });
+        break;
+      case "taiko":
+        if (easy && e.step !== 0) break;
+        if (normal && e.step % 8 !== 0) break;
+        out.push({ t: e.t, lane: 1, prio: 3, len: 0 });
+        break;
+      case "snare":
+        // 連打(フィル)は修行だけ、それも 8 分まで
+        if (easy && !(chorus && e.step === 12)) break;
+        if (normal && !(e.step === 4 || e.step === 12)) break; // 祈願はフィルなし、2 拍目と 4 拍目
+        if (!easy && e.step % 2 !== 0) break;
+        out.push({ t: e.t, lane: 2, prio: 2, len: 0 });
+        break;
+      case "clap":
+        out.push({ t: e.t, lane: 2, prio: 3, len: 0 });
+        break;
+      case "shime":
+        // 締太鼓: 祈願は 2・4 拍目、修行は拍の頭
+        if (easy) break;
+        if (normal && !(e.step === 4 || e.step === 12)) break;
+        if (e.step % 4 !== 0) break;
+        out.push({ t: e.t, lane: 2, prio: 1, len: 0 });
+        break;
+      default:
+        break;
+    }
+  }
+  return out;
+}
+
+function buildChart(song, level = "easy") {
+  const cfg = LEVELS[level];
+  if (!cfg) throw new Error(`unknown level ${level}`);
+  const gap = cfg.minGap * song.step - 1e-6;
+  const holdMin = (cfg.holdMin || 6) * song.step; // これより長いボーカルは長押し
+  const cands = candidates(song, level).sort((a, b) => a.t - b.t || b.prio - a.prio);
+
+  // 同じ時刻・同じレーンの重複をまとめる
+  const merged = [];
+  for (const c of cands) {
+    const prev = merged[merged.length - 1];
+    if (prev && prev.lane === c.lane && Math.abs(prev.t - c.t) < 1e-6) continue;
+    merged.push(c);
+  }
+
+  // レーンごとに、間隔と長押しを守って残す
+  const kept = [];
+  for (let lane = 0; lane < LANES.length; lane++) {
+    let busyUntil = -Infinity;
+    for (const c of merged.filter((x) => x.lane === lane)) {
+      if (c.t < busyUntil + gap) continue;
+      const hold = cfg.hold && lane === 0 && c.len >= holdMin;
+      const note = { t: c.t, lane, prio: c.prio };
+      if (hold) note.end = c.t + c.len * 0.9;
+      kept.push(note);
+      busyUntil = hold ? note.end : c.t;
+    }
+  }
+
+  // 同時に押すのは 2 本まで。長押しの途中なら、押している指も数える(親指 2 本で遊べるように)
+  kept.sort((a, b) => a.t - b.t || b.prio - a.prio);
+  const notes = [];
+  for (let i = 0; i < kept.length; ) {
+    let j = i;
+    const t = kept[i].t;
+    while (j < kept.length && Math.abs(kept[j].t - t) < 1e-6) j++;
+    const holding = notes.filter((n) => n.end != null && n.t < t - 1e-6 && n.end > t - 1e-6).length;
+    const group = kept.slice(i, j).sort((a, b) => b.prio - a.prio).slice(0, Math.max(0, 2 - holding));
+    for (const n of group) notes.push(n);
+    i = j;
+  }
+  notes.sort((a, b) => a.t - b.t || a.lane - b.lane);
+  notes.forEach((n, i) => {
+    n.id = i;
+    delete n.prio;
+  });
+  return { level, label: cfg.label, lanes: LANES, notes };
+}
+
+// ---- 判定 ----
+// 叩いた時刻と音符の時刻の差(秒)から判定を返す。null は判定の外(叩いても何も起きない)
+const WINDOWS = { kiwami: 0.045, ryo: 0.09, ka: 0.135 };
+function judge(diff) {
+  const d = Math.abs(diff);
+  if (d <= WINDOWS.kiwami) return "kiwami";
+  if (d <= WINDOWS.ryo) return "ryo";
+  if (d <= WINDOWS.ka) return "ka";
+  return null;
+}
+
+// 点数(満点 1,000,000)
+const WEIGHT = { kiwami: 1, ryo: 0.7, ka: 0.3, fuka: 0 };
+function scoreOf(counts, total) {
+  if (!total) return 0;
+  const sum = Object.keys(WEIGHT).reduce((a, k) => a + (counts[k] || 0) * WEIGHT[k], 0);
+  return Math.round((1000000 * sum) / total);
+}
+
+module.exports = { LANES, LEVELS, WINDOWS, WEIGHT, buildChart, judge, scoreOf };

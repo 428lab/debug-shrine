@@ -197,9 +197,8 @@ export default {
         // 抽選側が状態を持っているので触らない(触ると演出が畳まれて引く前の
         // 画面に戻ってしまう)。
         //
-        // 「今 animating か」で判定してはいけない。演出が結果より先に終わった
-        // ときの取り直し(onLanded)はまだ animating のまま呼ぶため、応答を
-        // 捨てると演出が閉じずに固まる。
+        // 「今 animating か」ではなく sceneCount で判定する(演出中に外から
+        // 呼ばれる経路は今は無いが、状態ではなく世代で判定しておく)。
         if (this.sceneCount !== sceneAtRequest) return;
         this.applyResponse(res.data);
       } catch (e) {
@@ -221,10 +220,12 @@ export default {
       this.scenePattern = machines.ALL_IDS.includes(wanted) ? wanted : machines.pick();
       this.pendingResult = null;
       this._pendingRemaining = 0;
+      this._landedWithoutResult = false;
       this.state = "animating";
     },
     // 鈴が鳴った → サーバーで抽選。成功なら結果を保持し、演出(狐)が着地してから表示。
     async onRang() {
+      this._landedWithoutResult = false;
       const token = await this.getToken();
       if (!token) {
         this.state = "error";
@@ -234,12 +235,17 @@ export default {
         const res = await this.$axios.post(
           "omikujiGo",
           { github_id: this.user.github_id },
-          { headers: { Authorization: `Bearer ${token}` } }
+          { headers: { Authorization: `Bearer ${token}` }, timeout: 30000 }
         );
         const d = res.data;
         if (d.status === "success") {
           this._pendingRemaining = d.remaining_seconds || 0;
-          this.pendingResult = d.result; // targetTier が埋まり、狐が本命へ走る
+          if (this._landedWithoutResult) {
+            // 演出が先に終わっている(着地イベントはもう来ない)→ ここで確定
+            this.commitResult(d.result, this._pendingRemaining);
+          } else {
+            this.pendingResult = d.result; // targetTier が埋まり、狐が本命へ走る
+          }
         } else {
           // cooldown / failed など:演出を畳んで通常表示へ
           this.applyResponse(d);
@@ -251,21 +257,27 @@ export default {
     // 狐が本命ビンに着地 → 結果を確定表示。
     onLanded() {
       if (this.pendingResult) {
-        this.result = this.pendingResult;
-        this.remaining = this._pendingRemaining || 0;
+        this.commitResult(this.pendingResult, this._pendingRemaining || 0);
         this.pendingResult = null;
-        this.state = "cooldown";
-        saveOmikujiState(
-          this.user && this.user.github_id,
-          this.remaining,
-          this.result,
-          Date.now()
-        );
-        this.startTimer();
       } else {
-        // 演出が結果より先に終わった(スキップ等)→ サーバー状態を取り直す
-        this.fetchStatus();
+        // 結果が届く前に演出が終わっても peek しない(peek が抽選の書き込みより
+        // 先に返ると available になり結果が消えるため)。POST の完了を待って
+        // onRang 側で確定する。
+        this._landedWithoutResult = true;
       }
+    },
+    // 結果を確定表示し、次に引ける時刻と結果を保存する。
+    commitResult(result, remaining) {
+      this.result = result;
+      this.remaining = remaining;
+      this.state = "cooldown";
+      saveOmikujiState(
+        this.user && this.user.github_id,
+        this.remaining,
+        this.result,
+        Date.now()
+      );
+      this.startTimer();
     },
     applyResponse(d) {
       // 次に引ける時刻と前回の結果を覚えておく(次に開いたとき待たせないため)。
