@@ -157,6 +157,7 @@ function createLabomi(img) {
   const wHand = base.map(([x, y]) => smooth(245, 262, x) * (1 - smooth(200, 225, y)) * smooth(125, 140, y));
 
   const pos = new Float32Array(base.length * 2);
+  const bufs = []; // 片付ける時に消す WebGL のバッファ
   let prog;
   let texs = [];
   let posBuf;
@@ -164,15 +165,20 @@ function createLabomi(img) {
   if (gl) {
     const sh = (type, src) => {
       const s = gl.createShader(type);
+      if (!s) return null;
       gl.shaderSource(s, src);
       gl.compileShader(s);
-      return s;
+      return gl.getShaderParameter(s, gl.COMPILE_STATUS) ? s : null;
     };
-    prog = gl.createProgram();
-    gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS));
-    gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
-    gl.linkProgram(prog);
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+    const vs = sh(gl.VERTEX_SHADER, VS);
+    const fs = sh(gl.FRAGMENT_SHADER, FS);
+    prog = vs && fs ? gl.createProgram() : null;
+    if (prog) {
+      gl.attachShader(prog, vs);
+      gl.attachShader(prog, fs);
+      gl.linkProgram(prog);
+    }
+    if (!prog || !gl.getProgramParameter(prog, gl.LINK_STATUS)) {
       gl = null;
     }
   }
@@ -184,18 +190,21 @@ function createLabomi(img) {
       uv[k * 2 + 1] = y / IH;
     });
     const uvBuf = gl.createBuffer();
+    bufs.push(uvBuf);
     gl.bindBuffer(gl.ARRAY_BUFFER, uvBuf);
     gl.bufferData(gl.ARRAY_BUFFER, uv, gl.STATIC_DRAW);
     const aUv = gl.getAttribLocation(prog, "aUv");
     gl.enableVertexAttribArray(aUv);
     gl.vertexAttribPointer(aUv, 2, gl.FLOAT, false, 0, 0);
     posBuf = gl.createBuffer();
+    bufs.push(posBuf);
     gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
     gl.bufferData(gl.ARRAY_BUFFER, pos, gl.DYNAMIC_DRAW);
     const aPos = gl.getAttribLocation(prog, "aPos");
     gl.enableVertexAttribArray(aPos);
     gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
     const ib = gl.createBuffer();
+    bufs.push(ib);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(idx), gl.STATIC_DRAW);
     gl.uniform2f(gl.getUniformLocation(prog, "uSize"), CW, CH);
@@ -214,9 +223,21 @@ function createLabomi(img) {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
   }
-  const ctx2d = gl ? null : canvas.getContext("2d");
+  // WebGL が使えない・失われた時の絵(WebGL の絵とは別のキャンバス。同じキャンバスでは 2D が取れない)
+  const fb = document.createElement("canvas");
+  fb.width = CW;
+  fb.height = CH;
+  const ctx2d = fb.getContext("2d");
+  const glRef = gl;
+  // スマホで裏に回った時などに WebGL が失われたら、それからは 2D で描く
+  const onLost = (e) => {
+    e.preventDefault();
+    gl = null;
+  };
+  canvas.addEventListener("webglcontextlost", onLost);
 
   function render(t, pose = {}) {
+    if (gl && gl.isContextLost()) gl = null;
     const swing = (pose.swing || 0) + Math.sin(t * 1.3) * 0.04;
     const breath = 1 + Math.sin(t * 2.2) * 0.012 - (pose.squash || 0);
     const jump = pose.jump || 0;
@@ -230,7 +251,7 @@ function createLabomi(img) {
       ctx2d.scale(1, breath);
       ctx2d.drawImage(frames[pose.blink || 0], 0, 0, IW, IH);
       ctx2d.restore();
-      return canvas;
+      return fb;
     }
     const cs = Math.cos(swing);
     const sn = Math.sin(swing);
@@ -265,7 +286,26 @@ function createLabomi(img) {
     return canvas;
   }
 
-  return { canvas, render, frames, webgl: !!gl, W: CW, H: CH, PAD, IW, IH, PIVOT, EYE };
+  // ページを離れる時に WebGL を手放す(残すと、来るたびに増えて古いものから落とされる)
+  function destroy() {
+    canvas.removeEventListener("webglcontextlost", onLost);
+    const g = glRef;
+    if (!g) return;
+    try {
+      if (!g.isContextLost()) {
+        texs.forEach((t) => g.deleteTexture(t));
+        bufs.forEach((b) => g.deleteBuffer(b));
+        g.deleteProgram(prog);
+      }
+      const ext = g.getExtension("WEBGL_lose_context");
+      if (ext) ext.loseContext();
+    } catch (e) {
+      // すでに失われている
+    }
+    gl = null;
+  }
+
+  return { canvas, render, destroy, frames, webgl: !!gl, W: CW, H: CH, PAD, IW, IH, PIVOT, EYE };
 }
 
 module.exports = { createLabomi, blinkFrame, IW, IH, PAD, CW, CH, PIVOT, EYE };

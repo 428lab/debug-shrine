@@ -86,6 +86,43 @@ function placed(src, x = 50, y = 200) {
   assert.strictEqual(G.tap(g, G.glyphX(it, 3) + 16, 190).result, "fix");
 }
 
+{
+  // 2 か所ある言葉で、直したばかりの金の文字をもう一度押してもお手つきにならない
+  const g = placed("ret{ru|ur}n fa{sl|ls}e");
+  const it = g.items[0];
+  const cx = (i) => G.glyphX(it, i) + G.glyphW(it.glyphs[i]) / 2;
+  assert.strictEqual(G.tap(g, cx(3), 190).result, "fix");
+  assert.strictEqual(G.tap(g, cx(3), 190).result, "none");
+  assert.strictEqual(g.misses, 0);
+  assert.strictEqual(g.combo, 0);
+}
+{
+  // 言葉が重なっていたら、間違いの文字に当たっている方を直す(下の言葉でお手つきにしない)
+  const g = placed("ret{ru|ur}n", 50, 200);
+  const p2 = G.parse("c{al|la}ss");
+  g.items.push({ id: 100, src: "c{al|la}ss", glyphs: p2.glyphs, segs: p2.segs.map((s) => Object.assign({ fixed: false }, s)), x: 50, y: 212, width: G.widthOf(p2.glyphs), vy: 0, done: false, leaked: false });
+  const upper = g.items[0];
+  // 上の言葉の「ru」の「u」(4 文字目)。下の言葉ではそこは正しい「s」
+  const x = G.glyphX(upper, 4) + 8;
+  const r = G.tap(g, x, 195);
+  assert.strictEqual(r.result, "fix");
+  assert.strictEqual(r.item.id, 99);
+  assert.strictEqual(g.misses, 0);
+}
+{
+  // 同じ瞬間に何個しめ縄を越えても、命はマイナスにならない
+  const g = G.newGame(5);
+  g.lives = 1;
+  for (let k = 0; k < 3; k++) {
+    const p = G.parse("tr{eu|ue}");
+    g.items.push({ id: 200 + k, src: "tr{eu|ue}", glyphs: p.glyphs, segs: p.segs.map((s) => Object.assign({ fixed: false }, s)), x: 20 + k * 120, y: G.LINE_Y - 0.1, width: G.widthOf(p.glyphs), vy: 100, done: false, leaked: false });
+  }
+  G.step(g);
+  assert.ok(g.over);
+  assert.strictEqual(g.lives, 0);
+  assert.strictEqual(g.events.filter((e) => e.type === "over").length, 1);
+}
+
 // ---- 漏れと終わり ----
 {
   const g = G.newGame(7);

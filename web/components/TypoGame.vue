@@ -6,9 +6,11 @@
       <canvas
         ref="canvas"
         class="tg-canvas"
+        :class="{ lock: phase !== 'over' }"
         @pointerdown.prevent="onPointer"
-        @touchstart.prevent
-        @touchend.prevent
+        @pointerup="unlockAudio"
+        @touchstart="onTouch"
+        @touchend="onTouch"
         @contextmenu.prevent
       ></canvas>
     </div>
@@ -110,6 +112,7 @@ export default {
     this.bg = this.makeBackground();
     const img = new Image();
     img.onload = () => {
+      if (this._destroyed) return;
       try {
         this.rig = Rig.createLabomi(img);
       } catch (e) {
@@ -136,7 +139,9 @@ export default {
     document.removeEventListener("visibilitychange", this.onVisibility);
     document.documentElement.style.touchAction = this._prevTouchAction || "";
     if (this._ro) this._ro.disconnect();
+    this._destroyed = true;
     if (this._raf) cancelAnimationFrame(this._raf);
+    if (this.rig) this.rig.destroy();
     if (this.ac) this.ac.close();
   },
   methods: {
@@ -173,7 +178,19 @@ export default {
       };
     },
     onVisibility() {
-      if (document.hidden && this.phase === "play") this.phase = "paused";
+      if (document.hidden && this.phase === "play") {
+        this.phase = "paused";
+        this._pausedAt = performance.now();
+      }
+    },
+    // 遊んでいる間だけ、タッチでページが動いたり拡大したりしないようにする
+    // (終わった後は、下の結果の札とボタンまでスクロールできるように)
+    onTouch(e) {
+      if (this.phase !== "over" && e.cancelable) e.preventDefault();
+    },
+    // スマホは、指を離した時(pointerup)でないと音を出す許可が下りない
+    unlockAudio() {
+      if (this.phase === "ready" || !this.ac || this.ac.state !== "running") this.ensureAudio();
     },
     onButton(e, fn) {
       if (e && e.currentTarget && e.currentTarget.blur) e.currentTarget.blur();
@@ -185,6 +202,7 @@ export default {
       this.result = null;
       this.phase = "play";
       this._startBest = this.best;
+      this._gaugeSaid = false;
       this._acc = 0;
       this._last = performance.now();
       this.ensureAudio();
@@ -203,8 +221,15 @@ export default {
         return;
       }
       if (this.phase === "paused") {
+        // 一斉お祓いの途中で止めた時は、止まっていた分だけ演出の時刻をずらす
+        const d = now - (this._pausedAt || now);
+        if (this.fx.special) {
+          this.fx.special += d;
+          this.fx.swingAt += d;
+        }
         this.phase = "play";
         this._last = now;
+        this.ensureAudio();
         return;
       }
       if (this.phase !== "play" || this.fx.special) return;
@@ -349,6 +374,7 @@ export default {
       if (Math.random() < 0.5) this.say(pick(LINES.miss));
     },
     onLeak(e, now) {
+      this.itemFx(e.id).leakAt = now;
       this.fx.shake = 10;
       this.fx.leakAt = now;
       this.fx.leakX = e.x;
@@ -397,6 +423,11 @@ export default {
       };
       this.say(this.result.line);
       this.phase = "over";
+      // 結果の札が見えるように(スマホではゲーム画面だけで画面がいっぱい)
+      this.$nextTick(() => {
+        const card = this.$el && this.$el.querySelector(".tg-card");
+        if (card && card.scrollIntoView) card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
     },
 
     // ---- らぼみのポーズ ----
@@ -559,7 +590,7 @@ export default {
         scale = 1 + Math.min(1, u * 4) * 0.08;
       }
       if (it.leaked) {
-        const u = (now - (this.fx.leakAt || now)) / 600;
+        const u = (now - (f.leakAt || now)) / 600;
         alpha = Math.max(0, 1 - u);
       }
       if (alpha <= 0) return;
@@ -645,9 +676,16 @@ export default {
       aura.addColorStop(1, "rgba(255,216,74,0)");
       ctx.fillStyle = aura;
       ctx.fillRect(LB_FOOT.x - 160, LB_FOOT.y - 250, 320, 260);
-      if (!this.rig) return;
-      const cv = this.rig.render(now / 1000, this.pose(now));
-      ctx.drawImage(cv, o.x, o.y, cv.width * LB_SCALE, cv.height * LB_SCALE);
+      if (this.rig) {
+        let cv;
+        try {
+          cv = this.rig.render(now / 1000, this.pose(now));
+        } catch (e) {
+          cv = null; // 動かせない時は、動かない絵を出す
+        }
+        if (cv) ctx.drawImage(cv, o.x, o.y, cv.width * LB_SCALE, cv.height * LB_SCALE);
+        else ctx.drawImage(this.rig.frames[0], o.x + 60 * LB_SCALE, o.y + 60 * LB_SCALE, 360 * LB_SCALE, 480 * LB_SCALE);
+      }
       // セリフの吹き出し
       const say = this.fx.say;
       if (say && now - say.at < 2600) {
@@ -1042,7 +1080,10 @@ export default {
           const d = this.noiseBuf.getChannelData(0);
           for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
         }
-        if (this.ac.state !== "running") this.ac.resume();
+        if (this.ac.state !== "running") {
+          const p = this.ac.resume();
+          if (p && p.catch) p.catch(() => {});
+        }
       } catch (e) {
         this.ac = null;
       }
@@ -1196,11 +1237,14 @@ export default {
   display: block;
   width: 100%;
   aspect-ratio: 420 / 700;
-  touch-action: none;
+  touch-action: pan-y;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
+}
+.tg-canvas.lock {
+  touch-action: none;
 }
 .tg-card {
   display: flex;

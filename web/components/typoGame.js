@@ -214,37 +214,49 @@ function glyphX(item, i) {
   return x;
 }
 
-// タップした点にある言葉(一番下 = 急ぐもの優先)
+// タップした点を札に含む言葉(下 = 急ぐものから順に)
+function itemsAt(g, px, py) {
+  return g.items
+    .filter((it) => {
+      if (it.done || it.leaked) return false;
+      const top = it.y - FS * 0.95 - 10;
+      const bottom = it.y + FS * 0.3 + 10;
+      return px >= it.x - 10 && px <= it.x + it.width + 10 && py >= top && py <= bottom;
+    })
+    .sort((a, b) => b.y - a.y);
+}
 function itemAt(g, px, py) {
-  let best = null;
-  for (const it of g.items) {
-    if (it.done || it.leaked) continue;
-    const top = it.y - FS * 0.95 - 10;
-    const bottom = it.y + FS * 0.3 + 10;
-    if (px < it.x - 10 || px > it.x + it.width + 10 || py < top || py > bottom) continue;
-    if (!best || it.y > best.y) best = it;
+  return itemsAt(g, px, py)[0] || null;
+}
+// 言葉の中で、x に当たる直す所(fixed: 直したものを探すか)
+function segAt(it, px, fixed) {
+  for (const s of it.segs) {
+    if (s.fixed !== fixed) continue;
+    const x0 = glyphX(it, s.from) - (fixed ? 0 : HIT_PAD);
+    const x1 = glyphX(it, s.to) + (fixed ? 0 : HIT_PAD);
+    if (px >= x0 && px <= x1) return s;
   }
-  return best;
+  return null;
 }
 
 // タップ。返り値: { result: "fix" | "miss" | "none", item, seg }
 function tap(g, px, py) {
   if (g.over) return { result: "none" };
-  const it = itemAt(g, px, py);
-  if (!it) return { result: "none" };
-  // 直していない間違いのうち、タップした x に一番近いもの(余裕つき)
+  const cands = itemsAt(g, px, py);
+  if (!cands.length) return { result: "none" };
+  // 言葉が重なっていたら、間違いの文字に当たっている方を選ぶ
+  let it = cands[0];
   let hit = null;
-  let hitD = Infinity;
-  for (const s of it.segs) {
-    if (s.fixed) continue;
-    const x0 = glyphX(it, s.from) - HIT_PAD;
-    const x1 = glyphX(it, s.to) + HIT_PAD;
-    const d = px < x0 ? x0 - px : px > x1 ? px - x1 : 0;
-    if (d === 0 && d < hitD) {
+  for (const c of cands) {
+    const s = segAt(c, px, false);
+    if (s) {
+      it = c;
       hit = s;
-      hitD = d;
+      break;
     }
   }
+  // 直したばかりの金の文字をもう一度押しただけなら、お手つきにしない
+  if (!hit && cands.some((c) => segAt(c, px, true))) return { result: "none" };
   if (!hit) {
     g.misses++;
     g.combo = 0;
@@ -308,6 +320,7 @@ function step(g, dt = STEP) {
       if (g.lives <= 0) {
         g.over = true;
         g.events.push({ type: "over" });
+        break; // 同じ瞬間に落ちた言葉で、命がマイナスにならないように
       }
     }
   }
