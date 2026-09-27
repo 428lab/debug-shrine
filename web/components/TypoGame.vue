@@ -46,6 +46,7 @@
 <script>
 import G from "@/components/typoGame";
 import Rig from "@/components/labomiRig";
+import Eyes from "@/components/labomiEyes";
 
 const BEST_KEY = "debug-shrine:typo:best";
 const MINCHO = "'Hiragino Mincho ProN', 'Yu Mincho', serif";
@@ -307,10 +308,10 @@ export default {
         const live = new Set(g.items.map((it) => String(it.id)));
         for (const k of Object.keys(fx.itemFx)) if (!live.has(k)) delete fx.itemFx[k];
       }
-      // 瞬き(ときどき、たまに 2 回続けて)
+      // 瞬き(3〜6 秒ごと。タブから戻った時に溜まった分を続けて再生しないよう、次は今から数える)
       if (now > fx.nextBlink) {
         fx.blinkAt = now;
-        fx.nextBlink = now + 2200 + Math.random() * 3200 - (Math.random() < 0.2 ? 1800 : 0);
+        fx.nextBlink = now + Eyes.TIMING.gapMin + Math.random() * (Eyes.TIMING.gapMax - Eyes.TIMING.gapMin);
       }
       this.draw(now);
     },
@@ -509,8 +510,7 @@ export default {
     },
     pose(now) {
       const fx = this.fx;
-      const b = now - fx.blinkAt;
-      const blink = b < 0 ? 0 : b < 50 ? 1 : b < 120 ? 2 : b < 170 ? 1 : 0;
+      const blink = Eyes.closureAt(now - fx.blinkAt);
       const j = (now - fx.jumpAt) / 450;
       const jump = j >= 0 && j < 1 ? Math.sin(j * Math.PI) * 26 : 0;
       const l = fx.leakAt ? (now - fx.leakAt) / 300 : 9;
@@ -797,7 +797,7 @@ export default {
           cv = null; // 動かせない時は、動かない絵を出す
         }
         if (cv) ctx.drawImage(cv, o.x, o.y, cv.width * LB_SCALE, cv.height * LB_SCALE);
-        else ctx.drawImage(this.rig.frames[0], o.x + 60 * LB_SCALE, o.y + 60 * LB_SCALE, 360 * LB_SCALE, 480 * LB_SCALE);
+        else ctx.drawImage(this.rig.base, o.x + 60 * LB_SCALE, o.y + 60 * LB_SCALE, 360 * LB_SCALE, 480 * LB_SCALE);
       }
       // セリフの吹き出し
       const say = this.fx.say;
@@ -1278,7 +1278,7 @@ export default {
           const ox = -195;
           const oy = -120;
           if (cv) ctx.drawImage(cv, 70, 60, 300, 260, ox, oy, 300 * k, 260 * k);
-          else ctx.drawImage(this.rig.frames[0], 10, 0, 300, 260, ox, oy, 300 * k, 260 * k);
+          else ctx.drawImage(this.rig.base, 10, 0, 300, 260, ox, oy, 300 * k, 260 * k);
           // 祓串の先がなぞる光の刃(手元を中心に)
           const px = ox + (103 + 60 - 70) * k;
           const py = oy + (183 + 60 - 60) * k;
@@ -1523,7 +1523,7 @@ export default {
       ctx.strokeStyle = "#b8412c";
       ctx.lineWidth = 14;
       ctx.strokeRect(40, 40, 1000, 1000);
-      const img = this.rig ? this.rig.frames[0] : null;
+      const img = this.rig ? this.rig.base : null;
       if (img) ctx.drawImage(img, 640, 330, 405, 540);
       ctx.textAlign = "left";
       const line = (text, x, y, font, color) => {
