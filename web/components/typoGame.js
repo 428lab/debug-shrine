@@ -292,8 +292,6 @@ const WORDS = [
   { s: "ミ{ユ|ュ}ージック", tier: 3, kind: "ja" },
   { s: "{ツ|シ}ンプル", tier: 3, kind: "ja" },
   { s: "{ン|ソ}ース", tier: 3, kind: "ja" },
-  { s: "エラ{一|ー}", tier: 3, kind: "ja" },
-  { s: "サ{一|ー}バー", tier: 3, kind: "ja" },
   { s: "{夕|タ}イトル", tier: 3, kind: "ja" },
   { s: "{力|カ}ード", tier: 3, kind: "ja" },
   { s: "{口|ロ}グイン", tier: 3, kind: "ja" },
