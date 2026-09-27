@@ -3,8 +3,9 @@
 // - 絵に細かい網目(メッシュ)をかけ、頂点を動かしてゆがめる(Live2D 風)。WebGL で描く
 //   - 呼吸(足元を支点に少し伸び縮み)、髪先・袴のすその揺れ、指さしの手の上下
 //   - 祓串: 手元を支点に回す(swing。お祓いの一振り)
-// - 瞬き: 開いている右目の白目・黒目・まつげを肌の色で塗り、まぶたの線を描いた絵を
-//   「半分」「閉じ」の 2 枚作って差し替える(前髪の色の点は残す)
+// - 瞬き: 開いている右目の白目・黒目・まつげを肌の色で塗った絵を「半分」「閉じ」の 2 枚作って
+//   差し替える(前髪の色の点は残す)。半分はまぶたの線を描き、閉じはウインクしている左目の線を
+//   左右反転して貼る(元の絵の閉じ方にそろえる)
 // - WebGL が使えない時は、絵をそのまま少し揺らして描く
 //
 // 使い方: const rig = createLabomi(img); rig.render(t, pose) → rig.canvas を drawImage する。
@@ -21,6 +22,8 @@ const GY = 48;
 
 // 目と祓串の位置(元の絵の座標)
 const EYE = { cx: 201, cy: 122, rx: 17, ry: 15 };
+// ウインクしている左目の線のある所と、右目へ写す時の反転の軸(x → mirror - x)と上下のずれ
+const WINK = { x0: 153, x1: 176, y0: 124, y1: 139, mirror: 364, dy: -5 };
 const PIVOT = { x: 103, y: 183 }; // 祓串を持つ手
 const GOHEI = { cx: 78, cy: 148, rx: 46, ry: 78 }; // 祓串と紙垂のあたり
 const FOOT = 455;
@@ -62,6 +65,24 @@ function blinkFrame(img, close) {
       px[i + 1] = skin[1];
       px[i + 2] = skin[2];
     }
+  }
+  if (close >= 1) {
+    // 閉じた目は、もともとウインクしている左目の線(と上のしわ)を左右反転して貼る。
+    // 肌より暗い所だけを、暗さに応じて重ねる(周りの肌や髪はそのまま)
+    const skinL = skin[0] + skin[1] + skin[2];
+    for (let y = WINK.y0; y <= WINK.y1; y++) {
+      for (let x = WINK.x0; x <= WINK.x1; x++) {
+        const si = at(x, y);
+        const a = Math.max(0, Math.min(1, (skinL - (px[si] + px[si + 1] + px[si + 2])) / 150));
+        if (a <= 0) continue;
+        const dx = WINK.mirror - x;
+        const dy = y + WINK.dy;
+        const di = at(dx, dy);
+        for (let k = 0; k < 3; k++) px[di + k] = Math.round(px[di + k] * (1 - a) + px[si + k] * a);
+      }
+    }
+    g.putImageData(d, 0, 0);
+    return c;
   }
   g.putImageData(d, 0, 0);
   g.strokeStyle = "#2b1715";
