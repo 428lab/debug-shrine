@@ -4,8 +4,8 @@
 //   - 呼吸(足元を支点に少し伸び縮み)、髪先・袴のすその揺れ、指さしの手の上下
 //   - 祓串: 手元を支点に回す(swing。お祓いの一振り)
 // - 目: 元の絵はウインクなので、ふだんは左目も開ける(左目の閉じた線を消し、右目を左右反転して
-//   写す)。瞬きは両目で「半分」「閉じ」の絵に差し替える。半分は元の上まつげを下へ写してまぶたが
-//   下りたように、閉じはウインクしている左目の線(右目はそれを左右反転)。前髪は目より手前に残す。
+//   写す)。瞬きは両目で「半分」「閉じ」の絵に差し替える。半分は目全体を下まつげの所を支点に縦に
+//   つぶし、閉じはウインクしている左目の線(右目はそれを左右反転)。前髪は目より手前に残す。
 //   blink: 0 = 両目を開ける、1 = 半分、2 = 閉じ、3 = もとの絵(ウインク。決めの場面で使う)
 // - WebGL が使えない時は、絵をそのまま少し揺らして描く
 //
@@ -27,8 +27,8 @@ const EYE = { cx: 201, cy: 122, rx: 17, ry: 15 };
 const WINK = { x0: 153, x1: 176, y0: 124, y1: 139, mirror: 364, dy: -5 };
 // 左目を開ける時: 右目の写す範囲(s)と、左目の消す範囲(c)
 const LEFT = { sx0: 181, sx1: 222, sy0: 100, sy1: 134, cx0: 152, cx1: 178, cy0: 119, cy1: 140 };
-// 開いている右目の上まつげ(太い黒い線)のある所
-const LASH = { x0: 183, x1: 219, y0: 104, y1: 115 };
+// 開いている右目の下まつげの高さ(半分閉じる時は、ここを支点に縦につぶす)
+const LOWER = 135;
 const PIVOT = { x: 103, y: 183 }; // 祓串を持つ手
 const GOHEI = { cx: 78, cy: 148, rx: 46, ry: 78 }; // 祓串と紙垂のあたり
 const FOOT = 455;
@@ -62,8 +62,9 @@ function blinkFrame(img, close) {
     g.putImageData(d, 0, 0);
     return c;
   }
-  const lidY = close >= 1 ? 131 : EYE.cy - EYE.ry + close * 2 * EYE.ry * 0.8;
-  for (let y = 100; y < 142; y++) {
+  // 閉じ: 目の上側(白目・黒目・上まつげ)を肌の色で塗る
+  const lidY = 131;
+  for (let y = 100; y < 142 && close >= 1; y++) {
     for (let x = 178; x < 224; x++) {
       const e = ((x - EYE.cx) / EYE.rx) ** 2 + ((y - EYE.cy) / EYE.ry) ** 2;
       if (e > 1 || y > lidY) continue;
@@ -97,25 +98,35 @@ function blinkFrame(img, close) {
     g.putImageData(d, 0, 0);
     return c;
   }
-  // 半分: 元の上まつげ(太い黒い線)を、まぶたの下がった分だけ下へ写す(描き足した線ではなく
-  // 絵のまつげそのものが下りてくるように)。下半分には元の黒目が残る
-  const shift = Math.round(lidY - LASH.y0 - 2);
-  const skinL = skin[0] + skin[1] + skin[2];
-  for (let y = LASH.y0; y <= LASH.y1; y++) {
-    for (let x = LASH.x0; x <= LASH.x1; x++) {
-      const si = at(x, y);
-      const r = src[si];
-      const gg = src[si + 1];
-      const b = src[si + 2];
-      // まつげ(黒に近い色)だけを写す。前髪の縁(赤茶)や髪飾りの色は写さない
-      if (Math.max(r, gg, b) > 120 || Math.max(r, gg, b) - Math.min(r, gg, b) > 45) continue;
-      const a = Math.max(0, Math.min(1, (skinL - (r + gg + b)) / 300));
-      if (a <= 0) continue;
-      // まぶたは丸いので、真ん中ほど少し多く下げる
-      const dy = y + Math.round(shift * (0.85 + 0.15 * (1 - Math.abs(x - EYE.cx) / EYE.rx)));
-      if (dy >= IH) continue;
-      const di = at(x, dy);
-      for (let k = 0; k < 3; k++) px[di + k] = Math.round(px[di + k] * (1 - a) + src[si + k] * a);
+  // 半分: 目全体(まつげ・白目・黒目)を、下まつげの所を支点に縦につぶす。
+  // (上の塗りつぶしは使わず、元の目の範囲を肌で消してから、つぶした目を描き直す)
+  const k = 1 - close * 0.9; // 高さの割合
+  const inBox = (x, y) => ((x - EYE.cx) / (EYE.rx + 4)) ** 2 + ((y - EYE.cy) / (EYE.ry + 3)) ** 2 <= 1;
+  const isHair = (r, gg, b) => r > 170 && gg < 140 && b < 110 && r - gg > 70;
+  const eyeish = (i) => {
+    const r = src[i];
+    const gg = src[i + 1];
+    const b = src[i + 2];
+    if (isHair(r, gg, b) || r - b > 40) return false; // 前髪・肌・頬の赤み
+    return Math.abs(r - skin[0]) + Math.abs(gg - skin[1]) + Math.abs(b - skin[2]) >= 40;
+  };
+  for (let y = EYE.cy - EYE.ry - 4; y <= EYE.cy + EYE.ry + 3; y++) {
+    for (let x = EYE.cx - EYE.rx - 5; x <= EYE.cx + EYE.rx + 5; x++) {
+      if (!inBox(x, y)) continue;
+      const i = at(x, y);
+      if (isHair(src[i], src[i + 1], src[i + 2])) continue;
+      // つぶした後にここへ来る元の画素
+      const sy = Math.round(LOWER - (LOWER - y) / k);
+      const si = sy >= 0 ? at(x, sy) : -1;
+      if (y <= LOWER && si >= 0 && inBox(x, sy) && eyeish(si)) {
+        px[i] = src[si];
+        px[i + 1] = src[si + 1];
+        px[i + 2] = src[si + 2];
+      } else if (eyeish(i)) {
+        px[i] = skin[0];
+        px[i + 1] = skin[1];
+        px[i + 2] = skin[2];
+      }
     }
   }
   openLeft(px, src, skin, at);
