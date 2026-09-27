@@ -3,13 +3,14 @@
 // - 絵に細かい網目(メッシュ)をかけ、頂点を動かしてゆがめる(Live2D 風)。WebGL で描く
 //   - 呼吸(足元を支点に少し伸び縮み)、髪先・袴のすその揺れ、指さしの手の上下
 //   - 祓串: 手元を支点に回す(swing。お祓いの一振り)
-// - 瞬き: 開いている右目の白目・黒目・まつげを肌の色で塗った絵を「半分」「閉じ」の 2 枚作って
-//   差し替える(前髪の色の点は残す)。半分はまぶたの線を描き、閉じはウインクしている左目の線を
-//   左右反転して貼る(元の絵の閉じ方にそろえる)
+// - 目: 元の絵はウインクなので、ふだんは左目も開ける(左目の閉じた線を消し、右目を左右反転して
+//   写す)。瞬きは両目で「半分」「閉じ」の絵に差し替える。半分は元の上まつげを下へ写してまぶたが
+//   下りたように、閉じはウインクしている左目の線(右目はそれを左右反転)。前髪は目より手前に残す。
+//   blink: 0 = 両目を開ける、1 = 半分、2 = 閉じ、3 = もとの絵(ウインク。決めの場面で使う)
 // - WebGL が使えない時は、絵をそのまま少し揺らして描く
 //
 // 使い方: const rig = createLabomi(img); rig.render(t, pose) → rig.canvas を drawImage する。
-// pose = { swing: 祓串の角度(ラジアン、+ で振り下ろし), blink: 0 開き / 1 半分 / 2 閉じ,
+// pose = { swing: 祓串の角度(ラジアン、+ で振り下ろし), blink: 0 開き / 1 半分 / 2 閉じ / 3 ウインク,
 //          jump: 上への跳ね(px), squash: 縦の縮み(0〜0.2) }
 
 const IW = 360; // 元の絵の大きさ
@@ -24,6 +25,10 @@ const GY = 48;
 const EYE = { cx: 201, cy: 122, rx: 17, ry: 15 };
 // ウインクしている左目の線のある所と、右目へ写す時の反転の軸(x → mirror - x)と上下のずれ
 const WINK = { x0: 153, x1: 176, y0: 124, y1: 139, mirror: 364, dy: -5 };
+// 左目を開ける時: 右目の写す範囲(s)と、左目の消す範囲(c)
+const LEFT = { sx0: 181, sx1: 222, sy0: 100, sy1: 134, cx0: 152, cx1: 178, cy0: 119, cy1: 140 };
+// 開いている右目の上まつげ(太い黒い線)のある所
+const LASH = { x0: 183, x1: 219, y0: 104, y1: 115 };
 const PIVOT = { x: 103, y: 183 }; // 祓串を持つ手
 const GOHEI = { cx: 78, cy: 148, rx: 46, ry: 78 }; // 祓串と紙垂のあたり
 const FOOT = 455;
@@ -47,9 +52,16 @@ function blinkFrame(img, close) {
     return c; // 画素が読めない(別のドメインの絵など)時は瞬きしない
   }
   const px = d.data;
+  const src = new Uint8ClampedArray(px); // 塗る前の絵(まつげを写すのに使う)
   const at = (x, y) => (y * IW + x) * 4;
   const s = at(182, 128); // 目の横の肌の色
   const skin = [px[s], px[s + 1], px[s + 2]];
+  if (close <= 0) {
+    // 開き: 右目はそのまま、左目を開けるだけ
+    openLeft(px, src, skin, at);
+    g.putImageData(d, 0, 0);
+    return c;
+  }
   const lidY = close >= 1 ? 131 : EYE.cy - EYE.ry + close * 2 * EYE.ry * 0.8;
   for (let y = 100; y < 142; y++) {
     for (let x = 178; x < 224; x++) {
@@ -73,31 +85,83 @@ function blinkFrame(img, close) {
     for (let y = WINK.y0; y <= WINK.y1; y++) {
       for (let x = WINK.x0; x <= WINK.x1; x++) {
         const si = at(x, y);
-        const a = Math.max(0, Math.min(1, (skinL - (px[si] + px[si + 1] + px[si + 2])) / 150));
+        const a = Math.max(0, Math.min(1, (skinL - (src[si] + src[si + 1] + src[si + 2])) / 150));
         if (a <= 0) continue;
         const dx = WINK.mirror - x;
         const dy = y + WINK.dy;
         const di = at(dx, dy);
-        for (let k = 0; k < 3; k++) px[di + k] = Math.round(px[di + k] * (1 - a) + px[si + k] * a);
+        for (let k = 0; k < 3; k++) px[di + k] = Math.round(px[di + k] * (1 - a) + src[si + k] * a);
       }
     }
+    openLeft(px, src, skin, at);
     g.putImageData(d, 0, 0);
     return c;
   }
+  // 半分: 元の上まつげ(太い黒い線)を、まぶたの下がった分だけ下へ写す(描き足した線ではなく
+  // 絵のまつげそのものが下りてくるように)。下半分には元の黒目が残る
+  const shift = Math.round(lidY - LASH.y0 - 2);
+  const skinL = skin[0] + skin[1] + skin[2];
+  for (let y = LASH.y0; y <= LASH.y1; y++) {
+    for (let x = LASH.x0; x <= LASH.x1; x++) {
+      const si = at(x, y);
+      const r = src[si];
+      const gg = src[si + 1];
+      const b = src[si + 2];
+      // まつげ(黒に近い色)だけを写す。前髪の縁(赤茶)や髪飾りの色は写さない
+      if (Math.max(r, gg, b) > 120 || Math.max(r, gg, b) - Math.min(r, gg, b) > 45) continue;
+      const a = Math.max(0, Math.min(1, (skinL - (r + gg + b)) / 300));
+      if (a <= 0) continue;
+      // まぶたは丸いので、真ん中ほど少し多く下げる
+      const dy = y + Math.round(shift * (0.85 + 0.15 * (1 - Math.abs(x - EYE.cx) / EYE.rx)));
+      if (dy >= IH) continue;
+      const di = at(x, dy);
+      for (let k = 0; k < 3; k++) px[di + k] = Math.round(px[di + k] * (1 - a) + src[si + k] * a);
+    }
+  }
+  openLeft(px, src, skin, at);
   g.putImageData(d, 0, 0);
-  g.strokeStyle = "#2b1715";
-  g.lineCap = "round";
-  g.lineWidth = 2.4;
-  g.beginPath();
-  g.moveTo(187, lidY + (close >= 1 ? 1 : 0));
-  g.quadraticCurveTo(200, lidY + (close >= 1 ? 5 : 2), 213, lidY - 1);
-  g.stroke();
-  g.lineWidth = 1.8;
-  g.beginPath();
-  g.moveTo(211, lidY - 1);
-  g.lineTo(215, lidY - 4);
-  g.stroke();
   return c;
+}
+
+// ウインクしている左目を開ける: 左目の閉じた線を肌の色で消し、右目(今の状態: 開き・半分・閉じ)を
+// 左右反転して写す。前髪(橙)は目より手前にあるので、写した目で上書きしない
+function openLeft(px, src, skin, at) {
+  const isHair = (r, g, b) => r > 170 && g < 140 && b < 110 && r - g > 70;
+  const near = (i) => Math.abs(px[i] - skin[0]) + Math.abs(px[i + 1] - skin[1]) + Math.abs(px[i + 2] - skin[2]);
+  // 右目の今の画素を先に取っておく(左へ写す元)
+  const eye = [];
+  for (let y = LEFT.sy0; y <= LEFT.sy1; y++) {
+    for (let x = LEFT.sx0; x <= LEFT.sx1; x++) {
+      // 目の輪郭の中だけ(髪飾り・前髪の縁・頬の赤みは写さない)
+      if (((x - EYE.cx) / (EYE.rx + 3)) ** 2 + ((y - EYE.cy + 1) / (EYE.ry + 2)) ** 2 > 1) continue;
+      const i = at(x, y);
+      const r = px[i];
+      const gg = px[i + 1];
+      const b = px[i + 2];
+      if (isHair(r, gg, b)) continue;
+      if (r - b > 40) continue; // 肌・頬の赤み・前髪の縁(赤み・橙み)。目は黒・白・青だけ
+      if (near(i) < 40) continue; // 肌はそのまま(左の肌を使う)
+      eye.push([WINK.mirror - x, y - WINK.dy, px[i], px[i + 1], px[i + 2]]);
+    }
+  }
+  // 左目の閉じた線(としわ)を消す
+  for (let y = LEFT.cy0; y <= LEFT.cy1; y++) {
+    for (let x = LEFT.cx0; x <= LEFT.cx1; x++) {
+      const i = at(x, y);
+      if (isHair(src[i], src[i + 1], src[i + 2])) continue;
+      if (Math.abs(src[i] - skin[0]) + Math.abs(src[i + 1] - skin[1]) + Math.abs(src[i + 2] - skin[2]) < 25) continue;
+      px[i] = skin[0];
+      px[i + 1] = skin[1];
+      px[i + 2] = skin[2];
+    }
+  }
+  for (const [x, y, r, g, b] of eye) {
+    const i = at(x, y);
+    if (isHair(src[i], src[i + 1], src[i + 2])) continue;
+    px[i] = r;
+    px[i + 1] = g;
+    px[i + 2] = b;
+  }
 }
 
 const VS = `
@@ -125,7 +189,8 @@ function createLabomi(img) {
   const canvas = document.createElement("canvas");
   canvas.width = CW;
   canvas.height = CH;
-  const frames = [img, blinkFrame(img, 0.5), blinkFrame(img, 1)];
+  // 0 = 両目を開ける、1 = 半分、2 = 閉じ、3 = もとの絵(ウインク)
+  const frames = [blinkFrame(img, 0), blinkFrame(img, 0.5), blinkFrame(img, 1), img];
   let gl = null;
   try {
     gl = canvas.getContext("webgl", { premultipliedAlpha: true, alpha: true, antialias: true });
