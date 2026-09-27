@@ -49,87 +49,84 @@ function mix(p, q, t) {
   return [lerp(p[0], q[0], t), lerp(p[1], q[1], t)];
 }
 
-// 1 つの目を描く。s = 1 は右目(目尻が +x)、-1 は左目
+// 1 つの目を描く。s = 1 は右目(目頭が -x、目尻が +x)、-1 は左目。
+// 上まつげは「目頭の端・平らな所の始まり・平らな所の終わり・目尻の端」の 4 点で表し、開きと閉じの間を
+// 動かす。形は元の絵を測った値(右目の中心 (201, 122) からの位置):
+//   開き: 上が平ら(y = -10.5)、目頭の端は少し下がり、目尻の端は下へ巻き込む
+//   閉じ: 元のウインクの線。下まぶたの高さ(y ≈ +10)で平ら、目尻の端だけ 5px ほど下がる(幅 16px)
+const LASH_OPEN = [[-13, -3], [-8.5, -10.5], [7, -10.5], [11.5, -1]];
+const LASH_CLOSED = [[-8, 10], [-4, 9.6], [2.5, 10], [7.2, 13.8]];
+
 function drawEye(g, cx, cy, s, open) {
-  // まぶたの端(目頭・目尻)と上まぶたの山。閉じると、下向きのゆるいカーブ 1 本になる
-  const inner = mix([-11.5 * s, 4], [-9.5 * s, 5], 1 - open);
-  const outer = mix([12 * s, -2], [10 * s, 4], 1 - open);
-  const upCtl = mix([1 * s, -23], [0, 8], 1 - open); // 上まぶたの制御点
-  const lowCtl = [0.5 * s, 18]; // 下まぶたの制御点
+  const P = LASH_OPEN.map((p, k) => [lerp(LASH_CLOSED[k][0], p[0], open) * s, lerp(LASH_CLOSED[k][1], p[1], open)]);
+  const lash = () => {
+    // 角を丸めた線: P0 → (P1 で曲がる) → (P2 で曲がる) → P3
+    const m = mix(P[1], P[2], 0.5);
+    g.moveTo(P[0][0], P[0][1]);
+    g.quadraticCurveTo(P[1][0], P[1][1], m[0], m[1]);
+    g.quadraticCurveTo(P[2][0], P[2][1], P[3][0], P[3][1]);
+  };
   g.save();
   g.translate(cx, cy);
-  const upper = () => {
-    g.moveTo(inner[0], inner[1]);
-    g.quadraticCurveTo(upCtl[0], upCtl[1], outer[0], outer[1]);
-  };
-  if (open > 0.08) {
-    // 白目(上まぶたと下まぶたの間)
+  if (open > 0.12) {
+    // 白目: 上まつげと下まぶた(目尻 → 目頭の下向きのカーブ)の間
     g.beginPath();
-    upper();
-    g.quadraticCurveTo(lowCtl[0], lowCtl[1], inner[0], inner[1]);
+    lash();
+    g.quadraticCurveTo(1 * s, 15, P[0][0], P[0][1]);
     g.closePath();
     g.fillStyle = "#fbfbff";
     g.fill();
     g.save();
     g.clip();
-    // 黒目(青)と瞳孔、ハイライト(光は左上から、両目とも同じ向き)
+    // 黒目(大きな青)と、上側の濃い瞳。ハイライトは左上の大きな丸と右下の小さな丸
     const ix = 1 * s;
     const iy = 2.5;
     const grd = g.createLinearGradient(0, iy - 9, 0, iy + 9);
-    grd.addColorStop(0, "#1d3a8f");
-    grd.addColorStop(0.55, "#2f6fd0");
-    grd.addColorStop(1, "#7fb8f5");
+    grd.addColorStop(0, "#1a2f7a");
+    grd.addColorStop(0.5, "#2c6ad0");
+    grd.addColorStop(1, "#6fb0f2");
     g.fillStyle = grd;
     g.beginPath();
-    g.ellipse(ix, iy, 8, 9.6, 0, 0, Math.PI * 2);
+    g.ellipse(ix, iy, 8.6, 8.8, 0, 0, Math.PI * 2);
     g.fill();
-    g.strokeStyle = "#12225a";
-    g.lineWidth = 1.2;
+    g.strokeStyle = "#0f1d4a";
+    g.lineWidth = 1.1;
     g.stroke();
-    g.fillStyle = "#0b1030";
+    g.fillStyle = "#0a0e2a";
     g.beginPath();
-    g.ellipse(ix + 0.3, iy - 0.5, 4, 5, 0, 0, Math.PI * 2);
+    g.ellipse(ix + 0.5, iy - 2.5, 5.2, 4.6, 0, 0, Math.PI * 2);
     g.fill();
     g.fillStyle = "#ffffff";
     g.beginPath();
-    g.ellipse(ix - 3.2, iy - 3.8, 3, 3.4, 0, 0, Math.PI * 2);
+    g.ellipse(ix - 4.2, iy - 5.2, 3.1, 3.4, 0, 0, Math.PI * 2);
     g.fill();
     g.beginPath();
-    g.arc(ix + 3, iy + 4.2, 1.3, 0, Math.PI * 2);
+    g.arc(ix + 3.4, iy + 4.4, 1.3, 0, Math.PI * 2);
     g.fill();
-    // 上まぶたの影
-    g.strokeStyle = "rgba(40,30,50,0.35)";
-    g.lineWidth = 4;
+    // まつげの下の影
+    g.strokeStyle = "rgba(30,25,45,0.4)";
+    g.lineWidth = 3.5;
     g.beginPath();
-    upper();
+    lash();
     g.stroke();
     g.restore();
-    // 下まつげ(目尻側だけ細く)
-    g.strokeStyle = "rgba(70,40,35,0.8)";
-    g.lineWidth = 1;
+  }
+  // 閉じる時の二重のしわ(元のウインクの上の薄い線)
+  if (open < 0.5) {
+    g.strokeStyle = `rgba(170,120,95,${0.7 * (1 - open * 2)})`;
+    g.lineWidth = 1.1;
     g.beginPath();
-    for (let k = 0; k <= 8; k++) {
-      // 下まぶたの曲線の、目尻側 1/3 をなぞる
-      const t = 0.06 + (k / 8) * 0.34;
-      const x = (1 - t) * (1 - t) * outer[0] + 2 * (1 - t) * t * lowCtl[0] + t * t * inner[0];
-      const y = (1 - t) * (1 - t) * outer[1] + 2 * (1 - t) * t * lowCtl[1] + t * t * inner[1];
-      if (k === 0) g.moveTo(x, y);
-      else g.lineTo(x, y);
-    }
+    g.moveTo(-6.5 * s, 5.3);
+    g.lineTo(0.5 * s, 5);
     g.stroke();
   }
-  // 上まつげ(太い黒)と目尻の跳ね
-  g.strokeStyle = "#141014";
+  // 上まつげ(太い黒)
+  g.strokeStyle = "#101010";
   g.lineCap = "round";
   g.lineJoin = "round";
-  g.lineWidth = lerp(2.6, 3.4, open);
+  g.lineWidth = lerp(2.8, 3.4, open);
   g.beginPath();
-  upper();
-  g.stroke();
-  g.lineWidth = 2.2;
-  g.beginPath();
-  g.moveTo(outer[0], outer[1]);
-  g.lineTo(outer[0] + 3 * s, outer[1] - 2.5 * open - 1);
+  lash();
   g.stroke();
   g.restore();
 }
