@@ -5,7 +5,8 @@
 // デプロイする(関数名は sanpaiGo。既存の sanpai(Node) とは別関数として
 // 共存させ、フロントエンドの切替タイミングを制御できるようにしている)。
 //
-// 挙動はNode版と同一にすることを優先し、独自の改善は入れていない。
+// 挙動はNode版と同一にすることを優先している。例外はボーナスタイム
+// (computeAddExp / bonus_calendar.go)で、これは Go 版で新たに入れたもの。
 // 検証中に見つかった既存(Node版)の挙動上の注意点は docs/backend.md
 // 「sanpai エンドポイントのGo移植」を参照。
 package gofunctions
@@ -65,6 +66,96 @@ func matchesBonusBranch(repoName string) bool {
 		}
 	}
 	return false
+}
+
+// lab428Regexp は bonusBranches の "428lab/.*" と同じパターン。
+// よつやの日(4/28)だけ 428lab への貢献の加点を増やすために使う。
+var lab428Regexp = regexp.MustCompile("^428lab/.*$")
+
+// lab428YotsuyaBonus はよつやの日の 428lab のイベント1件あたりの加点(他の日は +1)。
+const lab428YotsuyaBonus = 2
+
+func is428labRepo(name string) bool {
+	return lab428Regexp.MatchString(name)
+}
+
+// bonusBreakdown はボーナスタイムの内訳。各 kind に該当したイベント数と、
+// ボーナスが無かった場合の式(1 + floor(n/5) + b)との差分。
+type bonusBreakdown struct {
+	Yotsuya         int
+	YearEnd         int
+	Holiday         int
+	Lab428OnYotsuya int
+	BonusPoint      int
+}
+
+// computeAddExp は参拝1回で得るぽいんとを計算する(純関数)。
+//
+//	addExp = basePoint + floor(Σ mag(day_i) / 5) + Σ rb_i
+//
+// mag は各イベントの created_at を JST で日付にしたものの倍率(bonus_calendar.go)。
+// rb は bonusBranches に一致すれば +1、ただしよつやの日の 428lab は +2。
+// 基礎点 basePoint は日付に紐付かないので倍率をかけない。
+// すべて平日なら現行式 basePoint + floor(n/5) + b と一致する。
+func computeAddExp(basePoint int, items []feedItem) (int, bonusBreakdown) {
+	var bd bonusBreakdown
+	sumMag := 0
+	rb := 0
+	legacyRB := 0
+	for _, it := range items {
+		mag := 1
+		yotsuya := false
+		if created, err := time.Parse(time.RFC3339, it.Event.CreatedAt); err == nil {
+			day := bonusDay(created)
+			mag = bonusMagnitude(day)
+			yotsuya = isYotsuyaDay(day)
+		}
+		switch mag {
+		case bonusMagYotsuya:
+			bd.Yotsuya++
+		case bonusMagYearEnd:
+			bd.YearEnd++
+		case bonusMagHoliday:
+			bd.Holiday++
+		}
+		sumMag += mag
+
+		name := it.Event.Repo.Name
+		if matchesBonusBranch(name) {
+			legacyRB++
+			if yotsuya && is428labRepo(name) {
+				rb += lab428YotsuyaBonus
+				bd.Lab428OnYotsuya++
+			} else {
+				rb++
+			}
+		}
+	}
+	addExp := basePoint + sumMag/5 + rb
+	bd.BonusPoint = addExp - (basePoint + len(items)/5 + legacyRB)
+	return addExp, bd
+}
+
+// buildBonusMsg は参拝結果に出すボーナスタイムの文言を組み立てる。
+// 項目の順は固定で、0件の項は出さない。何も該当しなければ空文字。
+func buildBonusMsg(bd bonusBreakdown) string {
+	var parts []string
+	if bd.Yotsuya > 0 {
+		parts = append(parts, fmt.Sprintf("よつやの日 ×%d %d件", bonusMagYotsuya, bd.Yotsuya))
+	}
+	if bd.YearEnd > 0 {
+		parts = append(parts, fmt.Sprintf("年末年始 ×%d %d件", bonusMagYearEnd, bd.YearEnd))
+	}
+	if bd.Holiday > 0 {
+		parts = append(parts, fmt.Sprintf("土日・祝日 ×%d %d件", bonusMagHoliday, bd.Holiday))
+	}
+	if bd.Lab428OnYotsuya > 0 {
+		parts = append(parts, fmt.Sprintf("428lab ×%d %d件", lab428YotsuyaBonus, bd.Lab428OnYotsuya))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "ボーナスタイム: " + strings.Join(parts, " / ")
 }
 
 // sanpaiConfig は Node版 sanpai 定数(add_point/next_time)相当。
@@ -378,7 +469,6 @@ func runSanpai(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 		return err
 	}
 
-	addExp := cfg.AddPoint
 	hasLastSanpai := !userData.LastSanpai.IsZero()
 
 	if hasLastSanpai {
@@ -415,12 +505,7 @@ func runSanpai(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 		}
 	}
 
-	addExp += len(splited) / 5
-	for _, it := range splited {
-		if matchesBonusBranch(it.Event.Repo.Name) {
-			addExp++
-		}
-	}
+	addExp, bonus := computeAddExp(cfg.AddPoint, splited)
 
 	if len(splited) == 0 {
 		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "noaction", "add_exp": 0})
@@ -453,12 +538,9 @@ func runSanpai(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 		}
 	}
 
-	// 意図的な省略: Node版にはここに「2022/1/1〜1/3はポイント3倍」という
-	// 期間限定ボーナス(get_bonus_mag/msg)があるが、判定基準の date_now が
-	// Node側でコールドスタート時刻に固定される実装のため、対象期間(2022年)を
-	// 過ぎた現在は常に等倍(bonus_mag=1, msg="")になり実害がない。将来にわたり
-	// 再度真になることのない期間限定ロジックのため、Go版では意図的に移植せず
-	// msg は常に空文字とする(詳細は docs/backend.md 参照)。
+	// Node版の期間限定ボーナス(get_bonus_mag: 2022/1/1〜1/3 は3倍)は移植せず、
+	// 代わりにイベントの日付ごとの倍率(ボーナスタイム)を computeAddExp で
+	// 加点に反映している。msg はその内訳(詳細は docs/backend.md 参照)。
 
 	// 参拝可能時間のロックのため last_sanpai を先に確定させる
 	// (exp/status は計算後の下の update でまとめて反映する)
@@ -469,8 +551,9 @@ func runSanpai(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 	}
 
 	if _, _, err := userRef.Collection("sanpai_logs").Add(ctx, map[string]interface{}{
-		"add_point": addExp,
-		"timestamp": firestore.ServerTimestamp,
+		"add_point":   addExp,
+		"bonus_point": bonus.BonusPoint,
+		"timestamp":   firestore.ServerTimestamp,
 	}); err != nil {
 		return err
 	}
@@ -572,7 +655,7 @@ func runSanpai(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 		"level":              formatted.Level,
 		"exp":                formatted.Points,
 		"next_exp":           formatted.NextExp,
-		"msg":                "",
+		"msg":                buildBonusMsg(bonus),
 		"points_before":      pointsBefore,
 		"points_after":       formatted.Points,
 		"power_before":       powerBefore,

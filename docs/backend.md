@@ -232,15 +232,31 @@ Go(Cloud Run functions)に移植し、`sanpaiGo` という別関数名でデプ�
   `400`を返すことで挙動を揃えている(空ボディの場合はエラーにせず`{}`相当
   として扱う点もExpressのbody-parserと同じ)。
 
-### 意図的に移植しなかった機能
+### ボーナスタイム
 
-- **期間限定ボーナス(`get_bonus_mag`/`msg`)**: Node版には「2022/1/1〜1/3は
-  ポイント3倍」という一度きりのキャンペーンロジックがある。判定基準の
-  `date_now` はNode側の実装上コールドスタート時刻に固定されるため、対象期間
-  (2022年)を過ぎた現在は常に等倍(`bonus_mag=1`, `msg=""`)にしかならず、
-  将来にわたって再度trueになることもない。そのためGo版(`sanpaiGo`)では
-  意図的に移植せず、`msg` は常に空文字を返す。仮に同種の期間限定キャンペーンを
-  再度行う場合は、Go版にも該当ロジックを別途追加すること。
+土日・祝日・年末年始・4/28(よつやの日)の GitHub の活動に、ぽいんとの上乗せを付ける
+(`computeAddExp`、`app/functions-go/sanpai.go`)。判定は参拝した時刻ではなく、
+**各イベントの `created_at` を JST で日付にしたもの**で行う(いつ参拝しても同じ点になる)。
+
+```
+mag(day) = 4 (4/28) > 3 (12/29〜1/3) > 2 (土日・祝日) > 1     ※ max、掛け合わせない
+rb_i     = 0 (対象外) / 1 (bonusBranches に一致) / 2 (428lab/* かつ day_i が 4/28)
+addExp   = 1 + floor(Σ mag(day_i) / 5) + Σ rb_i
+```
+
+- 参拝1回の基礎点 `1` は日付に紐付かないので倍率をかけない。
+- すべて平日なら従来の式 `1 + floor(n/5) + b` と一致する。
+- 暦の判定は `app/functions-go/bonus_calendar.go`。祝日は内閣府の CSV を UTF-8 に
+  変換して `app/functions-go/holidays/holidays_jp.csv` に同梱している(振替休日・
+  国民の休日を含む)。**毎年2月頃(翌年分の公開後)に翌年分を CSV に追記する**
+  (手順は `app/functions-go/README.md`)。当年分が無いと
+  `TestJPHolidays_CoverCurrentYear` が落ちる。
+- 参拝結果の `msg` に内訳を出す。書式は固定順・`/` 区切りで、0件の項は出さない。
+  何も該当しなければ空文字。
+  例: `ボーナスタイム: よつやの日 ×4 2件 / 年末年始 ×3 1件 / 土日・祝日 ×2 3件 / 428lab ×2 2件`
+- `users/{id}/sanpai_logs` に `bonus_point`(`add_point` のうちボーナス由来の増分 =
+  addExp − 従来の式の値)を記録する。ランキングは従来どおり `add_point` だけを見る。
+- Node版の期間限定ボーナス(`get_bonus_mag`: 2022/1/1〜1/3 は3倍)は移植していない。
 
 ## `ranking` エンドポイントのGo移植 (`rankingGo`)
 

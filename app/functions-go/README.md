@@ -32,6 +32,9 @@ functions-go/
   status.go              # statusGo エンドポイント(モジュールルートパッケージ)
   sanpai.go              # sanpaiGo エンドポイント(モジュールルートパッケージ)
   sanpai_test.go         # sanpaiGoのFirestoreエミュレータ統合テスト
+  bonus_calendar.go      # ボーナスタイムの暦(祝日・年末年始・4/28 の判定)
+  holidays/
+    holidays_jp.csv      # 祝日データ(go:embed)。年1回の更新が要る(下記)
   ranking.go             # rankingGo エンドポイント
   ranking_test.go
   register.go            # registerGo エンドポイント
@@ -201,6 +204,24 @@ gcloud scheduler jobs update pubsub ranking-update-go \
 影響しない(例えば「毎時0分」はUTCでもAsia/Tokyoでも同じ実時刻に発火する。
 Asia/Tokyoは夏時間の無い固定オフセットのため)ため、CI側は全て `Etc/UTC` を
 明示指定している。
+
+## 祝日データ(holidays/holidays_jp.csv)の年次更新
+
+ボーナスタイム(docs/backend.md 参照)の祝日判定は `holidays/holidays_jp.csv` を
+`go:embed` で読む。形式は `YYYY-MM-DD,名称`(UTF-8、ヘッダー行なし)。
+内閣府は翌年分を毎年2月頃に公開するので、**毎年2月頃に翌年分を追記する**。
+当年分が無いと `TestJPHolidays_CoverCurrentYear` が落ちる(毎年 1/1 の tripwire)。
+
+```bash
+# 内閣府の CSV(Shift_JIS)を取得して UTF-8 に変換する
+curl -sSL https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv \
+  | iconv -f SHIFT_JIS -t UTF-8 | tr -d '\r' > /tmp/syukujitsu.csv
+# 1行目はヘッダー、日付は 2027/1/1 のようにゼロ埋めなし。翌年分の行だけを
+# YYYY-MM-DD にそろえて holidays/holidays_jp.csv の末尾に追記する(例: 2028 年分)
+awk -F, 'NR > 1 && $1 ~ /^2028\// { split($1, d, "/"); printf "%04d-%02d-%02d,%s\n", d[1], d[2], d[3], $2 }' \
+  /tmp/syukujitsu.csv >> holidays/holidays_jp.csv
+go test ./...
+```
 
 ## Node版との等価性の確認方法
 
