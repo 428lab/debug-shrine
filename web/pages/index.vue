@@ -26,12 +26,9 @@
             <button
               @click="GitHubAuth"
               class="btn btn-lg btn-accent"
-              :disabled="registering"
+              :disabled="false"
             >
-              <template v-if="registering">連携中…</template>
-              <template v-else>
-                GitHubと連携して<br class="d-md-none" />参拝しよう
-              </template>
+              GitHubと連携して<br class="d-md-none" />参拝しよう
             </button>
             <div v-if="registerError" class="notice-danger mt-3">
               <i class="fas fa-fw fa-exclamation-triangle"></i> 登録に失敗しました。時間をおいて、もう一度GitHub連携からやり直してください。
@@ -157,9 +154,8 @@
 import {
   getAuth,
   GithubAuthProvider,
+  signInWithPopup,
   signInWithRedirect,
-  getRedirectResult,
-  getAdditionalUserInfo,
   onAuthStateChanged,
 } from "firebase/auth";
 import { mapGetters } from "vuex";
@@ -181,9 +177,6 @@ export default {
       },
       // 登録API(registerGo)が失敗したときの表示フラグ(#205)
       registerError: false,
-      // リダイレクトサインインから戻って registerGo の登録が終わるまでの間。
-      // その間 store.user は空なのでボタンが見えたままになるため、二重押しを防ぐ。
-      registering: false,
       // らぼみの吹き出し。SSR/CSRの差異を避けるため mounted で選ぶ(初期は空)。
       labomiLine: "",
       // 次のおみくじまでの残り秒(0なら引ける)。localStorage から読むだけで、
@@ -192,24 +185,13 @@ export default {
       omikujiTimerId: null,
     };
   },
-  async mounted() {
+  mounted() {
     this.pickLabomiLine();
     this.refreshOmikuji();
     // 1秒ごとに保存済みの「次に引ける時刻」から計算し直す。残り秒を引き算で
     // 減らすと、タブが背面のとき setInterval が間引かれて実際より長い残り時間を
     // 表示してしまい、引けるのに「前回のおみくじ」のままになる。
     this.omikujiTimerId = setInterval(this.refreshOmikuji, 1000);
-    // GitHub サインインはリダイレクト方式(iPhone Safari やアプリ内ブラウザでは
-    // ポップアップが使えないため)(#25)。戻ってきたらここで登録まで行う。
-    // サインインせずに開いたときは null が返り、何もしない。
-    const auth = getAuth();
-    try {
-      // resolver は @nuxtjs/firebase(compat)の初期化時に設定済みなので渡さない
-      const result = await getRedirectResult(auth);
-      if (result) await this.registerSignedInUser(result);
-    } catch (e) {
-      console.error(e);
-    }
   },
   beforeDestroy() {
     if (this.omikujiTimerId) clearInterval(this.omikujiTimerId);
@@ -270,67 +252,56 @@ export default {
       }
       //未認証
       this.registerError = false;
-      // GitHub へ遷移する。戻ってきた後の登録は mounted の
-      // getRedirectResult → registerSignedInUser で行う(#25)
+      let result;
       try {
-        await signInWithRedirect(auth, provider);
+        result = await signInWithPopup(auth, provider);
       } catch (error) {
         console.error(error);
+        return;
       }
-    },
-    // サインイン結果からユーザーデータを作り、registerGo で登録する
-    async registerSignedInUser(result) {
-      this.registering = true;
-      try {
-        const auth = getAuth();
-        // auth エミュレーターの偽GitHubサインインは screenName / photoURL を
-        // 返さないため、ローカル検証用のフォールバックを入れる(実GitHubでは
-        // 常に値が入るため本番の挙動は変わらない)(#205)
-        const provData = result.user.providerData[0] || {};
-        const additional = getAdditionalUserInfo(result);
-        let userData = {
-          github_id: provData.uid || result.user.uid,
-          display_name: result.user.displayName,
-          screen_name:
-            additional?.username ||
-            result._tokenResponse?.screenName ||
-            (result.user.email ? result.user.email.split("@")[0] : "local-dev"),
-          image_path:
-            result.user.photoURL ||
-            "https://avatars.githubusercontent.com/u/583231",
-        };
+      // auth エミュレーターの偽GitHubサインインは screenName / photoURL を
+      // 返さないため、ローカル検証用のフォールバックを入れる(実GitHubでは
+      // 常に値が入るため本番の挙動は変わらない)(#205)
+      const provData = result.user.providerData[0] || {};
+      let userData = {
+        github_id: provData.uid || result.user.uid,
+        display_name: result.user.displayName,
+        screen_name:
+          result._tokenResponse.screenName ||
+          (result.user.email ? result.user.email.split("@")[0] : "local-dev"),
+        image_path:
+          result.user.photoURL ||
+          "https://avatars.githubusercontent.com/u/583231",
+      };
 
-        if (!userData.display_name) {
-          userData.display_name = userData.screen_name;
+      if (!userData.display_name) {
+        userData.display_name = userData.screen_name;
+      }
+      this.$store.commit("setUser", userData);
+      try {
+        const token = await auth.currentUser.getIdToken();
+        this.$store.commit("setToken", token);
+        // Go版(registerGo)はコールドスタートが短くログイン直後の登録が
+        // 速くなるため使用する(Node版のregisterとレスポンス形式は同一。
+        // docs/backend.md参照)
+        const res = await this.$axios.post("registerGo", userData, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        // success(新規)/ registered(登録済み)/ updated(uid補完)以外は登録失敗
+        const status = res && res.data && res.data.status;
+        if (!["success", "registered", "updated"].includes(status)) {
+          throw new Error("register failed: " + status);
         }
-        this.$store.commit("setUser", userData);
-        try {
-          const token = await auth.currentUser.getIdToken();
-          this.$store.commit("setToken", token);
-          // Go版(registerGo)はコールドスタートが短くログイン直後の登録が
-          // 速くなるため使用する(Node版のregisterとレスポンス形式は同一。
-          // docs/backend.md参照)
-          const res = await this.$axios.post("registerGo", userData, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
-          // success(新規)/ registered(登録済み)/ updated(uid補完)以外は登録失敗
-          const status = res && res.data && res.data.status;
-          if (!["success", "registered", "updated"].includes(status)) {
-            throw new Error("register failed: " + status);
-          }
-        } catch (e) {
-          // 登録に失敗したままログイン状態にすると、以後すべてのAPIが
-          // not registered を返す詰み状態になる(#205)。サインアウトして
-          // エラーを表示し、やり直せるようにする。
-          console.error(e);
-          this.registerError = true;
-          this.$store.dispatch("logout");
-          return;
-        }
-      } finally {
-        this.registering = false;
+      } catch (e) {
+        // 登録に失敗したままログイン状態にすると、以後すべてのAPIが
+        // not registered を返す詰み状態になる(#205)。サインアウトして
+        // エラーを表示し、やり直せるようにする。
+        console.error(e);
+        this.registerError = true;
+        this.$store.dispatch("logout");
+        return;
       }
     },
     sanpai() {
