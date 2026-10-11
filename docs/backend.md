@@ -6,42 +6,6 @@ firebase.auth.onOperation ?
 - Githubのデータをfirebase.firestoreに更新
     - 更新中はAPI`activities`の`github_update`が1
 
-## 認証(GitHub サインイン)(#25)
-
-### 方式
-- `web/pages/index.vue` の `GitHubAuth()` が `signInWithRedirect` で GitHub へ遷移する(ポップアップは使わない)。
-  iPhone Safari やアプリ内ブラウザ(X / Discord 等の WebView)ではポップアップが完了しないため、PC も含めて全面リダイレクト。
-- 戻り先は `/`。`mounted` の `getRedirectResult(auth)` で結果を受け取り、`registerSignedInUser()` が
-  ユーザーデータを作って `registerGo` に登録する。登録失敗時は赤い注意を出してサインアウトする(#205)。
-  結果が null(通常アクセス)のときは何もしない。
-- `screen_name` は `getAdditionalUserInfo(result).username` → `_tokenResponse.screenName` → email の @ 前 → `local-dev` の順。
-
-### `AUTH_DOMAIN` の要件
-- `.env` の `AUTH_DOMAIN` は **配信ドメインと同じ** にする(本番 `d-shrine.jp`、dev `d-shrine-dev.web.app`)。
-  `*.firebaseapp.com` のように配信ドメインと別オリジンだと、Safari 16.1+ / Chrome 115+ のサードパーティストレージ遮断で
-  `getRedirectResult` が null になりサインインが完了しない。
-- Firebase Hosting は配信ドメインでも `/__/auth/handler` を返すので、リバースプロキシ等は不要。
-- GitHub OAuth App の callback URL に `https://<配信ドメイン>/__/auth/handler` を環境ごとに登録する。
-
-### ローカル
-- `APP_ENV=local` のときは auth emulator(`http://localhost:9099`)を使う。この場合 `AUTH_DOMAIN` はリダイレクトに使われない。
-- emulator の偽 GitHub アカウントは screenName / photoURL を返さないため、email フォールバックが効く。
-- localhost から dev プロジェクトの実 GitHub 認証を直接使う運用は、別オリジン問題で Safari / Chrome 115+ では動かない。
-
-### 切り替えの手作業(順番が重要)
-0. 前提確認
-   - a. Firebase コンソール > Authentication > Sign-in method > GitHub で、本番(d-shrine)と dev(d-shrine-dev)が
-     どの GitHub OAuth App を使っているか確認する(同一 App か別か)。
-   - b. Authentication > Settings > 承認済みドメイン に `d-shrine.jp`(本番)/ `d-shrine-dev.web.app`(dev)があることを確認。無ければ追加。
-1. GitHub OAuth App(dev 用)の callback URL に `https://d-shrine-dev.web.app/__/auth/handler` を **追加** する
-   (既存の `https://d-shrine-dev.firebaseapp.com/__/auth/handler` は消さない。複数登録できる)。
-2. GitHub Secret `DEV_ENV` の `AUTH_DOMAIN` を `'d-shrine-dev.web.app'` に変更する。
-3. コードを `env/dev` にデプロイし、iPhone Safari / X・Discord 内ブラウザ / PC で実機確認する。
-4. 問題なければ本番: callback に `https://d-shrine.jp/__/auth/handler` を追加 → `PROD_ENV` の `AUTH_DOMAIN` を `'d-shrine.jp'` に変更 → `env/prod` にデプロイ。
-5. 本番が安定したら旧 callback(`*.firebaseapp.com`)を削除する(任意。残しても害はない)。
-
-callback 追加 → env 変更 → デプロイ の順なら、旧ビルドは旧 callback、新ビルドは新 callback で両方通るため、本番に空白期間は出ない。
-
 ## アカウント作成時
 firebase.auth.onCreate
 
