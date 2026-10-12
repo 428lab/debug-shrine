@@ -295,6 +295,8 @@ export default {
         if (g.over) {
           this.phase = "dying";
           this._dieAt = now;
+          // 終わった時にすぐ送る(終わりの演出の間にページを離れても記録される)
+          this.mgSubmit({ game: "typo", score: g.score, duration_ms: Math.round(g.t * 1000), max_combo: g.maxCombo, fixed: g.fixed });
           if (this.music) this.music.stop(0.6);
           this.sfx("over");
         }
@@ -499,7 +501,6 @@ export default {
       };
       this.say(this.result.line);
       this.phase = "over";
-      this.mgSubmit({ game: "typo", score: g.score, duration_ms: Math.round(g.t * 1000), max_combo: g.maxCombo, fixed: g.fixed });
       // 結果の札が見えるように(スマホではゲーム画面だけで画面がいっぱい)
       this.$nextTick(() => {
         const card = this.$el && this.$el.querySelector(".tg-card");

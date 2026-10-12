@@ -194,7 +194,8 @@ export default {
   },
   methods: {
     set(q) {
-      this.$router.replace({ query: Object.assign({}, this.$route.query, q) });
+      // 選んでいるタブをもう一度押した時の「同じ所への移動」は無視する
+      this.$router.replace({ query: Object.assign({}, this.$route.query, q) }).catch(() => {});
     },
     async load() {
       const seq = ++this.seq;

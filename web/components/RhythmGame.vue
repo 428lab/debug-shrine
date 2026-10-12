@@ -16,7 +16,7 @@
       ></canvas>
 
       <!-- はじめの画面 -->
-      <div v-if="phase === 'title'" class="rg-over">
+      <div v-if="phase === 'title'" class="rg-over rg-over-title">
         <!-- ランキングは右上の角に(はじめの画面の並びを押し下げない) -->
         <MinigameRankLine state="idle" compact class="rg-rank-corner" :to="rankTo(songId)" />
         <div class="rg-title">{{ title }}</div>
@@ -1005,6 +1005,10 @@ export default {
 .rg-help {
   font-size: 0.8rem;
   opacity: 0.75;
+}
+/* 右上のランキングのボタンの分、上をあける(低い画面で題と重ならないように) */
+.rg-over-title {
+  padding-top: 52px;
 }
 .rg-rank-corner {
   position: absolute;

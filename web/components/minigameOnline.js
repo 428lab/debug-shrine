@@ -9,6 +9,7 @@ import { getAuth, onAuthStateChanged } from "firebase/auth";
 
 const ENDPOINT = "minigameGo";
 const TOAST_MS = 4200;
+const RETRY_MS = 2200; // too_fast(続けての送信)の時に待ってから 1 回だけ送り直す
 
 // ランキングのページへのリンク
 export function rankingLink(game, song, level) {
@@ -47,12 +48,15 @@ export default {
   },
   created() {
     // 毎フレーム見るものは data に入れない
-    this._mg = { defs: [], have: new Set(), shown: new Set(), ready: false, toastSeq: 0, timers: [] };
+    // run: 遊んだ回の番号(前の回の送信の返事が、次の回の結果を上書きしないように)
+    // shown: この回に通知した実績(送信が失敗しても、次の回にまた取れば通知する)
+    this._mg = { defs: [], have: new Set(), shown: new Set(), ready: false, toastSeq: 0, timers: [], run: 0, dead: false };
   },
   mounted() {
     this.mgLoad();
   },
   beforeDestroy() {
+    this._mg.dead = true;
     for (const t of this._mg.timers) clearTimeout(t);
   },
   methods: {
@@ -72,6 +76,8 @@ export default {
     },
     // 遊び始めた時(前の回の結果を消す)
     mgReset() {
+      this._mg.run++;
+      this._mg.shown = new Set();
       this.mgSend = "idle";
       this.mgRanks = null;
     },
@@ -89,6 +95,7 @@ export default {
       }
     },
     mgToast(def) {
+      if (this._mg.dead) return;
       const key = ++this._mg.toastSeq;
       this.mgToasts.push({ key, id: def.id, label: def.label, icon: def.icon, desc: def.desc });
       const t = setTimeout(() => {
@@ -98,6 +105,11 @@ export default {
     },
     // 終わった時に呼ぶ。body は minigameGo の POST(github_id は足す)
     async mgSubmit(body) {
+      const m = this._mg;
+      const run = m.run;
+      const shown = m.shown;
+      // 返事を待つ間に次の回が始まったり、ページを離れたりしたら、画面の状態は触らない
+      const current = () => run === m.run && !m.dead;
       const u = this.mgUser;
       if (!u || !u.github_id) {
         this.mgSend = "off";
@@ -107,35 +119,43 @@ export default {
       try {
         const fu = await currentUser();
         if (!fu) {
-          this.mgSend = "off";
+          if (current()) this.mgSend = "off";
           return;
         }
-        const token = await fu.getIdToken();
-        const res = await this.$axios.post(
-          ENDPOINT,
-          Object.assign({ github_id: u.github_id }, body),
-          { headers: { Authorization: `Bearer ${token}` }, timeout: 20000 }
-        );
-        const d = res.data || {};
+        const payload = Object.assign({ github_id: u.github_id }, body);
+        let d = await this.mgPost(fu, payload);
+        if (d.status === "too_fast") {
+          await new Promise((resolve) => setTimeout(resolve, RETRY_MS));
+          if (m.dead) return;
+          d = await this.mgPost(fu, payload);
+        }
         if (d.status === "success") {
-          this.mgRanks = d.ranks || null;
-          this.mgSend = "done";
+          // 持っている実績はサーバーのものに合わせる
+          m.have = new Set(d.achievements || []);
           for (const a of d.unlocked || []) {
-            this._mg.have.add(a.id);
-            // ゲーム中に出したものは出さない
-            if (!this._mg.shown.has(a.id)) {
-              this._mg.shown.add(a.id);
+            // この回のゲーム中に出したものは出さない
+            if (!shown.has(a.id)) {
+              shown.add(a.id);
               this.mgToast(a);
             }
           }
-        } else if (d.status === "rejected") {
-          this.mgSend = "rejected";
-        } else {
-          this.mgSend = "error";
+          if (!current()) return;
+          this.mgRanks = d.ranks || null;
+          this.mgSend = "done";
+        } else if (current()) {
+          this.mgSend = d.status === "rejected" ? "rejected" : "error";
         }
       } catch (e) {
-        this.mgSend = "error";
+        if (current()) this.mgSend = "error";
       }
+    },
+    async mgPost(fu, payload) {
+      const token = await fu.getIdToken();
+      const res = await this.$axios.post(ENDPOINT, payload, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 20000,
+      });
+      return res.data || {};
     },
   },
 };
