@@ -12,13 +12,19 @@
         </div>
       </nuxt-link>
     </div>
+    <div class="text-center mt-3">
+      <nuxt-link to="/games/ranking" class="btn btn-outline-light">
+        <i class="fas fa-fw fa-crown"></i> ランキング
+      </nuxt-link>
+    </div>
   </div>
 </template>
 
 <script>
 // ミニゲームの一覧。ゲームを増やしたら games に足す(ページは pages/games/<id>.vue、
 // アイコンは static/games/<id>.svg)。
-// ログインしなくても遊べる。
+// ログインしなくても遊べる。ログインしていると、点数がランキングに載り、実績が記録される
+// (minigameOnline.js、サーバーは minigameGo)。
 export default {
   data() {
     return {

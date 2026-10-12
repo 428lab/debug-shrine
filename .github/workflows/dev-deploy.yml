@@ -296,6 +296,9 @@ jobs:
           deploy omikujiGo OmikujiGo \
             --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s \
             --set-env-vars="OMIKUJI_COOLDOWN_SECONDS=60,KUDA_BASE_URL=https://kuda.kojiran.workers.dev,KUDA_API_KEY=${{ secrets.DEV_KUDA_API_KEY }}"
+          # ミニゲームのランキングと実績(送信は本人確認つき)
+          deploy minigameGo MinigameGo \
+            --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s
           deploy ogpRewriteGo OgpRewriteGo \
             --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s \
             --set-env-vars="FUNC_BASE_URL=$OGP_FUNC_BASE_URL,OGP_PROJECT_ID=d-shrine-dev"

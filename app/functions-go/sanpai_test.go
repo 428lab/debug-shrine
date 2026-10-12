@@ -160,9 +160,16 @@ func TestSanpai_FirstTime_FullCalculation(t *testing.T) {
 	if out["status"] != "success" {
 		t.Fatalf("unexpected response: %+v", out)
 	}
-	// add_exp = 1(base) + floor(3/5)=0 + bonus_branch match("428lab/foo")=1 => 2
-	if got := int(out["add_exp"].(float64)); got != 2 {
-		t.Errorf("add_exp = %d, want 2", got)
+	// イベントは JST 2024-01-01(年末年始)なので各 mag=bonusMagYearEnd。
+	// add_exp = 1(base) + floor(3*mag/5) + bonus_branch match("428lab/foo")=1
+	wantAddExp := 1 + (3*bonusMagYearEnd)/5 + 1
+	// ボーナスが無い場合の式: 1 + floor(3/5) + 1
+	wantBonusPoint := wantAddExp - (1 + 3/5 + 1)
+	if got := int(out["add_exp"].(float64)); got != wantAddExp {
+		t.Errorf("add_exp = %d, want %d", got, wantAddExp)
+	}
+	if got, want := out["msg"], fmt.Sprintf("ボーナスタイム: 年末年始 ×%d 3件", bonusMagYearEnd); got != want {
+		t.Errorf("msg = %q, want %q", got, want)
 	}
 	if got := int(out["action_count"].(float64)); got != 3 {
 		t.Errorf("action_count = %d, want 3", got)
@@ -173,8 +180,8 @@ func TestSanpai_FirstTime_FullCalculation(t *testing.T) {
 	if got := int(out["points_before"].(float64)); got != 10 {
 		t.Errorf("points_before = %d, want 10", got)
 	}
-	if got := int(out["points_after"].(float64)); got != 12 {
-		t.Errorf("points_after = %d, want 12", got)
+	if got := int(out["points_after"].(float64)); got != 10+wantAddExp {
+		t.Errorf("points_after = %d, want %d", got, 10+wantAddExp)
 	}
 
 	snap, err := client.Collection("users").Doc(githubID).Get(ctx)
@@ -185,8 +192,8 @@ func TestSanpai_FirstTime_FullCalculation(t *testing.T) {
 	if err := snap.DataTo(&updated); err != nil {
 		t.Fatalf("DataTo: %v", err)
 	}
-	if updated.Exp != 12 {
-		t.Errorf("stored exp = %d, want 12", updated.Exp)
+	if updated.Exp != int64(10+wantAddExp) {
+		t.Errorf("stored exp = %d, want %d", updated.Exp, 10+wantAddExp)
 	}
 	cached, err := decodeCurrentStatusCache(snap, updated.StatusVersion)
 	if err != nil {
@@ -213,6 +220,110 @@ func TestSanpai_FirstTime_FullCalculation(t *testing.T) {
 	}
 	if count != 3 {
 		t.Errorf("stored activity count = %d, want 3", count)
+	}
+
+	// sanpai_logs にボーナス由来の増分(bonus_point)が書かれること。
+	logs, err := client.Collection("users").Doc(githubID).Collection("sanpai_logs").Documents(ctx).GetAll()
+	if err != nil {
+		t.Fatalf("failed to read sanpai_logs: %v", err)
+	}
+	if len(logs) != 1 {
+		t.Fatalf("sanpai_logs count = %d, want 1", len(logs))
+	}
+	if got := logs[0].Data()["add_point"]; got != int64(wantAddExp) {
+		t.Errorf("sanpai_logs.add_point = %v, want %d", got, wantAddExp)
+	}
+	if got := logs[0].Data()["bonus_point"]; got != int64(wantBonusPoint) {
+		t.Errorf("sanpai_logs.bonus_point = %v, want %d", got, wantBonusPoint)
+	}
+}
+
+// ボーナスタイムの加点計算(エミュレータ不要)。
+func TestComputeAddExp(t *testing.T) {
+	ev := func(repo, createdAt string) feedItem {
+		return feedItem{Event: githubEvent{CreatedAt: createdAt, Repo: struct {
+			Name string `json:"name"`
+		}{Name: repo}}}
+	}
+	repeat := func(n int, repo, createdAt string) []feedItem {
+		res := make([]feedItem, n)
+		for i := range res {
+			res[i] = ev(repo, createdAt)
+		}
+		return res
+	}
+	// 時刻はすべて UTC 03:00(JST 12:00)にして日付の境界から離す。
+	const (
+		weekday  = "2026-09-28T03:00:00Z" // 月曜
+		saturday = "2026-09-26T03:00:00Z"
+		yotsuya  = "2026-04-28T03:00:00Z" // 火曜
+		newYear  = "2026-01-01T03:00:00Z"
+	)
+	cases := []struct {
+		name      string
+		items     []feedItem
+		wantExp   int
+		wantBonus int
+		wantMsg   string
+	}{
+		{
+			name:    "平日のみ・対象外 repo(現行式と一致)",
+			items:   repeat(7, "foo/bar", weekday),
+			wantExp: 1 + 7/5 + 0, // 2
+			wantMsg: "",
+		},
+		{
+			name:      "土曜 3件",
+			items:     repeat(3, "foo/bar", saturday),
+			wantExp:   1 + (3*2)/5, // 2
+			wantBonus: 1,
+			wantMsg:   "ボーナスタイム: 土日・祝日 ×2 3件",
+		},
+		{
+			name:      "4/28 に 428lab 2件 + 平日 1件",
+			items:     append(repeat(2, "428lab/x", yotsuya), ev("foo/bar", weekday)),
+			wantExp:   1 + (4+4+1)/5 + 2*2, // 6
+			wantBonus: 3,                   // 現行式 1 + 0 + 2 = 3
+			wantMsg:   "ボーナスタイム: よつやの日 ×4 2件 / 428lab ×2 2件",
+		},
+		{
+			name:    "1/1 に nostr-jp 1件",
+			items:   []feedItem{ev("nostr-jp/x", newYear)},
+			wantExp: 1 + 3/5 + 1, // 2
+			wantMsg: "ボーナスタイム: 年末年始 ×3 1件",
+		},
+		{
+			name:    "4/28 以外の 428lab は現行どおり +1",
+			items:   []feedItem{ev("428lab/x", saturday)},
+			wantExp: 1 + 2/5 + 1, // 2
+			wantMsg: "ボーナスタイム: 土日・祝日 ×2 1件",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, bd := computeAddExp(1, c.items)
+			if got != c.wantExp {
+				t.Errorf("addExp = %d, want %d", got, c.wantExp)
+			}
+			if bd.BonusPoint != c.wantBonus {
+				t.Errorf("BonusPoint = %d, want %d", bd.BonusPoint, c.wantBonus)
+			}
+			if msg := buildBonusMsg(bd); msg != c.wantMsg {
+				t.Errorf("msg = %q, want %q", msg, c.wantMsg)
+			}
+		})
+	}
+}
+
+// msg は固定順で、0件の項は出さない。
+func TestBuildBonusMsg_Order(t *testing.T) {
+	got := buildBonusMsg(bonusBreakdown{Yotsuya: 2, YearEnd: 1, Holiday: 3, Lab428OnYotsuya: 2})
+	want := "ボーナスタイム: よつやの日 ×4 2件 / 年末年始 ×3 1件 / 土日・祝日 ×2 3件 / 428lab ×2 2件"
+	if got != want {
+		t.Errorf("msg = %q, want %q", got, want)
+	}
+	if got := buildBonusMsg(bonusBreakdown{}); got != "" {
+		t.Errorf("msg = %q, want empty", got)
 	}
 }
 

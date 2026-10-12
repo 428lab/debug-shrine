@@ -232,15 +232,31 @@ Go(Cloud Run functions)に移植し、`sanpaiGo` という別関数名でデプ�
   `400`を返すことで挙動を揃えている(空ボディの場合はエラーにせず`{}`相当
   として扱う点もExpressのbody-parserと同じ)。
 
-### 意図的に移植しなかった機能
+### ボーナスタイム
 
-- **期間限定ボーナス(`get_bonus_mag`/`msg`)**: Node版には「2022/1/1〜1/3は
-  ポイント3倍」という一度きりのキャンペーンロジックがある。判定基準の
-  `date_now` はNode側の実装上コールドスタート時刻に固定されるため、対象期間
-  (2022年)を過ぎた現在は常に等倍(`bonus_mag=1`, `msg=""`)にしかならず、
-  将来にわたって再度trueになることもない。そのためGo版(`sanpaiGo`)では
-  意図的に移植せず、`msg` は常に空文字を返す。仮に同種の期間限定キャンペーンを
-  再度行う場合は、Go版にも該当ロジックを別途追加すること。
+土日・祝日・年末年始・4/28(よつやの日)の GitHub の活動に、ぽいんとの上乗せを付ける
+(`computeAddExp`、`app/functions-go/sanpai.go`)。判定は参拝した時刻ではなく、
+**各イベントの `created_at` を JST で日付にしたもの**で行う(いつ参拝しても同じ点になる)。
+
+```
+mag(day) = 4 (4/28) > 3 (12/29〜1/3) > 2 (土日・祝日) > 1     ※ max、掛け合わせない
+rb_i     = 0 (対象外) / 1 (bonusBranches に一致) / 2 (428lab/* かつ day_i が 4/28)
+addExp   = 1 + floor(Σ mag(day_i) / 5) + Σ rb_i
+```
+
+- 参拝1回の基礎点 `1` は日付に紐付かないので倍率をかけない。
+- すべて平日なら従来の式 `1 + floor(n/5) + b` と一致する。
+- 暦の判定は `app/functions-go/bonus_calendar.go`。祝日は内閣府の CSV を UTF-8 に
+  変換して `app/functions-go/holidays/holidays_jp.csv` に同梱している(振替休日・
+  国民の休日を含む)。**毎年2月頃(翌年分の公開後)に翌年分を CSV に追記する**
+  (手順は `app/functions-go/README.md`)。当年分が無いと
+  `TestJPHolidays_CoverCurrentYear` が落ちる。
+- 参拝結果の `msg` に内訳を出す。書式は固定順・`/` 区切りで、0件の項は出さない。
+  何も該当しなければ空文字。
+  例: `ボーナスタイム: よつやの日 ×4 2件 / 年末年始 ×3 1件 / 土日・祝日 ×2 3件 / 428lab ×2 2件`
+- `users/{id}/sanpai_logs` に `bonus_point`(`add_point` のうちボーナス由来の増分 =
+  addExp − 従来の式の値)を記録する。ランキングは従来どおり `add_point` だけを見る。
+- Node版の期間限定ボーナス(`get_bonus_mag`: 2022/1/1〜1/3 は3倍)は移植していない。
 
 ## `ranking` エンドポイントのGo移植 (`rankingGo`)
 
@@ -998,6 +1014,57 @@ sanpai_logs / omikuji_logs を集計して返す(表示: `web/components/Profile
     一斉お祓い、光の柱、終わり
 - 検証: `web/scripts/test-typo-game.js`(言葉の書き方と正しい形、タップの当たり・お手つき、
   漏れで終わる、一斉お祓い、難しさが上がる、上手な bot が 2 分遊べる)
+
+### ランキングと実績(`minigameGo`)
+
+ログインしている人だけ、遊び終わった結果をサーバーに送り、ランキングと実績(アチーブメント)に
+記録する。ログインしていない人は今まで通り端末の中のベストだけ。決まりは
+`app/functions-go/minigame.go`(純関数)、通信と保存は `minigame_api.go`。
+
+- ゲームは端末だけで動くので、点数はいじろうと思えばいじれる(完全には防げない前提。ユーザー決定)。
+  サーバーでは「ありえない値」だけ弾く(`mgCheck`):
+  - 韋駝天: 遊んだ時間に対して点数が多すぎる(1 秒 200 点 + 300 まで)
+  - 誤字祓い: 1 秒に直せる言葉の数(4 語 + 10)、1 語 600 点まで、コンボが直した数を超えない
+  - 神楽ビート: 曲・難易度が既知、判定の数の合計が譜面どおり(`minigame_rhythm_totals.json`。譜面を変えたら
+    `web/scripts/test-minigame-totals.js` が食い違いを教えるので JSON を直す)、判定の数から計算した点数
+    (`rhythmChart.js` の `scoreOf`)と送られた点数が一致
+  - 2 秒以内の続けての送信は `too_fast`
+- 送信は本人だけ(ID トークンの UID と `users/{id}.auth_user_uid` の一致。`pinnedReposGo` と同じ)
+- ランキング: 韋駝天・誤字祓い・神楽ビート(4 曲 × 3 難易度)の 14 個 × 歴代・週間・月間。
+  週・月の区切りは期間ランキングと同じ日本時間(週は月曜始まり)。1 人 1 件で、その期間のベストだけ。
+  - 保存先 `minigame_boards/{board}__{期間キー}/scores/{github_id}`(`score`・`updated_at`)。名前・アイコンは
+    持たず、読む時に `users` から引く(変えた人は新しいもの、退会した人は載らない)。
+    期間キーは `all` / `w2026-10-12`(週の月曜) / `m2026-10`。期間が変わると新しいキーに書くだけで、
+    締めの処理は無い(古い期間の記録は残る)
+  - board ごとにサブコレクションを分けているので、`score` の単一フィールドの並べ替えだけで済み、
+    複合インデックスは要らない。順位は「自分より高い点の人の数 + 1」(集計クエリの count)。
+    同点は同じ順位、並びは先に出した人が上(境目の同点のため 20 件多く読んでから並べ直して切る)
+- 実績: 22 個(`mgAchievementDefs`)。条件は「値(`Metric`)が `Min` 以上」の形だけ。値はこの回の
+  点数・コンボ・フルコンボと、`users/{id}/minigame/state` の累計(回数・直した語数・遊んだ曲・
+  遊んだ日数)。`Live` の実績(この回の点数・コンボ)は、端末がゲーム中にその場で「実績解除!」を
+  出し、記録は送信時にサーバーがする。一覧(`defs`)はサーバーから配るので、端末に条件の複製は無い
+- マイページ・公開プロフィールの称号の欄に、`profileStatsGo` の `minigame`(全件と `achieved`)を出す
+
+API(`minigameGo`):
+
+| | |
+|---|---|
+| `GET ?board=typo&period=week[&me={github_id}][&limit=50]` | 上位(既定 50、最大 100)と `me`(順位・点) |
+| `GET ?achievements=1[&me={github_id}]` | 実績の一覧 `defs` と、持っている実績 `achievements`・歴代ベスト `best` |
+| `POST {github_id, game, song?, level?, score, duration_ms(整数), max_combo, fixed?, counts?}` | 送信(Bearer 必須)。`ranks`(期間ごとの順位・ベスト・更新したか)と `unlocked`(新しく取った実績) |
+
+board の id: `ostrich` / `typo` / `rhythm-{曲 id}-{easy|normal|hard}`。
+
+フロント:
+
+- `web/components/minigameOnline.js`(mixin): 3 つのゲームが使う。開いた時に実績の一覧と持っている実績を
+  読み(ログイン時だけ)、遊んでいる間は `mgLive()` で `live` の実績を判定して通知、終わったら `mgSubmit()`
+- `MinigameToasts.vue`: 「実績解除!」の通知(画面の上。押してもゲームの邪魔をしない)
+- `MinigameRankLine.vue`: 結果の下の今回の順位(週間・月間・歴代)と「ランキング」ボタン。
+  ログインしていなければ「ログインするとランキングに載ります」
+- `web/pages/games/ranking.vue`(`/games/ranking?game=rhythm&song=ten&level=hard&period=week`):
+  ゲーム・曲・難易度・期間のタブ、上位 50 と自分の順位
+- `ProfileStats.vue`: 称号の下に「ミニゲーム」(取った実績だけ。分母は全種数)
 
 ## おみくじの物理乱数化(kuda)
 
