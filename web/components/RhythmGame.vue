@@ -1,6 +1,6 @@
 <template>
   <!-- リズムゲーム本体。譜面は rhythmChart.js、曲の一覧は rhythmSongs.js、音は rhythmAudio.js。
-       ハイスコアはこの端末にだけ保存する(DB には送らない)。 -->
+       ハイスコアはこの端末に保存し、ログインしていればランキングと実績に送る(minigameOnline.js)。 -->
   <div class="rg" @dblclick.prevent>
     <div ref="wrap" class="rg-wrap">
       <canvas
@@ -16,7 +16,9 @@
       ></canvas>
 
       <!-- はじめの画面 -->
-      <div v-if="phase === 'title'" class="rg-over">
+      <div v-if="phase === 'title'" class="rg-over rg-over-title">
+        <!-- ランキングは右上の角に(はじめの画面の並びを押し下げない) -->
+        <MinigameRankLine state="idle" compact class="rg-rank-corner" :to="rankTo(songId)" />
         <div class="rg-title">{{ title }}</div>
         <div class="rg-sub">鈴・太鼓・柏手を、曲に合わせて叩け</div>
         <div class="rg-songs">
@@ -82,8 +84,10 @@
             <i class="fas fa-download fa-fw"></i> 画像を保存
           </button>
         </div>
+        <MinigameRankLine :state="mgSend" :ranks="mgRanks" :to="rankTo(songId, level)" />
       </div>
     </div>
+    <MinigameToasts :toasts="mgToasts" />
   </div>
 </template>
 
@@ -91,6 +95,9 @@
 import Songs from "@/components/rhythmSongs";
 import Chart from "@/components/rhythmChart";
 import Audio from "@/components/rhythmAudio";
+import MinigameOnline, { rankingLink } from "@/components/minigameOnline";
+import MinigameToasts from "@/components/MinigameToasts.vue";
+import MinigameRankLine from "@/components/MinigameRankLine.vue";
 
 const W = 420; // 論理の幅(高さは画面の縦横比で決める)
 const LEAD = 2.0; // 曲が始まるまでの間(音符が遠くから来る時間)
@@ -131,6 +138,8 @@ function saveBest(b) {
 }
 
 export default {
+  components: { MinigameToasts, MinigameRankLine },
+  mixins: [MinigameOnline],
   props: {
     title: { type: String, default: "リズムゲーム" },
     siteUrl: { type: String, default: "" },
@@ -196,6 +205,9 @@ export default {
     if (this.ctx) this.ctx.close();
   },
   methods: {
+    rankTo(song, level) {
+      return rankingLink("rhythm", song, level);
+    },
     resize() {
       const c = this.$refs.canvas;
       const wrap = this.$refs.wrap;
@@ -272,6 +284,7 @@ export default {
       if (this.engine) this.engine.silence();
       this.useSong(this.songId);
       this.level = level;
+      this.mgReset();
       this.chart = Chart.buildChart(this.song, level);
       this.engine = Audio.createEngine(ctx);
       const startAt = this.engine.startSong(this.song, 0, LEAD);
@@ -498,6 +511,15 @@ export default {
         bestLine: newBest ? (prev ? `ベスト更新!(これまで ${prev.toLocaleString()})` : "はじめての記録!") : `ベスト ${prev.toLocaleString()}`,
         date: `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`,
       };
+      this.mgSubmit({
+        game: "rhythm",
+        song: this.songId,
+        level: this.level,
+        score,
+        duration_ms: Math.round(this.song.duration * 1000),
+        max_combo: st.maxCombo,
+        counts: Object.assign({}, st.counts),
+      });
       // 最後の判定の文字が見えるよう少し待ってから、音を止めて結果へ
       this.phase = "ending";
       setTimeout(() => {
@@ -983,6 +1005,16 @@ export default {
 .rg-help {
   font-size: 0.8rem;
   opacity: 0.75;
+}
+/* 右上のランキングのボタンの分、上をあける(低い画面で題と重ならないように) */
+.rg-over-title {
+  padding-top: 52px;
+}
+.rg-rank-corner {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  margin: 0;
 }
 .rg-over-result {
   overflow-y: auto;

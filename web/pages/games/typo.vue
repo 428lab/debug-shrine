@@ -9,7 +9,7 @@
 import TypoGame from "@/components/TypoGame.vue";
 
 // ミニゲーム: 誤字祓い(落ちてくる誤字の、間違っている文字をタップして、らぼみがお祓いで直す)。
-// ログインしなくても遊べる。ハイスコアはこの端末にだけ保存する。
+// ログインしなくても遊べる。ハイスコアはこの端末に保存し、ログインしていればランキングにも送る。
 export default {
   components: { TypoGame },
   head() {
