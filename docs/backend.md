@@ -1052,6 +1052,17 @@ API(`minigameGo`):
 
 board の id: `ostrich` / `typo` / `rhythm-{曲 id}-{easy|normal|hard}`。
 
+フロント:
+
+- `web/components/minigameOnline.js`(mixin): 3 つのゲームが使う。開いた時に実績の一覧と持っている実績を
+  読み(ログイン時だけ)、遊んでいる間は `mgLive()` で `live` の実績を判定して通知、終わったら `mgSubmit()`
+- `MinigameToasts.vue`: 「実績解除!」の通知(画面の上。押してもゲームの邪魔をしない)
+- `MinigameRankLine.vue`: 結果の下の今回の順位(週間・月間・歴代)と「ランキング」ボタン。
+  ログインしていなければ「ログインするとランキングに載ります」
+- `web/pages/games/ranking.vue`(`/games/ranking?game=rhythm&song=ten&level=hard&period=week`):
+  ゲーム・曲・難易度・期間のタブ、上位 50 と自分の順位
+- `ProfileStats.vue`: 称号の下に「ミニゲーム」(取った実績だけ。分母は全種数)
+
 ## おみくじの物理乱数化(kuda)
 
 おみくじの抽選乱数を Go の `math/rand`(疑似乱数)から 428lab/kuda

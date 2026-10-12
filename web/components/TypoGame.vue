@@ -1,6 +1,6 @@
 <template>
   <!-- ミニゲーム「誤字祓い」。ルールは typoGame.js(純関数)、らぼみの動きは labomiRig.js、
-       ここは描画・演出・音・操作。ハイスコアはこの端末にだけ保存する(DB には送らない)。 -->
+       ここは描画・演出・音・操作。ハイスコアはこの端末に保存し、ログインしていればランキングと実績に送る(minigameOnline.js)。 -->
   <div class="tg" @dblclick.prevent>
     <div ref="wrap" class="tg-wrap">
       <canvas
@@ -36,6 +36,8 @@
         <i class="fas fa-download fa-fw"></i> 画像を保存
       </button>
     </div>
+    <MinigameRankLine v-if="phase === 'ready' || phase === 'over'" :state="mgSend" :ranks="mgRanks" :to="rankTo" />
+    <MinigameToasts :toasts="mgToasts" />
     <p class="tg-help">
       落ちてくる言葉の<b>間違っている文字</b>をタップ。正しい文字を押すとお手つき。<br />
       ゲージが満タンになったら、らぼみをタップで一斉お祓い。
@@ -49,6 +51,9 @@ import Rig from "@/components/labomiRig";
 import Eyes from "@/components/labomiEyes";
 import Music from "@/components/typoMusic";
 import Sfx from "@/components/typoSfx";
+import MinigameOnline, { rankingLink } from "@/components/minigameOnline";
+import MinigameToasts from "@/components/MinigameToasts.vue";
+import MinigameRankLine from "@/components/MinigameRankLine.vue";
 
 const BEST_KEY = "debug-shrine:typo:best";
 const MINCHO = "'Hiragino Mincho ProN', 'Yu Mincho', serif";
@@ -91,6 +96,8 @@ function saveBest(v) {
 }
 
 export default {
+  components: { MinigameToasts, MinigameRankLine },
+  mixins: [MinigameOnline],
   props: {
     siteUrl: { type: String, default: "" },
   },
@@ -102,6 +109,9 @@ export default {
     };
   },
   computed: {
+    rankTo() {
+      return rankingLink("typo");
+    },
     siteHost() {
       return (this.siteUrl || "").replace(/^https?:\/\//, "").replace(/\/$/, "");
     },
@@ -213,6 +223,7 @@ export default {
       this.game = G.newGame();
       this.resetFx();
       this.result = null;
+      this.mgReset();
       this.phase = "play";
       this._startBest = this.best;
       this._gaugeSaid = false;
@@ -274,6 +285,7 @@ export default {
           this._acc -= G.STEP;
         }
         this.consumeEvents(now);
+        this.mgLive("typo", { "typo.score": g.score, "typo.max_combo": g.maxCombo });
         // BGM は難しさ(時間)に合わせて音を重ねる
         if (this.music) this.music.setLevel(G.tierAt(g.t) - 1);
         // コンボ 10 から、らぼみの周りに炎が立つ
@@ -487,6 +499,7 @@ export default {
       };
       this.say(this.result.line);
       this.phase = "over";
+      this.mgSubmit({ game: "typo", score: g.score, duration_ms: Math.round(g.t * 1000), max_combo: g.maxCombo, fixed: g.fixed });
       // 結果の札が見えるように(スマホではゲーム画面だけで画面がいっぱい)
       this.$nextTick(() => {
         const card = this.$el && this.$el.querySelector(".tg-card");

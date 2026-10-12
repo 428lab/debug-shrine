@@ -9,7 +9,7 @@
 <script>
 import OstrichRun from "@/components/OstrichRun.vue";
 
-// ミニゲーム「韋駝天」。ログインしなくても遊べる。ハイスコアはこの端末にだけ保存する。
+// ミニゲーム「韋駝天」。ログインしなくても遊べる。ハイスコアはこの端末に保存し、ログインしていればランキングにも送る。
 export default {
   components: { OstrichRun },
   head() {
