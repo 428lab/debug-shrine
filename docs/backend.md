@@ -1015,6 +1015,43 @@ sanpai_logs / omikuji_logs を集計して返す(表示: `web/components/Profile
 - 検証: `web/scripts/test-typo-game.js`(言葉の書き方と正しい形、タップの当たり・お手つき、
   漏れで終わる、一斉お祓い、難しさが上がる、上手な bot が 2 分遊べる)
 
+### ランキングと実績(`minigameGo`)
+
+ログインしている人だけ、遊び終わった結果をサーバーに送り、ランキングと実績(アチーブメント)に
+記録する。ログインしていない人は今まで通り端末の中のベストだけ。決まりは
+`app/functions-go/minigame.go`(純関数)、通信と保存は `minigame_api.go`。
+
+- ゲームは端末だけで動くので、点数はいじろうと思えばいじれる(完全には防げない前提。ユーザー決定)。
+  サーバーでは「ありえない値」だけ弾く(`mgCheck`):
+  - 韋駝天: 遊んだ時間に対して点数が多すぎる(1 秒 200 点 + 300 まで)
+  - 誤字祓い: 1 秒に直せる言葉の数(4 語 + 10)、1 語 600 点まで、コンボが直した数を超えない
+  - 神楽ビート: 曲・難易度が既知、判定の数から計算した点数(`rhythmChart.js` の `scoreOf`)と送られた点数が一致
+  - 2 秒以内の続けての送信は `too_fast`
+- 送信は本人だけ(ID トークンの UID と `users/{id}.auth_user_uid` の一致。`pinnedReposGo` と同じ)
+- ランキング: 韋駝天・誤字祓い・神楽ビート(4 曲 × 3 難易度)の 14 個 × 歴代・週間・月間。
+  週・月の区切りは期間ランキングと同じ日本時間(週は月曜始まり)。1 人 1 件で、その期間のベストだけ。
+  - 保存先 `minigame_boards/{board}__{期間キー}/scores/{github_id}`(`score`・表示名・アイコン・`updated_at`)。
+    期間キーは `all` / `w2026-10-12`(週の月曜) / `m2026-10`。期間が変わると新しいキーに書くだけで、
+    締めの処理は無い(古い期間の記録は残る)
+  - board ごとにサブコレクションを分けているので、`score` の単一フィールドの並べ替えだけで済み、
+    複合インデックスは要らない。順位は「自分より高い点の人の数 + 1」(集計クエリの count)。
+    同点は同じ順位、並びは先に出した人が上
+- 実績: 22 個(`mgAchievementDefs`)。条件は「値(`Metric`)が `Min` 以上」の形だけ。値はこの回の
+  点数・コンボ・フルコンボと、`users/{id}/minigame/state` の累計(回数・直した語数・遊んだ曲・
+  遊んだ日数)。`Live` の実績(この回の点数・コンボ)は、端末がゲーム中にその場で「実績解除!」を
+  出し、記録は送信時にサーバーがする。一覧(`defs`)はサーバーから配るので、端末に条件の複製は無い
+- マイページ・公開プロフィールの称号の欄に、`profileStatsGo` の `minigame`(全件と `achieved`)を出す
+
+API(`minigameGo`):
+
+| | |
+|---|---|
+| `GET ?board=typo&period=week[&me={github_id}][&limit=50]` | 上位(既定 50、最大 100)と `me`(順位・点) |
+| `GET ?achievements=1[&me={github_id}]` | 実績の一覧 `defs` と、持っている実績 `achievements`・歴代ベスト `best` |
+| `POST {github_id, game, song?, level?, score, duration_ms, max_combo, fixed?, counts?}` | 送信(Bearer 必須)。`ranks`(期間ごとの順位・ベスト・更新したか)と `unlocked`(新しく取った実績) |
+
+board の id: `ostrich` / `typo` / `rhythm-{曲 id}-{easy|normal|hard}`。
+
 ## おみくじの物理乱数化(kuda)
 
 おみくじの抽選乱数を Go の `math/rand`(疑似乱数)から 428lab/kuda
