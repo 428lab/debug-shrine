@@ -1025,17 +1025,20 @@ sanpai_logs / omikuji_logs を集計して返す(表示: `web/components/Profile
   サーバーでは「ありえない値」だけ弾く(`mgCheck`):
   - 韋駝天: 遊んだ時間に対して点数が多すぎる(1 秒 200 点 + 300 まで)
   - 誤字祓い: 1 秒に直せる言葉の数(4 語 + 10)、1 語 600 点まで、コンボが直した数を超えない
-  - 神楽ビート: 曲・難易度が既知、判定の数から計算した点数(`rhythmChart.js` の `scoreOf`)と送られた点数が一致
+  - 神楽ビート: 曲・難易度が既知、判定の数の合計が譜面どおり(`minigame_rhythm_totals.json`。譜面を変えたら
+    `web/scripts/test-minigame-totals.js` が食い違いを教えるので JSON を直す)、判定の数から計算した点数
+    (`rhythmChart.js` の `scoreOf`)と送られた点数が一致
   - 2 秒以内の続けての送信は `too_fast`
 - 送信は本人だけ(ID トークンの UID と `users/{id}.auth_user_uid` の一致。`pinnedReposGo` と同じ)
 - ランキング: 韋駝天・誤字祓い・神楽ビート(4 曲 × 3 難易度)の 14 個 × 歴代・週間・月間。
   週・月の区切りは期間ランキングと同じ日本時間(週は月曜始まり)。1 人 1 件で、その期間のベストだけ。
-  - 保存先 `minigame_boards/{board}__{期間キー}/scores/{github_id}`(`score`・表示名・アイコン・`updated_at`)。
+  - 保存先 `minigame_boards/{board}__{期間キー}/scores/{github_id}`(`score`・`updated_at`)。名前・アイコンは
+    持たず、読む時に `users` から引く(変えた人は新しいもの、退会した人は載らない)。
     期間キーは `all` / `w2026-10-12`(週の月曜) / `m2026-10`。期間が変わると新しいキーに書くだけで、
     締めの処理は無い(古い期間の記録は残る)
   - board ごとにサブコレクションを分けているので、`score` の単一フィールドの並べ替えだけで済み、
     複合インデックスは要らない。順位は「自分より高い点の人の数 + 1」(集計クエリの count)。
-    同点は同じ順位、並びは先に出した人が上
+    同点は同じ順位、並びは先に出した人が上(境目の同点のため 20 件多く読んでから並べ直して切る)
 - 実績: 22 個(`mgAchievementDefs`)。条件は「値(`Metric`)が `Min` 以上」の形だけ。値はこの回の
   点数・コンボ・フルコンボと、`users/{id}/minigame/state` の累計(回数・直した語数・遊んだ曲・
   遊んだ日数)。`Live` の実績(この回の点数・コンボ)は、端末がゲーム中にその場で「実績解除!」を
@@ -1048,7 +1051,7 @@ API(`minigameGo`):
 |---|---|
 | `GET ?board=typo&period=week[&me={github_id}][&limit=50]` | 上位(既定 50、最大 100)と `me`(順位・点) |
 | `GET ?achievements=1[&me={github_id}]` | 実績の一覧 `defs` と、持っている実績 `achievements`・歴代ベスト `best` |
-| `POST {github_id, game, song?, level?, score, duration_ms, max_combo, fixed?, counts?}` | 送信(Bearer 必須)。`ranks`(期間ごとの順位・ベスト・更新したか)と `unlocked`(新しく取った実績) |
+| `POST {github_id, game, song?, level?, score, duration_ms(整数), max_combo, fixed?, counts?}` | 送信(Bearer 必須)。`ranks`(期間ごとの順位・ベスト・更新したか)と `unlocked`(新しく取った実績) |
 
 board の id: `ostrich` / `typo` / `rhythm-{曲 id}-{easy|normal|hard}`。
 

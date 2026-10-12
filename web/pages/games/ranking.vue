@@ -287,6 +287,11 @@ export default {
 .seg-wrap {
   flex-wrap: wrap;
 }
+/* タブの段は 1 段ずつ(横に並べると、どれがどの切り替えか分からない) */
+.ranking-seg {
+  display: flex;
+  width: fit-content;
+}
 .seg-btn {
   background: transparent;
   border: none;

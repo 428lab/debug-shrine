@@ -33,6 +33,9 @@ func init() {
 
 const mgDefaultLimit = 50
 
+// mgTieMargin はランキングを読む時に多めに読む件数(境目の同点のため)。
+const mgTieMargin = 20
+
 func minigameHandler(w http.ResponseWriter, r *http.Request) {
 	setCORSHeaders(w, r)
 	if r.Method == http.MethodOptions {
@@ -124,9 +127,6 @@ func runMinigameSubmit(ctx context.Context, w http.ResponseWriter, client *fires
 	}
 	var user struct {
 		AuthUserUID string `firestore:"auth_user_uid"`
-		DisplayName string `firestore:"display_name"`
-		ScreenName  string `firestore:"screen_name"`
-		ImagePath   string `firestore:"image_path"`
 	}
 	if err := userSnap.DataTo(&user); err != nil {
 		return err
@@ -157,12 +157,17 @@ func runMinigameSubmit(ctx context.Context, w http.ResponseWriter, client *fires
 	err = client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		unlocked = nil
 		st = mgState{}
-		stSnap, err := tx.Get(stateRef)
-		if err != nil && grpcstatus.Code(err) != codes.NotFound {
+		// 記録と期間ごとのベストを 1 回で読む(無いものは Exists() が false)
+		refs := []*firestore.DocumentRef{stateRef}
+		for _, p := range mgPeriods {
+			refs = append(refs, scoreRefs[p])
+		}
+		snaps, err := tx.GetAll(refs)
+		if err != nil {
 			return err
 		}
-		if err == nil {
-			if err := stSnap.DataTo(&st); err != nil {
+		if snaps[0].Exists() {
+			if err := snaps[0].DataTo(&st); err != nil {
 				return err
 			}
 		}
@@ -170,14 +175,11 @@ func runMinigameSubmit(ctx context.Context, w http.ResponseWriter, client *fires
 			return errMgTooFast
 		}
 		prev := map[string]int64{}
-		for _, p := range mgPeriods {
-			snap, err := tx.Get(scoreRefs[p])
-			if err != nil {
-				if grpcstatus.Code(err) == codes.NotFound {
-					prev[p] = -1
-					continue
-				}
-				return err
+		for i, p := range mgPeriods {
+			snap := snaps[i+1]
+			if !snap.Exists() {
+				prev[p] = -1
+				continue
 			}
 			v, _ := snap.DataAt("score")
 			n, _ := v.(int64)
@@ -194,12 +196,10 @@ func runMinigameSubmit(ctx context.Context, w http.ResponseWriter, client *fires
 				continue
 			}
 			bests[p] = body.Score
+			// 名前やアイコンは持たない(変わることがあるので、読む時にユーザーから引く)
 			if err := tx.Set(scoreRefs[p], map[string]interface{}{
-				"score":        body.Score,
-				"display_name": user.DisplayName,
-				"screen_name":  user.ScreenName,
-				"image_path":   user.ImagePath,
-				"updated_at":   now,
+				"score":      body.Score,
+				"updated_at": now,
 			}); err != nil {
 				return err
 			}
@@ -271,27 +271,53 @@ func runMinigameRanking(ctx context.Context, w http.ResponseWriter, client *fire
 	}
 	key := mgPeriodKeys(now)[period]
 	scores := client.Collection("minigame_boards").Doc(mgBoardDocID(board, key)).Collection("scores")
-	docs, err := scores.OrderBy("score", firestore.Desc).Limit(limit).Documents(ctx).GetAll()
+	// 同点は先に出した人が上。Firestore は同点を id 順で返すので、境目の同点の人を
+	// 取りこぼさないよう少し多めに読んで、並べ直してから切る
+	docs, err := scores.OrderBy("score", firestore.Desc).Limit(limit + mgTieMargin).Documents(ctx).GetAll()
 	if err != nil {
 		return err
 	}
 	entries := make([]mgEntry, 0, len(docs))
+	userRefs := make([]*firestore.DocumentRef, 0, len(docs))
 	for _, d := range docs {
 		var e struct {
-			Score       int64     `firestore:"score"`
-			DisplayName string    `firestore:"display_name"`
-			ScreenName  string    `firestore:"screen_name"`
-			ImagePath   string    `firestore:"image_path"`
-			UpdatedAt   time.Time `firestore:"updated_at"`
+			Score     int64     `firestore:"score"`
+			UpdatedAt time.Time `firestore:"updated_at"`
 		}
 		if err := d.DataTo(&e); err != nil {
 			return err
 		}
-		entries = append(entries, mgEntry{Score: e.Score, DisplayName: e.DisplayName, ScreenName: e.ScreenName, ImagePath: e.ImagePath, UpdatedAt: e.UpdatedAt, ID: d.Ref.ID})
+		entries = append(entries, mgEntry{Score: e.Score, UpdatedAt: e.UpdatedAt, ID: d.Ref.ID})
+		userRefs = append(userRefs, client.Collection("users").Doc(d.Ref.ID))
+	}
+	// 名前・アイコンはユーザーから引く(変えた人は新しいものに、退会した人は載せない)
+	if len(userRefs) > 0 {
+		users, err := client.GetAll(ctx, userRefs)
+		if err != nil {
+			return err
+		}
+		kept := entries[:0]
+		for i, u := range users {
+			if !u.Exists() {
+				continue
+			}
+			var p rankingProfile
+			p.DisplayName, _ = mgString(u, "display_name")
+			p.ScreenName, _ = mgString(u, "screen_name")
+			p.ImagePath, _ = mgString(u, "image_path")
+			if p.ScreenName == "" {
+				continue
+			}
+			e := entries[i]
+			e.DisplayName, e.ScreenName, e.ImagePath = p.DisplayName, p.ScreenName, p.ImagePath
+			kept = append(kept, e)
+		}
+		entries = kept
 	}
 	entries = mgRankEntries(entries)
-	// 取った件数の最後と同点の人が圏外にいるかもしれない。同点の順位は数え直さない
-	// (上位の並びの中では正しく、境目だけ同点の人が載らないことがある)
+	if len(entries) > limit {
+		entries = entries[:limit]
+	}
 
 	resp := map[string]interface{}{
 		"status":     "success",
@@ -361,4 +387,13 @@ func loadMgState(ctx context.Context, userRef *firestore.DocumentRef) (*mgState,
 		return nil, err
 	}
 	return st, nil
+}
+
+func mgString(snap *firestore.DocumentSnapshot, field string) (string, bool) {
+	v, err := snap.DataAt(field)
+	if err != nil {
+		return "", false
+	}
+	str, ok := v.(string)
+	return str, ok
 }

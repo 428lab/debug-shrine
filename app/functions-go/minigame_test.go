@@ -18,8 +18,10 @@ func TestMgCheck(t *testing.T) {
 		{"typo score too high", mgSubmit{Game: "typo", Score: 30000, DurationMs: 120000, Fixed: 40}, "", true},
 		{"typo too many words", mgSubmit{Game: "typo", Score: 100, DurationMs: 1000, Fixed: 100}, "", true},
 		{"typo combo > words", mgSubmit{Game: "typo", Score: 100, DurationMs: 60000, Fixed: 5, MaxCombo: 6}, "", true},
-		{"rhythm ok", mgSubmit{Game: "rhythm", Song: "ten", Level: "hard", Score: 788000, MaxCombo: 100, Counts: map[string]int64{"kiwami": 70, "ryo": 30, "ka": 25, "fuka": 0}}, "rhythm-ten-hard", false},
-		{"rhythm mismatch", mgSubmit{Game: "rhythm", Song: "ten", Level: "hard", Score: 1000000, Counts: map[string]int64{"kiwami": 70, "ryo": 30}}, "", true},
+		{"rhythm ok", mgSubmit{Game: "rhythm", Song: "ten", Level: "hard", Score: 855932, MaxCombo: 100, Counts: map[string]int64{"kiwami": 200, "ryo": 60, "ka": 35, "fuka": 0}}, "rhythm-ten-hard", false},
+		{"rhythm mismatch", mgSubmit{Game: "rhythm", Song: "ten", Level: "hard", Score: 1000000, Counts: map[string]int64{"kiwami": 200, "ryo": 95}}, "", true},
+		{"rhythm 1 note", mgSubmit{Game: "rhythm", Song: "ten", Level: "hard", Score: 1000000, Counts: map[string]int64{"kiwami": 1}}, "", true},
+		{"rhythm combo > notes", mgSubmit{Game: "rhythm", Song: "ten", Level: "hard", Score: 1000000, MaxCombo: 296, Counts: map[string]int64{"kiwami": 295}}, "", true},
 		{"rhythm unknown song", mgSubmit{Game: "rhythm", Song: "x", Level: "hard", Score: 0, Counts: map[string]int64{"fuka": 1}}, "", true},
 		{"rhythm bad judge", mgSubmit{Game: "rhythm", Song: "ten", Level: "easy", Score: 0, Counts: map[string]int64{"perfect": 1}}, "", true},
 		{"rhythm empty", mgSubmit{Game: "rhythm", Song: "ten", Level: "easy", Score: 0}, "", true},
@@ -38,15 +40,15 @@ func TestMgCheck(t *testing.T) {
 }
 
 func TestMgCheckRhythmFlags(t *testing.T) {
-	_, run, _ := mgCheck(mgSubmit{Game: "rhythm", Song: "kagura", Level: "hard", Score: 1000000, Counts: map[string]int64{"kiwami": 50}})
+	_, run, _ := mgCheck(mgSubmit{Game: "rhythm", Song: "kagura", Level: "hard", Score: 1000000, Counts: allKiwami("kagura", "hard")})
 	if run["rhythm.full_combo"] != 1 || run["rhythm.all_kiwami"] != 1 || run["rhythm.hard_full_combo"] != 1 {
 		t.Fatalf("all kiwami on hard: %v", run)
 	}
-	_, run, _ = mgCheck(mgSubmit{Game: "rhythm", Song: "kagura", Level: "normal", Score: 300000, Counts: map[string]int64{"ka": 50}})
+	_, run, _ = mgCheck(mgSubmit{Game: "rhythm", Song: "kagura", Level: "normal", Score: 300000, Counts: map[string]int64{"ka": 349}})
 	if run["rhythm.full_combo"] != 1 || run["rhythm.all_kiwami"] != 0 || run["rhythm.hard_full_combo"] != 0 {
 		t.Fatalf("fc on normal: %v", run)
 	}
-	_, run, _ = mgCheck(mgSubmit{Game: "rhythm", Song: "kagura", Level: "hard", Score: 980000, Counts: map[string]int64{"kiwami": 49, "fuka": 1}})
+	_, run, _ = mgCheck(mgSubmit{Game: "rhythm", Song: "kagura", Level: "hard", Score: 998138, Counts: map[string]int64{"kiwami": 536, "fuka": 1}})
 	if run["rhythm.full_combo"] != 0 || run["rhythm.hard_full_combo"] != 0 {
 		t.Fatalf("miss: %v", run)
 	}
@@ -83,7 +85,7 @@ func TestMgApplyAndUnlock(t *testing.T) {
 	if !equalStrings(got, []string{"ostrich_first"}) {
 		t.Fatalf("ostrich: %v", got)
 	}
-	got = play(mgSubmit{Game: "rhythm", Song: "ten", Level: "hard", Score: 1000000, Counts: map[string]int64{"kiwami": 10}}, now.AddDate(0, 0, 1))
+	got = play(mgSubmit{Game: "rhythm", Song: "ten", Level: "hard", Score: 1000000, Counts: allKiwami("ten", "hard")}, now.AddDate(0, 0, 1))
 	if !equalStrings(got, []string{"rhythm_first", "rhythm_fc", "rhythm_allkiwami", "rhythm_hardfc", "rhythm_950k", "all_three"}) {
 		t.Fatalf("rhythm: %v", got)
 	}
@@ -92,9 +94,9 @@ func TestMgApplyAndUnlock(t *testing.T) {
 	}
 	// 修行で全曲フルコンボ・全曲演奏
 	for _, song := range []string{"kagura", "shippu"} {
-		play(mgSubmit{Game: "rhythm", Song: song, Level: "hard", Score: 1000000, Counts: map[string]int64{"kiwami": 10}}, now.AddDate(0, 0, 1))
+		play(mgSubmit{Game: "rhythm", Song: song, Level: "hard", Score: 1000000, Counts: allKiwami(song, "hard")}, now.AddDate(0, 0, 1))
 	}
-	got = play(mgSubmit{Game: "rhythm", Song: "matsuri", Level: "hard", Score: 1000000, Counts: map[string]int64{"kiwami": 10}}, now.AddDate(0, 0, 1))
+	got = play(mgSubmit{Game: "rhythm", Song: "matsuri", Level: "hard", Score: 1000000, Counts: allKiwami("matsuri", "hard")}, now.AddDate(0, 0, 1))
 	if !equalStrings(got, []string{"rhythm_allsongs", "rhythm_hardfc_all"}) {
 		t.Fatalf("all songs: %v", got)
 	}
@@ -167,4 +169,18 @@ func equalStrings(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+func allKiwami(song, level string) map[string]int64 {
+	return map[string]int64{"kiwami": mgRhythmTotals[song][level]}
+}
+
+func TestMgRhythmTotals(t *testing.T) {
+	for _, s := range mgRhythmSongs {
+		for _, l := range mgRhythmLevels {
+			if mgRhythmTotals[s][l] <= 0 {
+				t.Errorf("no total for %s/%s", s, l)
+			}
+		}
+	}
 }

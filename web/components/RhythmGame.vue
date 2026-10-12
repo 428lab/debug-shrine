@@ -17,6 +17,8 @@
 
       <!-- はじめの画面 -->
       <div v-if="phase === 'title'" class="rg-over">
+        <!-- ランキングは右上の角に(はじめの画面の並びを押し下げない) -->
+        <MinigameRankLine state="idle" compact class="rg-rank-corner" :to="rankTo(songId)" />
         <div class="rg-title">{{ title }}</div>
         <div class="rg-sub">鈴・太鼓・柏手を、曲に合わせて叩け</div>
         <div class="rg-songs">
@@ -46,7 +48,6 @@
             <small>ベスト {{ songBest[id] || 0 }}</small>
           </button>
         </div>
-        <MinigameRankLine state="idle" :to="rankTo(songId)" />
         <div class="rg-help">
           スマホ: 下の 3 か所をタップ / PC: F・G(H)・J キー<br />
           長い音符は押したまま。iPhone は消音スイッチをオフに
@@ -1004,6 +1005,12 @@ export default {
 .rg-help {
   font-size: 0.8rem;
   opacity: 0.75;
+}
+.rg-rank-corner {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  margin: 0;
 }
 .rg-over-result {
   overflow-y: auto;

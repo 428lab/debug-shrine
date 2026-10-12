@@ -144,9 +144,11 @@ func runProfileStats(ctx context.Context, w http.ResponseWriter, client *firesto
 
 	level := readCachedLevel(userDoc)
 
+	// ミニゲームの実績が読めなくても、ほかの記録は出す
 	mgSt, err := loadMgState(ctx, userDoc.Ref)
 	if err != nil {
-		return err
+		log.Printf("profileStats: minigame state: %v", err)
+		mgSt = &mgState{}
 	}
 
 	resp := profileStatsResponse{

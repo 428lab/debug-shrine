@@ -1,7 +1,7 @@
 <template>
   <!-- ミニゲームの結果の下: 今回の順位(週間・月間・歴代)とランキングへのリンク。
        state は minigameOnline.js の mgSend -->
-  <div class="mg-rank">
+  <div class="mg-rank" :class="{ compact }">
     <div v-if="state === 'sending'" class="mg-rank-note">
       <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
       ランキングに記録しています
@@ -30,6 +30,8 @@ export default {
     state: { type: String, default: "idle" },
     ranks: { type: Object, default: null },
     to: { type: [String, Object], required: true },
+    // 狭い所(神楽ビートのはじめの画面)では上の余白を詰める
+    compact: { type: Boolean, default: false },
   },
   data() {
     return {
@@ -54,6 +56,12 @@ export default {
   max-width: 480px;
   color: #e8d6b0;
   font-size: 0.9rem;
+}
+.mg-rank.compact {
+  margin-top: 0;
+}
+.mg-rank.compact .mg-rank-btn {
+  padding: 2px 10px;
 }
 .mg-rank-list {
   display: flex;

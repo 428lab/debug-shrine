@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"cloud.google.com/go/firestore"
 )
 
 // Firestore エミュレータが必要(FIRESTORE_EMULATOR_HOST 未設定ならスキップ)。
@@ -108,6 +110,18 @@ func TestMinigame_SubmitRankingAchievements(t *testing.T) {
 	me := r["me"].(map[string]interface{})
 	if me["rank"].(float64) != 2 || me["score"].(float64) != 9000 {
 		t.Fatalf("me: %v", me)
+	}
+
+	// 名前を変えたら新しい名前で載る(名前はユーザーから引く)
+	if _, err := client.Collection("users").Doc("mg-user-2").Update(ctx, []firestore.Update{{Path: "screen_name", Value: "renamed"}}); err != nil {
+		t.Fatalf("rename: %v", err)
+	}
+	rec = httptest.NewRecorder()
+	if err := runMinigameRanking(ctx, rec, client, "typo", "week", "", 0, now); err != nil {
+		t.Fatalf("ranking after rename: %v", err)
+	}
+	if got := decodeMgResp(t, rec)["entries"].([]interface{})[0].(map[string]interface{})["screen_name"]; got != "renamed" {
+		t.Fatalf("renamed: %v", got)
 	}
 
 	// 次の週は週間ランキングが空、歴代は残る

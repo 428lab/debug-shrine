@@ -8,6 +8,8 @@
 package gofunctions
 
 import (
+	_ "embed"
+	"encoding/json"
 	"fmt"
 	"math"
 	"sort"
@@ -23,6 +25,21 @@ const (
 // 神楽ビートの曲と難易度(web/components/rhythmSongs.js・rhythmChart.js と同じ id)
 var mgRhythmSongs = []string{"kagura", "shippu", "matsuri", "ten"}
 var mgRhythmLevels = []string{"easy", "normal", "hard"}
+
+// mgRhythmTotals は曲・難易度ごとの判定の数(音符 + 長い音符の終わり)。端末の譜面
+// (rhythmChart.js の buildChart)と同じでなければならない。譜面を変えたら
+// web/scripts/test-minigame-totals.js が食い違いを教えてくれる(直すのはこの JSON)。
+//
+//go:embed minigame_rhythm_totals.json
+var mgRhythmTotalsJSON []byte
+
+var mgRhythmTotals = func() map[string]map[string]int64 {
+	var m map[string]map[string]int64
+	if err := json.Unmarshal(mgRhythmTotalsJSON, &m); err != nil {
+		panic(err)
+	}
+	return m
+}()
 
 // mgRhythmMaxScore は神楽ビートの満点。
 const mgRhythmMaxScore = 1000000
@@ -112,7 +129,8 @@ func mgCheck(s mgSubmit) (board string, run map[string]int64, reason string) {
 		}
 		return mgGameOstrich, map[string]int64{"ostrich.score": s.Score}, ""
 	case mgGameTypo:
-		// 1 語で最大 (200 + 60) × 2(コンボ倍率)= 520 点。1 秒に直せる言葉の数も限りがある
+		// 1 語で最大 (150 + 61) × 2(コンボ倍率)= 422 点(誤字は 1 語に 2 か所まで)。
+		// 言葉は 0.9 秒より短い間隔では出てこないので、1 秒に直せる数も限りがある
 		if float64(s.Fixed) > sec*4+10 {
 			return "", nil, "too many words for duration"
 		}
@@ -140,7 +158,8 @@ func mgCheck(s mgSubmit) (board string, run map[string]int64, reason string) {
 			total += n
 			sum += float64(n) * w
 		}
-		if total == 0 || total > 5000 {
+		// 判定の数は譜面で決まっている(1 音だけ叩いて満点、のようなものを弾く)
+		if total != mgRhythmTotals[s.Song][s.Level] {
 			return "", nil, "bad counts"
 		}
 		// 点数は判定の数から決まる(rhythmChart.js の scoreOf)。食い違えば受け付けない
