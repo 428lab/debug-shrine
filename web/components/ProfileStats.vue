@@ -74,6 +74,24 @@
         </div>
       </template>
 
+      <!-- ミニゲームの実績(minigameGo が記録。称号と同じく獲得済みだけ、分母は全種数) -->
+      <template v-if="achievedMinigame.length > 0">
+        <div class="stats-sub mt-3 mb-1">
+          ミニゲーム <span class="ms-1">{{ achievedMinigame.length }}/{{ stats.minigame.length }}</span>
+        </div>
+        <div class="badges">
+          <span
+            v-for="a in achievedMinigame"
+            :key="a.id"
+            class="badge-chip minigame-chip"
+            :title="a.desc"
+          >
+            <i class="fas fa-fw" :class="a.icon"></i>
+            {{ a.label }}
+          </span>
+        </div>
+      </template>
+
       <!-- おみくじ統計(記録があるときだけ) -->
       <template v-if="stats.omikuji.total_count > 0">
         <div class="stats-sub mt-3 mb-1">
@@ -120,6 +138,9 @@ export default {
   computed: {
     achievedBadges() {
       return this.stats.badges.filter((b) => b.achieved);
+    },
+    achievedMinigame() {
+      return (this.stats.minigame || []).filter((a) => a.achieved);
     },
     crowns() {
       return (this.stats && this.stats.crowns) || [];
@@ -207,6 +228,11 @@ export default {
 .crown-chip {
   border-color: rgba(255, 196, 120, 0.6);
   background: rgba(255, 196, 120, 0.12);
+}
+/* ミニゲームの実績は朱寄り */
+.minigame-chip {
+  border-color: rgba(239, 106, 90, 0.55);
+  background: rgba(239, 106, 90, 0.1);
 }
 .crown-count {
   font-weight: 700;

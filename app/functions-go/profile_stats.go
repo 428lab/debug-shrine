@@ -67,6 +67,17 @@ type profileStatsResponse struct {
 	Level   int            `json:"level"`
 	Badges  []profileBadge `json:"badges"`
 	Crowns  []profileCrown `json:"crowns"`
+	// Minigame はミニゲームの実績(minigame.go)。称号と同じく全件返し、取ったものに achieved
+	Minigame []profileMinigameAchievement `json:"minigame"`
+}
+
+type profileMinigameAchievement struct {
+	ID       string `json:"id"`
+	Game     string `json:"game"`
+	Label    string `json:"label"`
+	Icon     string `json:"icon"`
+	Desc     string `json:"desc"`
+	Achieved bool   `json:"achieved"`
 }
 
 func profileStatsHandler(w http.ResponseWriter, r *http.Request) {
@@ -133,6 +144,13 @@ func runProfileStats(ctx context.Context, w http.ResponseWriter, client *firesto
 
 	level := readCachedLevel(userDoc)
 
+	// ミニゲームの実績が読めなくても、ほかの記録は出す
+	mgSt, err := loadMgState(ctx, userDoc.Ref)
+	if err != nil {
+		log.Printf("profileStats: minigame state: %v", err)
+		mgSt = &mgState{}
+	}
+
 	resp := profileStatsResponse{
 		Sanpai:  stats,
 		Omikuji: omStats,
@@ -147,6 +165,7 @@ func runProfileStats(ctx context.Context, w http.ResponseWriter, client *firesto
 			ChokichiCount: omStats.Tiers["超吉"],
 			DaikyoCount:   omStats.Tiers["大凶"],
 		}),
+		Minigame: profileMinigame(mgSt),
 	}
 
 	// 公開データ・userでキー分離。参拝直後にストリークが伸びるのが見えるよう
@@ -338,6 +357,15 @@ var badgeDefs = []badgeDef{
 	{"chokichi", "天に選ばれし者", "🌈", "fa-rainbow", "超吉を引いた", func(f profileFacts) bool { return f.ChokichiCount >= 1 }},
 	{"daikyo", "受難の日", "💀", "fa-skull", "大凶を引いた", func(f profileFacts) bool { return f.DaikyoCount >= 1 }},
 	{"daikyo3", "不運の帝王", "🌩️", "fa-cloud-showers-heavy", "大凶を3回引いた", func(f profileFacts) bool { return f.DaikyoCount >= 3 }},
+}
+
+func profileMinigame(st *mgState) []profileMinigameAchievement {
+	res := make([]profileMinigameAchievement, 0, len(mgAchievementDefs))
+	for _, d := range mgAchievementDefs {
+		_, ok := st.Achievements[d.ID]
+		res = append(res, profileMinigameAchievement{ID: d.ID, Game: d.Game, Label: d.Label, Icon: d.Icon, Desc: d.Desc, Achieved: ok})
+	}
+	return res
 }
 
 func computeBadges(f profileFacts) []profileBadge {

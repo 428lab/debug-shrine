@@ -1,6 +1,6 @@
 <template>
   <!-- ミニゲーム「韋駝天」。ルールは ostrichGame.js(純関数)、ここは描画と操作だけ。
-       ハイスコアはこの端末にだけ保存する(DB には送らない)。終わった画面は、そのまま
+       ハイスコアはこの端末に保存し、ログインしていればランキングと実績に送る(minigameOnline.js)。終わった画面は、そのまま
        スクショしても共有しやすい1枚(スコア・ベスト・称号・日付・サイト名)にする。 -->
   <div class="ostrich">
     <div ref="wrap" class="os-wrap">
@@ -35,6 +35,8 @@
         <i class="fas fa-download fa-fw"></i> 画像を保存
       </button>
     </div>
+    <MinigameRankLine v-if="phase === 'ready' || phase === 'over'" :state="mgSend" :ranks="mgRanks" :to="rankTo" />
+    <MinigameToasts :toasts="mgToasts" />
     <p class="os-help">
       タップ / スペースキーでジャンプ。空中でタップすると羽ばたく。<br />
       勾玉を取ると点(色で違う)。黄色の勾玉は 7 秒間無敵。
@@ -44,6 +46,9 @@
 
 <script>
 import G from "@/components/ostrichGame";
+import MinigameOnline, { rankingLink } from "@/components/minigameOnline";
+import MinigameToasts from "@/components/MinigameToasts.vue";
+import MinigameRankLine from "@/components/MinigameRankLine.vue";
 
 // 勾玉の色
 const MAGA_COLOR = {
@@ -77,6 +82,8 @@ function pad(n) {
 }
 
 export default {
+  components: { MinigameToasts, MinigameRankLine },
+  mixins: [MinigameOnline],
   props: {
     // 画像に入れるサイトの URL(表示用)
     siteUrl: { type: String, default: "" },
@@ -165,6 +172,7 @@ export default {
     },
     start() {
       this.game = G.newGame();
+      this.mgReset();
       this.phase = "play";
       this.newBest = false;
       this._startBest = this.best;
@@ -196,6 +204,7 @@ export default {
         }
         // ルールが積んだ出来事(勾玉を拾った・壊した・カラスが逃げた)を演出にする
         for (const e of g.events.splice(0)) this.onEvent(e, now);
+        this.mgLive("ostrich", { "ostrich.score": g.score });
         if (!this.newBest && this._startBest > 0 && g.score > this._startBest) {
           this.newBest = true;
           this._flashBest = now;
@@ -208,6 +217,7 @@ export default {
             saveBest(g.score);
             this.newBest = true;
           }
+          this.mgSubmit({ game: "ostrich", score: g.score, duration_ms: Math.round(g.t * 1000) });
         }
       } else if (this.phase === "dying" && now - this._dieAt > DYING_MS) {
         this.phase = "over";
@@ -741,6 +751,9 @@ export default {
     },
   },
   computed: {
+    rankTo() {
+      return rankingLink("ostrich");
+    },
     siteHost() {
       return (this.siteUrl || "").replace(/^https?:\/\//, "").replace(/\/$/, "");
     },

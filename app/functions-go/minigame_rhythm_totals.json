@@ -1,0 +1,22 @@
+{
+  "kagura": {
+    "easy": 197,
+    "normal": 349,
+    "hard": 537
+  },
+  "shippu": {
+    "easy": 158,
+    "normal": 385,
+    "hard": 560
+  },
+  "matsuri": {
+    "easy": 165,
+    "normal": 311,
+    "hard": 445
+  },
+  "ten": {
+    "easy": 153,
+    "normal": 238,
+    "hard": 295
+  }
+}

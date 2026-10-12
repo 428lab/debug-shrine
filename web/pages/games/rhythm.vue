@@ -9,7 +9,7 @@
 import RhythmGame from "@/components/RhythmGame.vue";
 
 // ミニゲーム: リズムゲーム(和のテイストのボカロ系の曲に合わせて、鈴・太鼓・柏手を叩く)。
-// ログインしなくても遊べる。ハイスコアはこの端末にだけ保存する。
+// ログインしなくても遊べる。ハイスコアはこの端末に保存し、ログインしていればランキングにも送る。
 export default {
   components: { RhythmGame },
   data() {
