@@ -1,12 +1,19 @@
 <template>
-  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-    <div class="container-fluid">
+  <nav class="navbar navbar-expand-lg navbar-dark site-header">
+    <div class="container">
       <nuxt-link class="navbar-brand" to="/"
         ><img
           src="/favicon512.png"
           height="32px"
           class="me-2"
         />でばっぐ神社</nuxt-link
+      >
+      <!-- 主機能の「参拝する」は常設。スマホではハンバーガーの外(ブランドの右)に出す -->
+      <nuxt-link
+        v-if="isLogin"
+        to="/sanpai"
+        class="btn btn-accent btn-sm ms-auto me-2 d-lg-none"
+        >参拝する</nuxt-link
       >
       <button
         class="navbar-toggler"
@@ -22,41 +29,38 @@
       <div class="collapse navbar-collapse" id="navbarSupportedContent">
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
           <li class="nav-item">
-            <nuxt-link class="nav-link active" to="/">Home</nuxt-link>
+            <nuxt-link class="nav-link" to="/">ホーム</nuxt-link>
           </li>
           <li class="nav-item">
-            <nuxt-link class="nav-link active" to="/about">でばっぐ神社とは</nuxt-link>
+            <nuxt-link class="nav-link" to="/about">でばっぐ神社とは</nuxt-link>
           </li>
           <li class="nav-item">
-            <nuxt-link class="nav-link active" to="/ranking"
+            <nuxt-link class="nav-link" to="/ranking"
               >ランキング</nuxt-link
             >
           </li>
           <li class="nav-item">
-            <nuxt-link class="nav-link active" to="/games">ミニゲーム</nuxt-link>
+            <nuxt-link class="nav-link" to="/games">ミニゲーム</nuxt-link>
           </li>
-          <!-- <li class="nav-item">
-            <a class="nav-link" href="#">Link</a>
-          </li> -->
         </ul>
-        <ul class="navbar-nav mb-2 mb-lg-0" v-if="isLogin">
+        <ul class="navbar-nav align-items-lg-center mb-2 mb-lg-0" v-if="isLogin">
           <li class="nav-item">
-            <nuxt-link class="nav-link active" to="/omikuji">{{
+            <nuxt-link class="nav-link" to="/omikuji">{{
               omikujiLabel
             }}</nuxt-link>
           </li>
           <li class="nav-item">
-            <nuxt-link
-              class="nav-link active"
-              aria-current="page"
-              to="/dashboard"
-              >マイページ</nuxt-link
-            >
+            <nuxt-link class="nav-link" to="/dashboard">マイページ</nuxt-link>
           </li>
           <li class="nav-item">
-            <button class="btn btn-secondary" @click="logout">
+            <button class="btn btn-ghost btn-sm my-1 ms-lg-2" @click="logout">
               ログアウト
             </button>
+          </li>
+          <li class="nav-item d-none d-lg-block ms-lg-2">
+            <nuxt-link to="/sanpai" class="btn btn-accent btn-sm"
+              >参拝する</nuxt-link
+            >
           </li>
         </ul>
       </div>

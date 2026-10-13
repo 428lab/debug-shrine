@@ -1,6 +1,6 @@
 <template>
   <div class="">
-    <div v-if="title !== ''">{{ title }}</div>
+    <div v-if="title !== ''" class="small text-muted">{{ title }}</div>
     <!-- 全文(text)指定時は編集可能なテキストエリアを表示し、
          コピー・シェアシートには編集後のテキストを使う -->
     <div v-if="text" class="mt-2 content-narrow">
@@ -10,17 +10,24 @@
         v-model="editableText"
       ></textarea>
     </div>
-    <!-- 対応環境(主にモバイル)ではOSのシェアシートを一次導線にする -->
-    <div v-if="canWebShare" class="mt-2">
-      <button type="button" class="btn btn-outline-light" @click="webShare">
-        <i class="fas fa-share-alt fa-lg fa-fw"></i>
+    <!-- 「シェアする」とアイコンは 1 行。並びの軸は置かれた画面に合わせる(align) -->
+    <div
+      class="d-flex flex-wrap align-items-center gap-2 mt-2"
+      :class="align === 'start' ? 'justify-content-start' : 'justify-content-center'"
+    >
+      <!-- 対応環境(主にモバイル)ではOSのシェアシートを一次導線にする -->
+      <button
+        v-if="canWebShare"
+        type="button"
+        class="btn btn-ghost btn-sm"
+        @click="webShare"
+      >
+        <i class="fas fa-share-alt fa-fw"></i>
         シェアする
       </button>
-    </div>
-    <div class="mt-2">
       <a
         :href="xUrl"
-        class="btn text-white bg-x"
+        class="btn btn-icon"
         target="_blank"
         aria-label="Xでシェア"
       >
@@ -28,7 +35,7 @@
       </a>
       <a
         :href="blueskyUrl"
-        class="btn text-white bg-bluesky"
+        class="btn btn-icon brand-bluesky"
         target="_blank"
         aria-label="Blueskyでシェア"
       >
@@ -36,19 +43,19 @@
       </a>
       <a
         :href="facebookUrl"
-        class="btn text-white bg-facebook"
+        class="btn btn-icon brand-facebook"
         target="_blank"
         aria-label="Facebookでシェア"
       >
-        <i class="fab fa-facebook fa-lg fa-fw"></i>
+        <i class="fab fa-facebook fa-fw"></i>
       </a>
       <button
         type="button"
-        class="btn btn-secondary text-white"
+        class="btn btn-icon"
         :aria-label="copied ? 'コピーしました' : 'シェア文面をコピー'"
         @click="copy"
       >
-        <i class="fas fa-lg fa-fw" :class="copied ? 'fa-check' : 'fa-copy'"></i>
+        <i class="fas fa-fw" :class="copied ? 'fa-check' : 'fa-copy'"></i>
       </button>
     </div>
   </div>
@@ -63,6 +70,8 @@ export default {
     // コピー・シェアシート用の全文(URLやハッシュタグ込み)。
     // 未指定の場合は message + url を使う。
     text: { type: String, default: "" },
+    // ボタン行の並び。center(参拝・おみくじ) / start(カード内のマイページ・公開プロフィール)
+    align: { type: String, default: "center" },
   },
   data() {
     return {
@@ -143,5 +152,14 @@ export default {
 <style scoped>
 .share-text-area {
   resize: vertical;
+}
+/* ブランド色はベタ塗りでなくアイコンの色で出す(X は黒なので文字色のまま) */
+.brand-bluesky,
+.brand-bluesky:hover {
+  color: var(--color-bluesky);
+}
+.brand-facebook,
+.brand-facebook:hover {
+  color: var(--color-facebook);
 }
 </style>

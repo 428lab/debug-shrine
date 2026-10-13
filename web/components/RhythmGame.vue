@@ -79,8 +79,8 @@
         </div>
         <div class="rg-actions">
           <button type="button" class="btn btn-warning" @click="start(level)">もう1回</button>
-          <button type="button" class="btn btn-outline-light" @click="toTitle">曲を選ぶ</button>
-          <button type="button" class="btn btn-outline-light" @click="saveImage">
+          <button type="button" class="btn btn-ghost" @click="toTitle">曲を選ぶ</button>
+          <button type="button" class="btn btn-ghost" @click="saveImage">
             <i class="fas fa-download fa-fw"></i> 画像を保存
           </button>
         </div>

@@ -1,9 +1,9 @@
 <template>
-  <div class="text-center">
+  <main class="text-center container pt-4 pt-lg-5 content-wide">
     <!-- 参拝の儀式:大きな👏🏻を2回タップ(二拍手)して参拝する。
          ページを開いただけでは参拝APIを叩かない(誤爆・リロード参拝の根絶)。 -->
-    <div class="container py-5" v-if="ritual">
-      <h1 class="mt-4 mb-2">参拝</h1>
+    <div v-if="ritual">
+      <h1 class="mb-2">参拝</h1>
       <p class="text-muted mb-4">御神体の前で二拍手を打つのじゃ</p>
       <div class="clap-stage mx-auto my-4">
         <span
@@ -28,28 +28,28 @@
       </div>
     </div>
 
-    <div class="container" v-if="status && !ritual">
+    <div v-if="status && !ritual">
       <transition name="result-fade">
       <div v-if="result === 'success'">
-        <div class="p-5">
+        <div class="px-3 px-md-0 mb-4">
           <img
             src="/sanpai/success_01.png"
             alt="でばっぐ神社"
             class="w-100"
             width="1500"
             height="730"
-            style="max-width: 700px; height: auto"
+            style="max-width: 560px; height: auto"
           />
         </div>
         <!-- 復元表示(参拝済み)では新規成功と同じ口上・演出を再生しない(#215) -->
-        <div class="fs-1">
+        <div class="fs-3 quote">
           {{
             restored
               ? "「先ほどの参拝の結果じゃ。」"
               : "「殊勝なことじゃ。きっと良きことがあるぞよ。」"
           }}
         </div>
-        <div class="fs-4 mt-4">{{ status.msg }}</div>
+        <div class="fs-5 mt-2">{{ status.msg }}</div>
 
         <LevelUpBanner
           v-if="isLevelUp && !restored"
@@ -115,50 +115,72 @@
         </div>
 
         <!-- 次の参拝までのカウントダウン(復元表示のときだけ) -->
-        <div v-if="restored" class="fs-5 mt-4 text-muted">
-          次の参拝まで あと {{ remainingText }}
+        <div v-if="restored" class="mt-4">
+          <span class="cooldown-chip">次の参拝まで あと {{ remainingText }}</span>
         </div>
 
       </div>
       <div v-else-if="result === 'expire'">
-        <div class="px-5">
+        <div class="px-3 px-md-0 mb-4">
           <img
             src="/sanpai/expire_01.png"
             alt="でばっぐ神社"
             class="w-100"
             width="795"
             height="723"
-            style="max-width: 700px; height: auto"
+            style="max-width: 560px; height: auto"
           />
         </div>
-        <div class="fs-1">
+        <div class="fs-3 quote">
           「おっと、参拝のペースが早すぎるようじゃ。そう逸るでない。」
         </div>
-        <div class="fs-4 mt-4">追加のポイントはありませんでした</div>
+        <div class="fs-5 mt-2">追加のポイントはありませんでした</div>
+        <!-- いつ参拝できるか。応答の next_time から数え、0 になったら儀式に戻す -->
+        <div v-if="remainingSeconds > 0" class="mt-3">
+          <span class="cooldown-chip">次の参拝まで あと {{ remainingText }}</span>
+        </div>
       </div>
       <div v-else-if="result === 'noaction'">
-        <div class="px-5">
+        <div class="px-3 px-md-0 mb-4">
           <img
             src="/sanpai/noaction_01.png"
             alt="でばっぐ神社"
             class="w-100"
             width="800"
             height="749"
-            style="max-width: 700px; height: auto"
+            style="max-width: 560px; height: auto"
           />
         </div>
-        <div class="fs-1">
+        <div class="fs-3 quote">
           「まずはぎっとはぶでコントリビュートするのじゃ。」
         </div>
-        <div class="fs-4 mt-4">追加のポイントはありませんでした</div>
+        <div class="fs-5 mt-2">追加のポイントはありませんでした</div>
+        <!-- 何をすれば参拝できるか。sanpaiGo は GitHub の公開イベント
+             (users/:name/events/public)を種類を問わず、前回の参拝より後の分だけ数える -->
+        <div class="card-shrine content-narrow text-start p-3 mt-4">
+          <div class="fw-bold">参拝の対象になる活動</div>
+          <p class="small mt-1 mb-2">
+            GitHub の公開アクティビティです(公開リポジトリへの push・PR・Issue・コメント・スターなど、種類は問いません)。前回の参拝より後に行ったものが数えられます。
+          </p>
+          <a
+            v-if="user && user.screen_name"
+            :href="`https://github.com/` + user.screen_name"
+            target="_blank"
+            rel="noopener"
+            class="small"
+          >
+            github.com/{{ user.screen_name }} を開く
+            <i class="fas fa-fw fa-external-link-alt"></i>
+          </a>
+        </div>
       </div>
       <!-- failed(not registered 等)や未知のステータス。以前は表示分岐が無く
            真っ白になっていた(#205) -->
       <div v-else-if="result">
-        <div class="fs-1 mt-5">
+        <div class="fs-3 quote">
           「ふむ、まだ氏子の登録が済んでおらぬようじゃ。」
         </div>
-        <div class="fs-4 mt-4">
+        <div class="fs-5 mt-2">
           参拝を受け付けられませんでした。トップページからログインし直してください。
         </div>
         <nuxt-link class="btn btn-lg btn-accent mt-4" to="/">
@@ -168,9 +190,9 @@
       </transition>
     </div>
     <!-- 通信失敗(ネットワーク瞬断・サーバーエラー)。儀式はやり直させない -->
-    <div class="container py-5" v-if="isError && !ritual">
-      <div class="fs-1">「むむ、うまく声が届かなかったようじゃ。」</div>
-      <div class="fs-4 mt-4">
+    <div v-if="isError && !ritual">
+      <div class="fs-3 quote">「むむ、うまく声が届かなかったようじゃ。」</div>
+      <div class="fs-5 mt-2">
         通信に失敗しました。少し待ってからもう一度お試しください。
       </div>
       <button
@@ -185,27 +207,32 @@
     <template
       v-if="!ritual && ['success', 'expire', 'noaction'].includes(result)"
     >
-      <div class="my-5">
+      <!-- 共有は成功したときだけ(expire / noaction は 0 ポイントの報告になる) -->
+      <div v-if="result === 'success'" class="mt-5">
         <Share
           title="参拝したことをSNSで報告しよう"
           :url="shareUrl"
           :message="shareMessage"
-          :text="result === 'success' ? shareText : ''"
+          :text="shareText"
         ></Share>
       </div>
-      <div>
-        <nuxt-link class="btn btn-lg btn-accent me-2" to="/omikuji">
-          おみくじを引く
+      <div class="d-flex flex-wrap gap-2 justify-content-center mt-4">
+        <!-- おみくじもクールダウン中なら「前回のおみくじ」(トップ・ヘッダーと同じ判定) -->
+        <nuxt-link class="btn btn-lg btn-accent" to="/omikuji">
+          {{ omikujiRemaining > 0 ? "前回のおみくじ" : "おみくじを引く" }}
         </nuxt-link>
-        <nuxt-link class="btn btn-lg btn-outline-light" to="/dashboard">
+        <nuxt-link class="btn btn-lg btn-ghost" to="/dashboard">
           マイページを見る
+        </nuxt-link>
+        <nuxt-link class="btn btn-lg btn-ghost" to="/ranking">
+          ランキングを見る
         </nuxt-link>
       </div>
     </template>
     <transition name="loading-fade">
       <Loading v-if="isLoading" :messages="loadingMessages"></Loading>
     </transition>
-  </div>
+  </main>
 </template>
 
 <script>
@@ -215,7 +242,9 @@ import {
   saveSanpaiResult,
   loadRestorableSanpaiResult,
   clearSanpaiResult,
+  DEFAULT_NEXT_TIME_SECONDS,
 } from "~/utils/sanpaiSession";
+import { loadOmikujiRemaining } from "~/utils/omikujiCooldown";
 
 // 認証状態の復元は非同期のため、最初に確定したユーザーを待ち受ける
 function resolveCurrentUser(auth) {
@@ -245,6 +274,8 @@ export default {
       restored: false,
       remainingSeconds: 0,
       restoreTimerId: null,
+      // おみくじの残り秒(0なら引ける)。結果画面のおみくじボタンの文言に使う
+      omikujiRemaining: 0,
       loadingMessages: [
         "ブンセキチュウ...",
         "コミットをかぞえています",
@@ -270,6 +301,10 @@ export default {
     };
   },
   mounted() {
+    this.omikujiRemaining = loadOmikujiRemaining(
+      this.user && this.user.github_id,
+      Date.now()
+    );
     // SWの自動リロード・PWA再起動・タブ退避復帰などで再マウントされた場合、
     // クールダウン内なら儀式をやり直させず完了画面を復元する。儀式画面に
     // 戻すと二拍手→サーバー判定でexpireの悪循環になる(#198)
@@ -413,6 +448,11 @@ export default {
       if (d.status === "success") {
         // クールダウン内の再マウントで完了画面を復元できるよう保存(#198)
         saveSanpaiResult({ ...this.status }, d.next_time, Date.now());
+      } else if (d.status === "expire") {
+        // 次に参拝できるまでを数える。0 になったら復元表示と同じく儀式に戻す
+        this.startRestoreCountdown(
+          d.next_time != null ? d.next_time : DEFAULT_NEXT_TIME_SECONDS
+        );
       }
     },
   },
@@ -552,6 +592,18 @@ export default {
 }
 .result-activity > div {
   min-width: 130px;
+}
+
+/* 次の参拝までの残り時間(選択状態と同じ琥珀ティントの面) */
+.cooldown-chip {
+  display: inline-block;
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent-tint);
+  color: var(--color-accent-soft);
+  border-radius: 0.5rem;
+  padding: 8px 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 結果ブロックのフェードイン(下からふわっと) */

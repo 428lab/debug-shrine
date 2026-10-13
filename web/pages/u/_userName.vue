@@ -1,116 +1,83 @@
 <template>
-  <main class="container p-3">
-    <div class="p-3 profile-outline" v-if="!isLoading">
+  <main class="container pt-4 pt-lg-5">
+    <!-- 読み込み失敗。Loading を閉じて理由と戻り先を出す(共有 URL からの流入で行き止まりにしない) -->
+    <div v-if="loadError" class="content-wide">
+      <h1 class="fs-2 mb-3">@{{ $route.params.userName }}</h1>
+      <div class="notice-danger">
+        <i class="fas fa-fw fa-exclamation-triangle"></i>
+        {{
+          loadError === "notfound"
+            ? "このユーザーは見つかりませんでした。URL が古いか、まだ参拝していない可能性があります。"
+            : "公開プロフィールを読み込めませんでした。時間をおいてもう一度お試しください。"
+        }}
+      </div>
+      <div class="d-flex flex-wrap gap-2 mt-4">
+        <nuxt-link to="/" class="btn btn-lg btn-accent">トップへ戻る</nuxt-link>
+        <nuxt-link to="/ranking" class="btn btn-lg btn-ghost">ランキングを見る</nuxt-link>
+      </div>
+    </div>
+    <template v-else-if="!isLoading">
+      <div class="d-flex align-items-center gap-3 mb-3">
+        <img :src="profile.profileImage" alt="" class="avatar-lg" />
+        <div class="min-w-0">
+          <h1 class="fs-2 mb-0">{{ profile.nickName }}</h1>
+          <a
+            :href="`https://github.com/` + profile.screenName"
+            class="small"
+            target="_blank"
+          >
+            <i class="fab fa-github fa-fw"></i>{{ profile.screenName }}
+          </a>
+        </div>
+      </div>
       <div class="row">
-        <div class="col-12 col-md-5 col-xl-8 mb-4 mb-md-0">
-          <div class="p-3 bg-dark h-100 rounded">
-            <div class="d-lg-flex align-items-center">
-              <h1 class="fs-4 me-4 mb-0">{{ profile.nickName }}</h1>
+        <div class="col-12 col-lg-8 mb-3 mb-lg-0">
+          <div class="card-shrine p-3 h-100">
+            <div class="stat-tiles">
+              <div class="tile"><small>れべる</small><b>{{ status.level }}</b></div>
+              <div class="tile"><small>ぽいんと</small><b>{{ status.points }}</b></div>
+              <div class="tile"><small>せんとうりょく</small><b>{{ status.total }}</b></div>
             </div>
-            <div class="d-flex mt-3 d-md-block">
-              <div class="w-35 mb-3 me-3">
-                <img
-                  :src="profile.profileImage"
-                  alt=""
-                  class="rounded-icon img-fluid w-100"
-                />
-              </div>
-              <div class="ms-4flex-fill">
-                <a
-                  :href="`https://github.com/` + profile.screenName"
-                  class="d-flex align-items-center"
-                  target="_blank"
-                >
-                  <i class="fab fa-github fa-fw"></i>
-                  {{ profile.screenName }}
-                </a>
-                <div class="mt-3">れべる：{{ status.level }}</div>
-                <div>ポイント：{{ status.points }}</div>
-                <table class="mt-3">
-                  <tr>
-                    <td>せんとうりょく</td>
-                    <td>：</td>
-                    <td class="text-end">{{ status.total }}</td>
-                  </tr>
-                  <tr>
-                    <td>たいりょく</td>
-                    <td>：</td>
-                    <td class="text-end">{{ status.hp }}</td>
-                  </tr>
-                  <tr>
-                    <td>ちから</td>
-                    <td>：</td>
-                    <td class="text-end">{{ status.power }}</td>
-                  </tr>
-                  <tr>
-                    <td>かしこさ</td>
-                    <td>：</td>
-                    <td class="text-end">{{ status.intelligence }}</td>
-                  </tr>
-                  <tr>
-                    <td>しゅびりょく</td>
-                    <td>：</td>
-                    <td class="text-end">{{ status.defence }}</td>
-                  </tr>
-                  <tr>
-                    <td>すばやさ</td>
-                    <td>：</td>
-                    <td class="text-end">{{ status.agility }}</td>
-                  </tr>
-                </table>
-              </div>
+            <div class="stat-tiles mt-3">
+              <div class="tile"><small>たいりょく</small><b>{{ status.hp }}</b></div>
+              <div class="tile"><small>ちから</small><b>{{ status.power }}</b></div>
+              <div class="tile"><small>かしこさ</small><b>{{ status.intelligence }}</b></div>
+              <div class="tile"><small>しゅびりょく</small><b>{{ status.defence }}</b></div>
+              <div class="tile"><small>すばやさ</small><b>{{ status.agility }}</b></div>
             </div>
-            <div class="py-3">前回の参拝：{{ status.last_sanpai }}</div>
+            <div class="mt-3 small text-muted">前回の参拝：{{ status.last_sanpai }}</div>
+            <div v-if="!isLogin" class="mt-3">
+              <nuxt-link to="/" class="btn btn-lg btn-accent"
+                >コントリビュートして自分の能力を分析！
+              </nuxt-link>
+            </div>
+            <Share
+              v-if="$route.params.userName === (user ? user.screen_name : false)"
+              class="mt-3"
+              align="start"
+              title="プロフィールをSNSでシェアしよう"
+              :url="shareUrl"
+              :message="shareMessage"
+            ></Share>
           </div>
         </div>
-        <div class="col-12 col-md-7 col-xl-4">
-          <div class="row">
-            <div class="d-none d-md-block col-9">
-              <img src="/torii.svg" alt="" class="img-fluid w-75" />
-            </div>
-            <div class="d-none d-md-block col-3">
-              <img src="/428lab.svg" alt="" class="img-fluid h-100" />
-            </div>
-            <div class="col-8 col-md-12 mt-md-4">
-              <div
-                class="text-center d-inline-block p-1 label-accent debug-title"
-              >
-                <small>でばっぐのうりょく</small>
-              </div>
+        <div class="col-12 col-lg-4">
+          <div class="card-shrine p-3 h-100 d-flex flex-column text-center">
+            <div class="p-2 label-accent">でばっぐのうりょく</div>
+            <div class="radar-box mx-auto w-100">
               <RadarChart :chartData="chartData" />
             </div>
-            <div class="col-4 align-items-center d-md-none">
-              <img
-                src="/ProfileParts/profile_parts.png"
-                class="img-fluid"
-                alt=""
-              />
+            <div class="mt-auto pt-2">
+              <img src="/428lab.svg" alt="428lab" height="24" />
             </div>
           </div>
         </div>
       </div>
       <!-- ポートフォリオ: 参拝の記録(累計・ストリーク・称号)/GitHub実績/草 -->
-      <ProfileStats class="mt-4" :screen-name="$route.params.userName" />
-      <GithubStats class="mt-4" :screen-name="$route.params.userName" />
-      <SanpaiGrass class="mt-4" :screen-name="$route.params.userName" />
-    </div>
-    <div v-if="!isLogin" class="text-center">
-      <nuxt-link
-        to="/"
-        class="btn btn-lg btn-accent mt-3 d-block d-md-inline-block"
-        >コントリビュートして<br class="d-md-none" />自分の能力を分析！
-      </nuxt-link>
-    </div>
-    <div
-      class="text-center text-md-end mt-3"
-      v-if="$route.params.userName === (user ? user.screen_name : false)"
-    >
-      <Share
-        title="プロフィールをSNSでシェアしよう"
-        :url="shareUrl"
-        :message="shareMessage"
-      ></Share>
-    </div>
+      <ProfileStats class="mt-3" :screen-name="$route.params.userName" />
+      <GithubStats class="mt-3" :screen-name="$route.params.userName" />
+      <SanpaiGrass class="mt-3" :screen-name="$route.params.userName" />
+    </template>
     <Loading v-if="isLoading" message="ヨミコミチュウ..."></Loading>
   </main>
 </template>
@@ -145,6 +112,8 @@ export default {
   data() {
     return {
       isLoading: true,
+      // 読み込み失敗の理由。"" / "notfound"(404) / "failed"
+      loadError: "",
       profile: {},
       status: {},
       chartData: {
@@ -175,7 +144,17 @@ export default {
     }
     // Go版(statusGo)はコールドスタートが短く表示が速くなるため使用する
     // (Node版のstatusとレスポンス形式は同一。docs/backend.md参照)
-    let response = await this.$axios.get("statusGo?user=" + this.$route.params.userName);
+    let response;
+    try {
+      response = await this.$axios.get("statusGo?user=" + this.$route.params.userName);
+    } catch (e) {
+      // 未登録(404)・通信断で全画面の Loading が消えないままにならないよう、
+      // 閉じてから理由を出す
+      const statusCode = e.response && e.response.status;
+      this.loadError = statusCode === 404 ? "notfound" : "failed";
+      this.isLoading = false;
+      return;
+    }
     // レーダーは絶対値でなく「最も高い能力に対する割合(%)」で描く。
     // 最強能力=100%=外周で、全能力同値なら満点の五角形になる
     // (powerChart.vue のスケール0〜100%・OGPカードと同じ正規化)。
@@ -221,12 +200,10 @@ export default {
 </script>
 
 <style scoped>
-.profile-outline {
-  background-color: #000;
-  border-radius: 15px;
+.radar-box {
+  max-width: 320px;
 }
-
-.debug-title {
-  border-radius: 5px;
+.min-w-0 {
+  min-width: 0;
 }
 </style>

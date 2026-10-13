@@ -19,7 +19,7 @@
     <div v-else-if="state === 'rejected'" class="mg-rank-note">この記録はランキングに載せられませんでした</div>
     <div v-else-if="state === 'error'" class="mg-rank-note">ランキングに記録できませんでした</div>
     <!-- 送っている間は出さない(ページを移ると、記録の前の順位を見ることになる) -->
-    <nuxt-link v-if="state !== 'sending'" :to="to" class="btn btn-sm btn-outline-light mg-rank-btn">
+    <nuxt-link v-if="state !== 'sending'" :to="to" class="btn btn-sm btn-ghost mg-rank-btn">
       <i class="fas fa-fw fa-crown"></i> ランキング
     </nuxt-link>
   </div>
