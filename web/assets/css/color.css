@@ -3,6 +3,10 @@
    色はここで一元管理し、各所ではトークンを参照する */
 :root {
   /* ベース */
+  /* ページ背景。三角パターン(background.png)の読み込み前・範囲外に見える色 */
+  --color-bg: #15110d;
+  /* 帯を残す所だけに使う面(旧 bg-dark の代替) */
+  --color-band: #1a1511;
   --color-text: #ffffff;
   --color-text-muted: #9a9a9a;
   --color-link: #cccccc;
@@ -10,11 +14,19 @@
   /* サーフェス(GitHub実績カード等と同系のダークカード) */
   --color-surface: #0d1117;
   --color-surface-border: #30363d;
+  /* カード内タイル・カードヘッダー帯など、面の上に 1 段上げる面 */
+  --color-surface-raised: rgba(255, 255, 255, 0.04);
+  /* 面の上に引く薄い線(ヘッダー/フッター/行区切り)と、hover・ゴーストボタンの枠 */
+  --color-line-soft: rgba(255, 255, 255, 0.08);
+  --color-line-strong: rgba(255, 255, 255, 0.18);
 
   /* アクセント(提灯・鈴の金に合わせた琥珀) */
   --color-accent: #e0a83c;
   --color-accent-hover: #c98f2a;
   --color-accent-soft: #ffcf6b;
+  /* 選択状態の面と、琥珀の上に載せる文字色(DESIGN.md の accent-tint / on-accent) */
+  --color-accent-tint: rgba(255, 196, 120, 0.15);
+  --color-on-accent: #1a1206;
 
   /* 注意喚起(エラー・警告)。暗い背景で読めるよう純赤より明るくする */
   --color-danger: #ff6b6b;
@@ -28,6 +40,8 @@
 
   /* レイアウト */
   --width-content: 600px;
+  /* 一覧・結果系の幅(.content-wide) */
+  --width-content-wide: 800px;
 }
 
 .bg-x {

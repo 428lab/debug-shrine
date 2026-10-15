@@ -1,6 +1,6 @@
 <template>
-  <div class="container">
-    <div v-html="article" class="p-2"></div>
+  <div class="container pt-4 pt-lg-5 content-narrow">
+    <div v-html="article" class="prose"></div>
   </div>
 </template>
 

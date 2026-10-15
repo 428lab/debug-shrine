@@ -1,6 +1,6 @@
 <template>
-  <div class="container py-3">
-    <h1 class="h4 text-center mb-3">ミニゲーム</h1>
+  <div class="container pt-4 pt-lg-5 content-wide">
+    <h1 class="fs-2 mb-3">ミニゲーム</h1>
     <div class="games">
       <nuxt-link v-for="g in games" :key="g.path" :to="g.path" class="game-card">
         <img :src="g.icon" alt="" class="game-icon" width="72" height="72" />
@@ -12,8 +12,8 @@
         </div>
       </nuxt-link>
     </div>
-    <div class="text-center mt-3">
-      <nuxt-link to="/games/ranking" class="btn btn-outline-light">
+    <div class="mt-3">
+      <nuxt-link to="/games/ranking" class="btn btn-ghost">
         <i class="fas fa-fw fa-crown"></i> ランキング
       </nuxt-link>
     </div>
@@ -62,17 +62,15 @@ export default {
 <style scoped>
 .games {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 12px;
-  max-width: 760px;
-  margin: 0 auto;
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
+  gap: 16px;
 }
 .game-card {
   display: flex;
   gap: 14px;
   align-items: center;
   padding: 16px;
-  border-radius: 12px;
+  border-radius: 0.5rem;
   background: #fff8e1;
   border: 3px solid #b8412c;
   color: #3a2a20;
@@ -85,8 +83,8 @@ export default {
   flex: none;
   width: 72px;
   height: 72px;
-  border-radius: 16px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  border-radius: 0.5rem;
+  border: 1px solid rgba(0, 0, 0, 0.12);
 }
 .game-text {
   min-width: 0;
@@ -98,7 +96,7 @@ export default {
   color: #b8412c;
 }
 .game-kana {
-  margin-left: 8px;
+  display: block;
   font-size: 0.8rem;
   font-weight: 600;
   color: #5a3f28;

@@ -1,7 +1,7 @@
 <template>
-  <div class="text-center container py-5 content-narrow">
+  <div class="text-center container pt-4 pt-lg-5 content-narrow">
     <h1 class="mb-2">おみくじ</h1>
-    <p class="text-muted">8時間に1回、ITの運勢を占えるぞ。</p>
+    <p class="text-muted mb-4">8時間に1回、ITの運勢を占えるぞ。</p>
 
     <!-- 状態取得中(ローディング表現はLoadingコンポーネントに統一) -->
     <Loading v-if="state === 'loading'" message="お伺いを立てています"></Loading>
@@ -11,7 +11,7 @@
       <div class="notice-danger">
         <i class="fas fa-fw fa-exclamation-triangle"></i> うまく引けませんでした。時間をおいて試してください。
       </div>
-      <button class="btn btn-outline-secondary" @click="fetchStatus">
+      <button class="btn btn-ghost mt-3" @click="fetchStatus">
         再読み込み
       </button>
     </div>
@@ -56,7 +56,7 @@
       </div>
 
       <div class="mt-4">
-        <nuxt-link class="btn btn-outline-light" to="/dashboard">
+        <nuxt-link class="btn btn-ghost" to="/dashboard">
           マイページで称号を確認
         </nuxt-link>
       </div>
@@ -77,7 +77,7 @@
         この神社のおみくじは量子ゆらぎと放射性崩壊の実測値だけで引かれます。
         エントロピーが補充されるまでお待ちください。
       </p>
-      <button class="btn btn-outline-secondary mt-2" @click="fetchStatus">
+      <button class="btn btn-ghost mt-3" @click="fetchStatus">
         もう一度確かめる
       </button>
     </div>
