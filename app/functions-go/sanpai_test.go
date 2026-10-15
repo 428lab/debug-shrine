@@ -347,6 +347,12 @@ func TestSanpai_Cooldown_Expire(t *testing.T) {
 	if got := int(out["add_exp"].(float64)); got != 0 {
 		t.Errorf("add_exp = %d, want 0", got)
 	}
+	// 直前に参拝したので、残りはクールダウン全体以下かつ正
+	next := int(out["next_time"].(float64))
+	remaining, ok := out["remaining_seconds"].(float64)
+	if !ok || remaining <= 0 || int(remaining) > next {
+		t.Errorf("remaining_seconds = %v, want 0 < x <= %d", out["remaining_seconds"], next)
+	}
 }
 
 func TestSanpai_NoAction(t *testing.T) {

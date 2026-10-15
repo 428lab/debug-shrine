@@ -449,9 +449,14 @@ export default {
         // クールダウン内の再マウントで完了画面を復元できるよう保存(#198)
         saveSanpaiResult({ ...this.status }, d.next_time, Date.now());
       } else if (d.status === "expire") {
-        // 次に参拝できるまでを数える。0 になったら復元表示と同じく儀式に戻す
+        // 次に参拝できるまでを数える。0 になったら復元表示と同じく儀式に戻す。
+        // remaining_seconds が無い旧 API ではクールダウン全体(next_time)で代用する
         this.startRestoreCountdown(
-          d.next_time != null ? d.next_time : DEFAULT_NEXT_TIME_SECONDS
+          d.remaining_seconds != null
+            ? d.remaining_seconds
+            : d.next_time != null
+              ? d.next_time
+              : DEFAULT_NEXT_TIME_SECONDS
         );
       }
     },
