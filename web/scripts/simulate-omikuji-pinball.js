@@ -1,163 +1,151 @@
-// おみくじ「ピンボール」装置(omikujiPinball.js)のヘッドレス検証。
-//
-// 引きの強さ × 乱数シードを掃引し、放った玉が狐(中央の穴)に落ちるか、
-// 落ちるまでの秒数を計測する。GEO を調整したら必ずここを回す。
+// おみくじ演出「サイバー弾き盤」(components/omikujiPinball.js)のヘッドレス検証。
 //
 // 使い方(web/ ディレクトリで実行):
-//   node scripts/simulate-omikuji-pinball.js            引き × シードの格子を掃引
-//   node scripts/simulate-omikuji-pinball.js --verbose  各点の結果を全部出す
-//   node scripts/simulate-omikuji-pinball.js --seeds 30  シードを 1..30 に広げる
-//   node scripts/simulate-omikuji-pinball.js --one 70 3 引き70・シード3 を1回
-//   node scripts/simulate-omikuji-pinball.js --trace 70 3 玉の軌跡を 0.25s ごとに出す
+//   node scripts/simulate-omikuji-pinball.js            # 既定: 引き 6 段階 × 操作 4 通り × レア度 7 × シード 3
+//   node scripts/simulate-omikuji-pinball.js --seeds 10
+//   node scripts/simulate-omikuji-pinball.js --trace    # 1 本だけ玉の軌跡を出す
 //
-// 合否: 放てて狐に届くこと。届かず静まった場合は、SETTLE_LIMIT_SEC 以内で
-// かつ止まった場所が狐の穴の中のときだけ合格(棚止まりは失敗)。
+// 確かめること:
+// - どの強さで放っても、レーンを出て盤面に入る
+// - 玉が盤面の外へ出ない・壁にめり込まない
+// - 操作(なし・でたらめ・玉が来たら打つ・押しっぱなし)に関係なく、本命のポートに入る
+// - 結果が届いてから、かかる時間(結界が開くまで + 落ちるまで + レール)
+// - ギミック(バンパー・ランプ・ワープ・磁力・ドロップ・レーン)がそれなりに起きる
+// - 放つ前は何も動かない
 
 /* eslint-disable no-console */
-const Matter = require("matter-js");
-const machine = require("../components/omikujiPinball.js");
+const assert = require("assert");
+const P = require("../components/omikujiPinball");
 
-const STEPS_PER_SEC = 1000 / machine.GEO.FIXED_DELTA;
-const SETTLE_LIMIT_SEC = 8;
+const args = process.argv.slice(2);
+const seeds = Number((args[args.indexOf("--seeds") + 1] || "").match(/^\d+$/) ? args[args.indexOf("--seeds") + 1] : 3);
+const trace = args.includes("--trace");
 
-// 決定論的な乱数(シードごとに同じ列)
-function seeded(seed) {
-  let s = seed * 9301 + 49297;
+function mulberry(seed) {
+  let a = seed >>> 0;
   return () => {
-    s = (s * 9301 + 49297) % 233280;
-    return s / 233280;
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
 
-function runOnce(pull, seed, maxSeconds) {
-  const built = machine.build(Matter, { rnd: seeded(seed) });
-  const engine = built.engine;
-  const ritual = machine.createRitual(Matter, built);
+const POLICIES = {
+  none: () => ({ left: false, right: false }),
+  random: (g, rnd, st) => {
+    if (rnd() < 0.02) st.l = !st.l;
+    if (rnd() < 0.02) st.r = !st.r;
+    return { left: st.l, right: st.r };
+  },
+  smart: (g) => {
+    const b = g.ball;
+    const near = b.y > 700 && b.vy > 0;
+    return { left: near && b.x < P.CX + 10, right: near && b.x > P.CX - 10 };
+  },
+  hold: () => ({ left: true, right: true }),
+};
 
-  let step = 0;
-  let hitStep = null;
-  let bumps = 0;
-  Matter.Events.on(engine, "collisionStart", (e) => {
-    for (const p of e.pairs) {
-      const labels = [p.bodyA.label, p.bodyB.label];
-      if (labels.includes("bumper") && labels.includes("ball")) bumps++;
-      if (labels.includes("fox-sensor") && labels.includes("ball") && hitStep === null) hitStep = step;
+// 壁へのめり込み(当たりの形の内側に玉の中心がどれだけ入っているか)
+function penetration(g) {
+  const b = g.ball;
+  let worst = 0;
+  for (const s of g.shapes) {
+    if (!s.active) continue;
+    if (s.kind === "barrier" && g.phase !== "play") continue;
+    if (s.kind === "drop" && !g.drops[s.id]) continue;
+    let d;
+    if (s.type === "circle") d = Math.hypot(b.x - s.x, b.y - s.y) - s.r;
+    else {
+      const dx = s.bx - s.ax;
+      const dy = s.by - s.ay;
+      const t = Math.max(0, Math.min(1, ((b.x - s.ax) * dx + (b.y - s.ay) * dy) / (dx * dx + dy * dy)));
+      d = Math.hypot(b.x - (s.ax + dx * t), b.y - (s.ay + dy * t)) - s.r;
     }
-  });
-
-  for (let i = 0; i < STEPS_PER_SEC; i++) {
-    Matter.Engine.update(engine, machine.GEO.FIXED_DELTA, 1);
-    step++;
+    worst = Math.max(worst, P.R - d);
   }
-  ritual.pull(pull);
-  const settle = machine.createSettleDetector(Matter, built);
-  let launchStep = null;
-  let settledStep = null;
-  let speedAtLaunch = 0;
-  let maxSpeed = 0;
-  const maxSteps = step + Math.round(maxSeconds * STEPS_PER_SEC);
-  while (step < maxSteps && hitStep === null && settledStep === null) {
-    if (launchStep === null && ritual.step(false)) {
-      launchStep = step;
-      speedAtLaunch = Math.hypot(built.ball.velocity.x, built.ball.velocity.y);
-    }
-    Matter.Engine.update(engine, machine.GEO.FIXED_DELTA, 1);
-    step++;
-    if (launchStep !== null) {
-      maxSpeed = Math.max(maxSpeed, Math.hypot(built.ball.velocity.x, built.ball.velocity.y));
-      if (settle.step()) settledStep = step;
-    }
-  }
-  const b = built.ball.position;
-  const escaped = b.x < -50 || b.x > machine.GEO.W + 50 || b.y < -50 || b.y > machine.GEO.H + 50;
-  return {
-    launched: launchStep !== null,
-    hitSec: hitStep === null ? null : (hitStep - (launchStep || 0)) / STEPS_PER_SEC,
-    settledSec: settledStep === null ? null : (settledStep - (launchStep || 0)) / STEPS_PER_SEC,
-    bumps,
-    escaped,
-    ballX: Math.round(b.x),
-    ballY: Math.round(b.y),
-    speedAtLaunch: speedAtLaunch.toFixed(1),
-    maxSpeed: maxSpeed.toFixed(1),
-  };
+  return worst;
 }
 
-function checkIdle(seconds) {
-  const built = machine.build(Matter, { rnd: seeded(1) });
-  for (let i = 0; i < seconds * STEPS_PER_SEC; i++) Matter.Engine.update(built.engine, machine.GEO.FIXED_DELTA, 1);
-  const drift = Math.hypot(built.ball.position.x - built.anchor.x, built.ball.position.y - built.anchor.y);
-  console.log(`無操作 ${seconds}s: 玉の支点からのずれ ${drift.toFixed(2)}px`);
-  return drift < 3;
+function run(pull, policy, tierIndex, seed, opts) {
+  const rnd = mulberry(seed * 7919 + Math.round(pull * 100) * 31 + tierIndex);
+  const g = P.newGame({ rnd });
+  // 放つ前は動かない
+  const before = JSON.stringify(g.ball);
+  P.step(g, 1 / 60, {});
+  assert.strictEqual(JSON.stringify(g.ball), before, "放つ前に玉が動いた");
+  P.setPull(g, pull);
+  P.launch(g);
+  const st = {};
+  const dt = 1 / 60;
+  let left = null;
+  let worstPen = 0;
+  let maxV = 0;
+  const path = [];
+  const ev = {};
+  for (let frame = 0; frame < 60 * 40; frame++) {
+    if (g.t > 1 && g.target == null) P.setTarget(g, P.TIERS[tierIndex]);
+    P.step(g, dt, POLICIES[policy](g, rnd, st));
+    for (const e of g.events.splice(0)) ev[e.type] = (ev[e.type] || 0) + 1;
+    const b = g.ball;
+    if (b.mode === "table") {
+      if (b.x < 14 || b.x > 476 || b.y < 28 || b.y > 876) throw new Error(`盤面の外: ${JSON.stringify(b)} t=${g.t.toFixed(2)}`);
+      worstPen = Math.max(worstPen, penetration(g));
+      maxV = Math.max(maxV, Math.hypot(b.vx, b.vy));
+      if (left == null && b.x < P.LANE.wall - 4 && b.y < P.LANE.top) left = g.t;
+      // 蓋が閉じた後にレーンに戻っていない
+      const gate = g.shapes.find((s) => s.kind === "gate");
+      if (gate.active && b.x > P.LANE.wall + 2 && b.y > P.LANE.top + 20) throw new Error(`レーンに落ち戻った t=${g.t.toFixed(2)}`);
+    }
+    if (opts && opts.trace && frame % 6 === 0) path.push(`${g.t.toFixed(2)} ${b.mode} ${b.x.toFixed(0)},${b.y.toFixed(0)} h${b.h.toFixed(0)} ${g.phase}`);
+    if (g.phase === "port") break;
+  }
+  if (opts && opts.trace) console.log(path.join("\n"));
+  assert.ok(left != null, `レーンを出なかった pull=${pull}`);
+  assert.strictEqual(g.phase, "port", `ポートに着かなかった pull=${pull} ${policy} tier=${tierIndex} seed=${seed} phase=${g.phase} t=${g.t.toFixed(1)}`);
+  assert.strictEqual(g.target, tierIndex);
+  return { t: g.t, finaleAt: g.finaleAt, worstPen, maxV, ev, left, stats: g.stats };
 }
 
-function main() {
-  const args = process.argv.slice(2);
-  const verbose = args.includes("--verbose");
-  const oneIdx = args.indexOf("--one");
-  if (oneIdx >= 0) {
-    console.log(runOnce(parseFloat(args[oneIdx + 1]), parseInt(args[oneIdx + 2] || "1", 10), 30));
-    return;
-  }
-  // 軌跡ダンプ(バンパー配置の当たりをつける用): 放ってから 0.25s ごとの玉の位置
-  const traceIdx = args.indexOf("--trace");
-  if (traceIdx >= 0) {
-    const pull = parseFloat(args[traceIdx + 1]);
-    const seed = parseInt(args[traceIdx + 2] || "1", 10);
-    const built = machine.build(Matter, { rnd: seeded(seed) });
-    const ritual = machine.createRitual(Matter, built);
-    for (let i = 0; i < STEPS_PER_SEC; i++) Matter.Engine.update(built.engine, machine.GEO.FIXED_DELTA, 1);
-    ritual.pull(pull);
-    let launched = false;
-    const pts = [];
-    for (let i = 0; i < 12 * STEPS_PER_SEC; i++) {
-      if (!launched && ritual.step(false)) launched = true;
-      Matter.Engine.update(built.engine, machine.GEO.FIXED_DELTA, 1);
-      if (launched && i % Math.round(STEPS_PER_SEC / 4) === 0) {
-        pts.push(`(${Math.round(built.ball.position.x)},${Math.round(built.ball.position.y)})`);
-      }
-    }
-    console.log(pts.join(" "));
-    return;
-  }
-  const idleOk = checkIdle(20);
-  // --seeds N で乱数シードを 1..N に広げる(既定 6)。引きは releaseMin〜maxPull を刻む。
-  const seedsIdx = args.indexOf("--seeds");
-  const seedCount = seedsIdx >= 0 ? parseInt(args[seedsIdx + 1], 10) : 6;
-  const pulls = [14, 20, 28, 35, 42, 50, 58, 65, 72, 80, 90];
-  const seeds = Array.from({ length: seedCount }, (_, i) => i + 1);
-  let fail = 0;
-  let total = 0;
-  let slowest = 0;
-  let bumpTotal = 0;
-  const failures = [];
-  let settledNoHit = 0;
-  const FS = machine.GEO.FOX_SENSOR;
-  for (const pull of pulls) {
-    for (const seed of seeds) {
-      const r = runOnce(pull, seed, 30);
-      total++;
-      bumpTotal += r.bumps;
-      // 狐に届かず静まった場合は、止まった場所が狐の穴の中でなければ失敗
-      // (どこかの棚に載ったまま終わる演出は避ける)。
-      const inHole = Math.abs(r.ballX - FS.x) <= FS.w / 2 && Math.abs(r.ballY - FS.y) <= FS.h / 2;
-      if (r.hitSec === null && r.settledSec !== null) settledNoHit++;
-      const ok = r.launched && !r.escaped && (r.hitSec !== null || (r.settledSec !== null && r.settledSec <= SETTLE_LIMIT_SEC && inHole));
-      if (!ok) {
-        fail++;
-        failures.push({ pull, seed, ...r });
-      } else if (r.hitSec !== null) slowest = Math.max(slowest, r.hitSec);
-      if (verbose) {
-        const outcome = r.hitSec !== null ? `狐到達 ${r.hitSec.toFixed(1)}s` : r.settledSec !== null ? `静止 ${r.settledSec.toFixed(1)}s` : "未到達";
-        console.log(`引き${String(pull).padStart(3)} seed${seed} 射出${r.speedAtLaunch} 最高速${r.maxSpeed} バンパー${r.bumps}回 → ${outcome} 玉(${r.ballX},${r.ballY})${r.escaped ? " 場外!" : ""}`);
+if (trace) {
+  run(0.6, "smart", 2, 1, { trace: true });
+  process.exit(0);
+}
+
+const pulls = [0, 0.2, 0.4, 0.6, 0.8, 1];
+const rows = [];
+const totals = {};
+let n = 0;
+for (const pull of pulls) {
+  for (const policy of Object.keys(POLICIES)) {
+    for (let tier = 0; tier < P.TIERS.length; tier++) {
+      for (let s = 1; s <= seeds; s++) {
+        const r = run(pull, policy, tier, s);
+        rows.push(Object.assign({ pull, policy, tier }, r));
+        for (const [k, v] of Object.entries(r.ev)) totals[k] = (totals[k] || 0) + v;
+        n++;
       }
     }
   }
-  console.log(`掃引 ${total} 点: 失敗 ${fail} / 最遅到達 ${slowest.toFixed(1)}s / 平均バンパー ${(bumpTotal / total).toFixed(1)}回 / 無操作静止 ${idleOk ? "OK" : "NG"} / 届かず静止 ${settledNoHit}`);
-  for (const f of failures.slice(0, 20)) {
-    console.log(`  引き${f.pull} seed${f.seed}: 射出${f.speedAtLaunch} 最高速${f.maxSpeed} バンパー${f.bumps} 玉(${f.ballX},${f.ballY}) launched=${f.launched} 静止=${f.settledSec === null ? "なし" : f.settledSec.toFixed(1) + "s"}${f.escaped ? " 場外" : ""}`);
-  }
-  process.exitCode = fail > 0 || !idleOk ? 1 : 0;
 }
-
-main();
+const pct = (arr, q) => arr.slice().sort((a, b) => a - b)[Math.min(arr.length - 1, Math.floor(arr.length * q))];
+const ts = rows.map((r) => r.t);
+const drainAfter = rows.map((r) => r.t - r.finaleAt);
+const pen = Math.max(...rows.map((r) => r.worstPen));
+const leftMax = Math.max(...rows.map((r) => r.left));
+console.log(`OK ${n} 本すべて本命のポートへ`);
+console.log(`ポートまで(発射から): 中央 ${pct(ts, 0.5).toFixed(1)}s / 90% ${pct(ts, 0.9).toFixed(1)}s / 最大 ${Math.max(...ts).toFixed(1)}s`);
+console.log(`結界が開いてからポートまで: 中央 ${pct(drainAfter, 0.5).toFixed(1)}s / 最大 ${Math.max(...drainAfter).toFixed(1)}s`);
+console.log(`レーンを出るまで: 最大 ${leftMax.toFixed(2)}s / 壁へのめり込み 最大 ${pen.toFixed(1)}px / 最高速 ${Math.max(...rows.map((r) => r.maxV)).toFixed(0)}px/s`);
+const per = (k) => ((totals[k] || 0) / n).toFixed(2);
+console.log(
+  `1 本あたり: バンパー ${per("bumper")} スリング ${per("sling")} ランプ ${per("rampIn")} ワープ ${per("portalIn")} 磁力 ${per("magnet")} ` +
+    `ドロップ ${per("drop")} レーン ${per("lane")} スピナー ${per("spinner")} 結界 ${per("save")} 小突き ${per("nudge")} 強制レール ${rows.filter((r) => r.ev.drain && r.t - r.finaleAt > P.FINALE_MAX - 0.1).length}`
+);
+for (const policy of Object.keys(POLICIES)) {
+  const rs = rows.filter((r) => r.policy === policy);
+  const f = (k) => (rs.reduce((a, r) => a + (r.ev[k] || 0), 0) / rs.length).toFixed(2);
+  console.log(`  ${policy.padEnd(6)} バンパー ${f("bumper")} ランプ ${f("rampIn")} ワープ ${f("portalIn")} 磁力 ${f("magnet")} ドロップ ${f("drop")} フリッパー ${f("flipper")}`);
+}
+assert.ok(pen < 4, `壁にめり込みすぎ ${pen}`);
