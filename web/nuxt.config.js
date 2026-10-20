@@ -145,6 +145,9 @@ export default {
 
   // Build Configuration (https://go.nuxtjs.dev/config-build)
   build: {
+    // three.js(おみくじのサイバー弾き盤)は新しい書き方(?. など)を使っていて、
+    // Nuxt 2 の webpack 4 では読めないので babel を通す
+    transpile: ['three'],
   },
 
   markdownit: {
