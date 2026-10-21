@@ -21,10 +21,9 @@ jobs:
           bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
           ./actionlint -color
 
-      - name: setup node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24.18.0"
+      # Node・Go の版は mise.toml にだけ書く(ここでは読むだけ)
+      - name: setup tools (mise.toml)
+        uses: jdx/mise-action@v5
 
       - name: cache
         uses: actions/cache@v4
@@ -65,11 +64,6 @@ jobs:
       #    hosting rewrite (/u/* -> ogpRewriteGo) や フロントからのGo関数呼び出しが
       #    あるため、フロント(firebase deploy)より先にGo関数を出す必要がある。
       # ====================================================================
-
-      - name: setup go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.25"
 
       - name: go build & test (functions-go)
         run: |
