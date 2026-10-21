@@ -19,15 +19,28 @@ jobs:
           bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
           ./actionlint -color
 
+      # Dockerfile は mise を使わないので、Node の版が mise.toml とそろっているかを確かめる
+      - name: tool versions match mise.toml
+        shell: bash
+        run: |
+          set -eu
+          node=$(sed -n 's/^node = "\(.*\)"/\1/p' mise.toml)
+          test -n "$node"
+          for f in docker/*/Dockerfile; do
+            if ! grep -q "^FROM node:${node}-" "$f"; then
+              echo "$f の Node の版が mise.toml ($node) と違う" >&2
+              exit 1
+            fi
+          done
+
   build:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
-      - name: setup node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "18"
+      # Node・Go の版は mise.toml にだけ書く(ここでは読むだけ)
+      - name: setup tools (mise.toml)
+        uses: jdx/mise-action@v5
 
       - name: cache
         uses: actions/cache@v4
@@ -67,10 +80,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: setup node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "18"
+      # Node・Go の版は mise.toml にだけ書く(ここでは読むだけ)
+      - name: setup tools (mise.toml)
+        uses: jdx/mise-action@v5
 
       - name: cache
         uses: actions/cache@v4

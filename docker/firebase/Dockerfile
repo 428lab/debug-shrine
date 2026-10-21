@@ -1,10 +1,11 @@
-FROM node:18-bullseye-slim
+# Node の版は mise.toml と同じにする(setup.yml が食い違いを見つける)
+FROM node:24.22.1-trixie-slim
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         curl ca-certificates \
         vim less \
-        openjdk-11-jre-headless fonts-noto-cjk \
+        openjdk-21-jre-headless fonts-noto-cjk \
         build-essential libpixman-1-dev libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev \
     && npm install -g firebase-tools \
     && apt-get clean \

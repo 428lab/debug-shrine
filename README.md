@@ -11,6 +11,14 @@ docker-compose up
 開発内容に応じて`docker-compose.yml`の`command`を編集してください  
 また、`docker-compose.yml`は開発用です
 
+### 道具のバージョン(mise)
+
+Node・Go のバージョンは `mise.toml` にだけ書く。CI(`.github/workflows`)も `jdx/mise-action` で
+これを読む。手元で Docker を使わない場合は [mise](https://mise.jdx.dev/) を入れて `mise install`。
+
+Node を上げる時は `mise.toml` と `docker/*/Dockerfile` の `FROM` を一緒に変える
+(Dockerfile は mise を使わないため。食い違うと `setup.yml` の確認が落ちる)。
+
 ## デプロイフロー
 
 デプロイは**ブランチ駆動**で行われる。`main` へのマージだけでは環境に反映されない。
