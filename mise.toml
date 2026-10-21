@@ -1,0 +1,10 @@
+# 開発・CI で使う道具のバージョン(ここが唯一の置き場所)。
+# - 手元: mise install(https://mise.jdx.dev/)
+# - CI: .github/workflows の jdx/mise-action がこのファイルを読む
+# - docker/*/Dockerfile は mise を使わないので、Node を上げたら FROM の版も合わせる
+#   (setup.yml の「道具の版がそろっているか」が食い違いを見つける)
+#
+# Node は 2026-10 のセキュリティリリース(CVE-2026-111497 ほか)の修正版。
+[tools]
+node = "24.22.1"
+go = "1.25"
