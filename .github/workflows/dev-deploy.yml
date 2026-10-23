@@ -3,8 +3,15 @@ on:
     branches:
       - env/dev
   # Go の関数を、コードが変わっていなくても入れ直したい時に手で動かす
-  # (Secret や Secret Manager の値を変えた時など。下の「Go の関数を入れ直すか決める」を参照)
+  # (関数の環境変数に入れている値を変えた時など。下の decide whether to deploy Go functions を参照)
   workflow_dispatch:
+
+# デプロイは 1 本ずつ(重なると、古い run の関数が後から入って残ることがある。
+# Go を飛ばす判断は「前回うまくいったデプロイ」が今動いている関数と同じことを前提にしている)。
+# 待っている間に次の push が来たら、待っている方は取り消される(取り消しは「うまくいった」に数えない)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   DOCKER_BUILDKIT: 1
@@ -30,8 +37,11 @@ jobs:
       # 入れ直しを飛ばす(画面だけの変更で待たない)。
       # 前回うまくいったデプロイは、Go を入れ直したか、Go に関わるファイルが変わっていなかったかの
       # どちらかなので、そこからの差分を見れば足りる。前回が見つからない・履歴に無い時は入れ直す。
-      # Secret や Secret Manager の値(関数の環境変数に入れているもの)を変えた時は、
-      # Actions の画面からこのワークフローを手で動かす(workflow_dispatch。必ず入れ直す)。
+      # 「前回」は、うまくいった run のうち一番最後に終わったもの(古い run を Re-run して戻した時も、
+      # 今動いている関数の版になる)。Re-run と手で動かした時(workflow_dispatch)は必ず入れ直す。
+      # リポジトリの外にある値を変えた時は手で動かす: 関数の環境変数に入れている GitHub の Secret
+      # (KUDA_API_KEY)、Firebase の functions:config(github.client_id/secret・func.base_url)。
+      # GCP の画面で関数・Scheduler・Pub/Sub などを手で変えたり消したりした時も、手で動かすと元に戻る。
       - name: decide whether to deploy Go functions
         id: go
         env:
@@ -42,13 +52,13 @@ jobs:
             echo "env/dev 以外のブランチからは動かさない($GITHUB_REF)" >&2
             exit 1
           fi
-          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            echo "手で動かしたので、Go の関数も入れ直す"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] || [ "${GITHUB_RUN_ATTEMPT:-1}" -gt 1 ]; then
+            echo "手で動かした・Re-run なので、Go の関数も入れ直す"
             echo "deploy=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          base=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/dev-deploy.yml/runs?branch=env/dev&status=success&per_page=1" \
-            --jq '.workflow_runs[0].head_sha // ""' || true)
+          base=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/dev-deploy.yml/runs?branch=env/dev&status=success&per_page=20" \
+            --jq '[.workflow_runs[]] | max_by(.updated_at) | .head_sha // ""' || true)
           if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
             echo "前回うまくいったデプロイが見つからない(${base:-なし})ので、Go の関数も入れ直す"
             echo "deploy=true" >> "$GITHUB_OUTPUT"
