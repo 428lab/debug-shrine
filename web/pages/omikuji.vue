@@ -106,6 +106,7 @@ import OmikujiAmida from "@/components/OmikujiAmida";
 import OmikujiTube from "@/components/OmikujiTube";
 import OmikujiPitagora from "@/components/OmikujiPitagora";
 import OmikujiPinball from "@/components/OmikujiPinball";
+import OmikujiSlingshot from "@/components/OmikujiSlingshot";
 import machines from "@/components/omikujiMachines";
 import {
   saveOmikujiState,
@@ -124,7 +125,7 @@ function resolveCurrentUser(auth) {
 
 export default {
   middleware: ["auth"],
-  components: { ResultCard, OmikujiScene, OmikujiAmida, OmikujiTube, OmikujiPitagora, OmikujiPinball },
+  components: { ResultCard, OmikujiScene, OmikujiAmida, OmikujiTube, OmikujiPitagora, OmikujiPinball, OmikujiSlingshot },
   data() {
     return {
       state: "loading", // loading | available | animating | cooldown | empty(物理乱数枯渇) | error
@@ -350,7 +351,7 @@ export default {
     // 今回の演出のコンポーネント(物理の装置はすべて OmikujiScene)
     sceneComponent() {
       if (!machines.isReveal(this.scenePattern)) return "OmikujiScene";
-      return { amida: "OmikujiAmida", tube: "OmikujiTube", pitagora: "OmikujiPitagora", pinball: "OmikujiPinball" }[this.scenePattern];
+      return { amida: "OmikujiAmida", tube: "OmikujiTube", pitagora: "OmikujiPitagora", pinball: "OmikujiPinball", slingshot: "OmikujiSlingshot" }[this.scenePattern];
     },
     remainingText() {
       // トップページと同じ表記にする(整形は omikujiCooldown.js に一本化)。
