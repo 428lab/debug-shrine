@@ -58,6 +58,11 @@ for (const ax of [-1, -0.66, -0.33, 0, 0.33, 0.66, 1]) {
       const tg = S.targetOf({ ax, ay, power });
       if (Math.abs(tg.x) < 1.1 && tg.y > 0.5 && tg.y < 5) assert.ok(!missed, `櫓の正面を狙ったのに外れた ax=${ax} ay=${ay} p=${power}`);
       assert.ok(g.chosen, `木札が選ばれない ax=${ax} ay=${ay} p=${power}`);
+      if (missed) {
+        // 外れた時は何も崩れず、てっぺんの木札
+        assert.ok(Math.max(...g.parts.map(S.moved)) < 0.05, `外れたのに櫓が動いた ax=${ax} ay=${ay} p=${power}`);
+        assert.strictEqual(g.chosen.floor, S.TOWER.floors, `外れた時にてっぺんの木札でない ax=${ax} ay=${ay} p=${power}`);
+      }
       for (const p of g.parts) {
         const b = p.body.position;
         assert.ok(Number.isFinite(b.x + b.y + b.z), "NaN");
@@ -70,6 +75,16 @@ for (const ax of [-1, -0.66, -0.33, 0, 0.33, 0.66, 1]) {
     }
   }
 }
+// 5) 真下へいっぱいに引くと櫓に当たる(一番自然な引き方で外れない)
+for (const dy of [100, 150, 190]) {
+  const aim = S.aimFromDrag(0, dy);
+  const g = S.build(CANNON);
+  S.setAim(g, aim);
+  S.launch(g);
+  for (let f = 0; f < 60 * 12 && g.phase !== "reveal"; f++) S.step(g, 1 / 60);
+  assert.ok(!g.missed, `真下へ ${dy}px 引いたら外れた`);
+}
+console.log("OK 真下へいっぱいに引いても櫓に当たる");
 // 4) 遅い端末(1 フレーム 0.05 秒。1 フレームの歩数の上限に当たる)でも当たって結果が選ばれる
 for (const ay of [0.1, 0.4, 0.7]) {
   const g = S.build(CANNON);
@@ -87,7 +102,7 @@ const settle = hit.map((r) => r.settle);
 const movedN = hit.map((r) => r.movedN);
 console.log(`OK ${rows.length} 通りすべて結果の木札が選ばれた(当たった ${hit.length}・外れた ${rows.length - hit.length})`);
 console.log(`外れた時、選ぶまで 最大 ${Math.max(...rows.filter((r) => r.missed).map((r) => r.settle)).toFixed(1)}s`);
-console.log(`当たるまで ${Math.min(...rows.map((r) => r.impact)).toFixed(2)}〜${Math.max(...rows.map((r) => r.impact)).toFixed(2)}s / 当たってから選ぶまで 中央 ${pct(settle, 0.5).toFixed(1)}s 最大 ${Math.max(...settle).toFixed(1)}s`);
+console.log(`当たるまで ${Math.min(...hit.map((r) => r.impact)).toFixed(2)}〜${Math.max(...hit.map((r) => r.impact)).toFixed(2)}s / 当たってから選ぶまで 中央 ${pct(settle, 0.5).toFixed(1)}s 最大 ${Math.max(...settle).toFixed(1)}s`);
 console.log(`崩れた部品(52 個中): 最少 ${Math.min(...movedN)} / 中央 ${pct(movedN, 0.5)} / 最大 ${Math.max(...movedN)}`);
 console.log(`一番遠くへ飛んだ部品: 中央 ${pct(rows.map((r) => r.far), 0.5).toFixed(1)}m 最大 ${Math.max(...rows.map((r) => r.far)).toFixed(1)}m`, rows.filter((r) => r.far > 15).map((r) => `${r.ax},${r.ay},${r.power}:${r.far.toFixed(0)}`).join(" "));
 console.log(`当たった時に選ばれた木札が崩れて動いたもの: ${hit.filter((r) => r.chosenMoved).length}/${hit.length}`);

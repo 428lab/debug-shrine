@@ -300,7 +300,7 @@ export default {
       let want = 1;
       if (!this.reducedMotion) {
         const front = S.TOWER.z + S.TOWER.halfD;
-        if (g.phase === "flight" && g.ball.position.z - front < 3.2) want = SLOW;
+        if (g.phase === "flight" && S.aimsAtTower(g.target) && g.ball.position.z - front < 3.2) want = SLOW;
         if (g.phase === "impact" && !g.missed && g.t - g.impactAt < 0.5) want = SLOW;
       }
       this._scale = this._scale == null ? 1 : this._scale + (want - this._scale) * Math.min(1, dt * 8);

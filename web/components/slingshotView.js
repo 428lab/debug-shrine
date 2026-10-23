@@ -368,6 +368,8 @@ function createView(lib, canvas, opts) {
       });
       ballMesh.position.copy(g.ball.position);
       ballMesh.quaternion.copy(g.ball.quaternion);
+      // 外れた玉は結果の間は止まる(物理を止めるため)。宙に止まって見えないように消す
+      ballMesh.visible = !(g.missed && g.phase === "reveal");
 
       // ゴム
       const bp = g.phase === "aim" ? g.ball.position : new THREE.Vector3(0, S.SLING.y, 0.05);
@@ -509,12 +511,12 @@ function createView(lib, canvas, opts) {
         // 引き絞ると、玉と一緒に少し下がる
         wantPos.z += g.aim.power * 0.6;
       } else if (g.phase === "flight" && !o.reducedMotion) {
-        // 玉の後ろについて飛ぶ(少し上・少し右から)
+        // 玉の後ろについて飛ぶ(少し上・少し外側から。櫓の左を抜ける時は左から。櫓の前に寄らない)
         // (物理の位置は cannon-es の Vec3。three の Vector3 に移してから計算する)
         const v = g.ball.velocity;
         const dir = new THREE.Vector3(v.x, v.y * 0.4, v.z).normalize();
         const bp = new THREE.Vector3(g.ball.position.x, g.ball.position.y, g.ball.position.z);
-        wantPos = bp.clone().addScaledVector(dir, -3.2).add(tmp.set(0.6, 0.9, 0));
+        wantPos = bp.clone().addScaledVector(dir, -3.2).add(tmp.set(bp.x < -0.8 ? -0.6 : 0.6, 0.9, 0));
         wantLook = bp.clone().addScaledVector(dir, 6);
         k = Math.min(1, dt * 10);
       } else if (g.phase === "impact" || (g.phase === "flight" && o.reducedMotion)) {

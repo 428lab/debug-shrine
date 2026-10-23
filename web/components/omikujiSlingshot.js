@@ -90,8 +90,17 @@ function aimFromDrag(dx, dy) {
   const power = Math.max(0, Math.min(1, len / 190));
   // 左へ引くと右へ、下へ引くと上へ(引いた向きの逆へ飛ぶ。スリングショットと同じ)
   const ax = Math.max(-1, Math.min(1, -dx / 140));
-  const ay = Math.max(0, Math.min(1, (dy + 40) / 210));
+  // 真下へいっぱいに引く(強さ 1)と櫓のてっぺん辺り。それより上へ外すには、さらに大きく引く
+  const ay = Math.max(0, Math.min(1, (dy + 40) / 310));
   return { power, ax, ay };
+}
+
+// 櫓のてっぺんの高さ
+const TOWER_TOP = Math.max(...towerLayout().map((p) => p.pos[1] + p.half[1]));
+
+// 狙った点が櫓の正面にあるか(外れる狙いなら、スローや当たりの演出をしない)
+function aimsAtTower(target) {
+  return !!target && Math.abs(target.x) < TOWER.halfW + BALL.r && target.y < TOWER_TOP + BALL.r;
 }
 
 // 狙い → 当たる点と飛ぶ時間
@@ -310,6 +319,7 @@ module.exports = {
   BALL,
   PULL,
   TOWER,
+  TOWER_TOP,
   AIM,
   FLIGHT,
   SETTLE,
@@ -318,6 +328,7 @@ module.exports = {
   towerLayout,
   aimFromDrag,
   targetOf,
+  aimsAtTower,
   pulledPos,
   launchVelocity,
   trajectory,
