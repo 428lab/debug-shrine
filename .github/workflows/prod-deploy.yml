@@ -2,6 +2,9 @@ on:
   push:
     branches:
       - env/prod
+  # Go の関数を、コードが変わっていなくても入れ直したい時に手で動かす
+  # (Secret や Secret Manager の値を変えた時など。下の「Go の関数を入れ直すか決める」を参照)
+  workflow_dispatch:
 
 env:
   DOCKER_BUILDKIT: 1
@@ -11,8 +14,55 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-22.04
+    # 前回うまくいったデプロイを Actions の API で調べる(actions: read)
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          # 前回うまくいったデプロイからの差分を見るため、履歴をすべて取る
+          fetch-depth: 0
+
+      # Go の関数(Cloud Run)の入れ直しは、関数ごとに Cloud Build でコンテナを作り直すので
+      # 1 回 5〜15 分かかる。前回うまくいったデプロイから、Go の関数に関わるファイル
+      # (app/functions-go・このワークフロー・mise.toml)が変わっていなければ、Go のテストと
+      # 入れ直しを飛ばす(画面だけの変更で待たない)。
+      # 前回うまくいったデプロイは、Go を入れ直したか、Go に関わるファイルが変わっていなかったかの
+      # どちらかなので、そこからの差分を見れば足りる。前回が見つからない・履歴に無い時は入れ直す。
+      # Secret や Secret Manager の値(関数の環境変数に入れているもの)を変えた時は、
+      # Actions の画面からこのワークフローを手で動かす(workflow_dispatch。必ず入れ直す)。
+      - name: decide whether to deploy Go functions
+        id: go
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF" != "refs/heads/env/prod" ]; then
+            echo "env/prod 以外のブランチからは動かさない($GITHUB_REF)" >&2
+            exit 1
+          fi
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "手で動かしたので、Go の関数も入れ直す"
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          base=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/prod-deploy.yml/runs?branch=env/prod&status=success&per_page=1" \
+            --jq '.workflow_runs[0].head_sha // ""' || true)
+          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            echo "前回うまくいったデプロイが見つからない(${base:-なし})ので、Go の関数も入れ直す"
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only "$base" "$GITHUB_SHA" -- app/functions-go .github/workflows/prod-deploy.yml mise.toml)
+          if [ -n "$changed" ]; then
+            echo "前回うまくいったデプロイ($base)から変わった、Go の関数に関わるファイル:"
+            echo "$changed"
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "前回うまくいったデプロイ($base)から Go の関数に関わるファイルは変わっていないので、Go のテストと入れ直しを飛ばす"
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Run actionlint
         shell: bash
@@ -66,6 +116,7 @@ jobs:
       # ====================================================================
 
       - name: go build & test (functions-go)
+        if: steps.go.outputs.deploy == 'true'
         run: |
           go build ./...
           go vet ./...
@@ -73,6 +124,7 @@ jobs:
 
       # Firestoreエミュレータの実行にはJDK 21以上が必要(firebase-toolsの要件)。
       - name: setup java (for Firestore emulator)
+        if: steps.go.outputs.deploy == 'true'
         uses: actions/setup-java@v4
         with:
           distribution: "temurin"
@@ -81,6 +133,7 @@ jobs:
       # Firestore統合テストはFIRESTORE_EMULATOR_HOST未設定時は自動スキップされる設計。
       # 本番デプロイ前のゲートとしてエミュレータを起動した状態で go test を実行する。
       - name: go test (functions-go, with Firestore emulator)
+        if: steps.go.outputs.deploy == 'true'
         run: |
           firebase emulators:exec --project d-shrine --only firestore \
             'cd functions-go && go test ./...'
@@ -88,6 +141,7 @@ jobs:
 
       # OGP画像生成(userOGPGo)のQC。サンプルOGPをレンダリングしてアーティファクト化する。
       - name: generate OGP sample for QC
+        if: steps.go.outputs.deploy == 'true'
         run: |
           go test ./internal/ogpimage/ -run TestWriteQCArtifacts -count=1 -v
         working-directory: ./app/functions-go
@@ -95,6 +149,7 @@ jobs:
           OGP_QC_OUT: ${{ github.workspace }}/ogp-qc
 
       - name: upload OGP sample artifact
+        if: steps.go.outputs.deploy == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: ogp-sample
@@ -102,6 +157,7 @@ jobs:
           if-no-files-found: error
 
       - name: enable required GCP services
+        if: steps.go.outputs.deploy == 'true'
         run: |
           gcloud services enable \
             cloudfunctions.googleapis.com \
@@ -121,6 +177,7 @@ jobs:
       # でクラッシュする(並列時のみ・ランダムな一部で発生する非決定的な競合)。
       # 事前作成し、各deployで --docker-repository を明示指定することで自動解決の競合を無くす。
       - name: ensure Artifact Registry repo for gen2 functions
+        if: steps.go.outputs.deploy == 'true'
         run: |
           gcloud artifacts repositories describe gcf-artifacts \
             --location=us-central1 --project=d-shrine \
@@ -128,6 +185,7 @@ jobs:
               --location=us-central1 --repository-format=docker --project=d-shrine
 
       - name: create Pub/Sub topics for scheduled Go functions
+        if: steps.go.outputs.deploy == 'true'
         run: |
           for TOPIC in ranking-update-go ranking-cache-go status-cache-backfill-go scheduled-ogp-delete-go battle-log-backfill-go ranking-close-retry-go ranking-close-july-go; do
             gcloud pubsub topics describe "$TOPIC" --project=d-shrine \
@@ -137,6 +195,7 @@ jobs:
       # GitHub OAuth Appのclient_id/client_secretは、Node版が使う
       # `firebase functions:config:get` から取得する(sanpaiGoで使用)。
       - name: fetch GitHub OAuth credentials for sanpaiGo
+        if: steps.go.outputs.deploy == 'true'
         run: |
           set -eo pipefail
           CONFIG_JSON=$(firebase functions:config:get github --project d-shrine)
@@ -150,6 +209,7 @@ jobs:
 
       # FUNC_BASE_URLはNode版が functions.config().func.base_url から読む値と同じもの(ogpRewriteGoで使用)。
       - name: fetch base_url for ogpRewriteGo
+        if: steps.go.outputs.deploy == 'true'
         run: |
           set -eo pipefail
           CONFIG_JSON=$(firebase functions:config:get func --project d-shrine)
@@ -159,6 +219,7 @@ jobs:
 
       # Cloud SchedulerジョブのlocationはApp Engineアプリと同一でなければならない。
       - name: resolve App Engine location for Cloud Scheduler
+        if: steps.go.outputs.deploy == 'true'
         run: |
           set -eo pipefail
           RAW_LOCATION=$(gcloud app describe --project=d-shrine --format='value(locationId)')
@@ -174,6 +235,7 @@ jobs:
       # sanpaiGoのクールダウンは本番=300s(Node版 projectID=='d-shrine' ? 300 : 60 と一致)。
       # userOGPGo/scheduledOgpDeleteGoのバケットは本番の d-shrine.appspot.com。
       - name: deploy all Go Cloud Run functions in parallel
+        if: steps.go.outputs.deploy == 'true'
         working-directory: ./app/functions-go
         run: |
           set -uo pipefail
@@ -288,6 +350,7 @@ jobs:
 
       # スケジュール関数用のCloud Schedulerジョブを作成/更新する(冪等)。
       - name: create/update Cloud Scheduler jobs for scheduled Go functions
+        if: steps.go.outputs.deploy == 'true'
         run: |
           set -uo pipefail
           upsert_job() {

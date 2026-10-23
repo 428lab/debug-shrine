@@ -46,4 +46,11 @@ Node を上げる時は `mise.toml` と `docker/*/Dockerfile` の `FROM` を一�
    gh run list --workflow prod-deploy.yml --limit 1
    ```
 
-デプロイの所要時間は dev / prod とも8分前後。
+デプロイの所要時間は dev / prod とも8分前後(Go の関数の入れ直しが大半)。
+前回うまくいったデプロイから Go の関数に関わるファイル(`app/functions-go`・そのワークフロー・`mise.toml`)が
+変わっていなければ、Go のテストと関数の入れ直しは飛ばす(画面だけの変更なら2分ほど)。
+Secret や Secret Manager の値(関数の環境変数)を変えた時は、Actions の画面からそのワークフローを
+手で動かす(Run workflow で `env/dev` か `env/prod` を選ぶ。手で動かした時は必ず入れ直す)。
+```bash
+gh workflow run dev-deploy.yml --ref env/dev
+```
