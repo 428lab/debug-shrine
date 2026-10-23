@@ -35,7 +35,15 @@ const PART_VMAX = 7.5; // 櫓の部品の速さの上限(m/s)。カメラの目�
 
 // 境内の動かない物(外れた玉や飛んだ部品が通り抜けないように、物理にも置く。見た目は slingshotView.js)
 const TORII = { z: TOWER.z - 11, x: 4.4, r: 0.5, h: 11 }; // 鳥居の柱(左右)
-const LANTERN = { x: 3.2, zs: [-1.5, TOWER.z - 5], half: [0.45, 1.36, 0.45] }; // 石灯籠(左右)
+const LANTERN = { x: 3.2, zs: [-1.5, TOWER.z - 5] }; // 石灯籠(左右)
+// 石灯籠の当たりの形(見た目の 台・竿・火袋・笠 に合わせた箱。[半分の大きさ x, y, z, 中心の高さ])
+// (1 つの大きな箱だと、見えない所で玉が跳ね返った)
+const LANTERN_SHAPES = [
+  [0.45, 0.15, 0.45, 0.15],
+  [0.18, 0.65, 0.18, 0.95],
+  [0.4, 0.3, 0.4, 1.9],
+  [0.42, 0.12, 0.42, 2.3],
+];
 
 // レア度(色はポートと同じ並び)
 const TIERS = ["超吉", "大吉", "中吉", "小吉", "末吉", "凶", "大凶"];
@@ -108,7 +116,8 @@ const TOWER_TOP = Math.max(...towerLayout().map((p) => p.pos[1] + p.half[1]));
 
 // 狙った点が櫓の正面にあるか(外れる狙いなら、スローや当たりの演出をしない)
 function aimsAtTower(target) {
-  return !!target && Math.abs(target.x) < TOWER.halfW + BALL.r && target.y < TOWER_TOP + BALL.r;
+  // (玉の大きさの分を足すと、かすめて外れる狙いまで入ってスローになった。実際に当たる範囲に合わせる)
+  return !!target && Math.abs(target.x) < TOWER.halfW + 0.15 && target.y < TOWER_TOP - 0.1;
 }
 
 // 狙い → 当たる点と飛ぶ時間
@@ -169,8 +178,9 @@ function build(CANNON) {
     pillar.position.set(sx * TORII.x, TORII.h / 2, TORII.z);
     world.addBody(pillar);
     for (const z of LANTERN.zs) {
-      const lantern = new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(...LANTERN.half)) });
-      lantern.position.set(sx * LANTERN.x, LANTERN.half[1], z);
+      const lantern = new CANNON.Body({ mass: 0 });
+      for (const [hx, hy, hz, y] of LANTERN_SHAPES) lantern.addShape(new CANNON.Box(new CANNON.Vec3(hx, hy, hz)), new CANNON.Vec3(0, y, 0));
+      lantern.position.set(sx * LANTERN.x, 0, z);
       world.addBody(lantern);
     }
   }

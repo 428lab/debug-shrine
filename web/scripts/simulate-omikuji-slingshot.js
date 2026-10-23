@@ -66,6 +66,8 @@ for (const ax of [-1, -0.66, -0.33, 0, 0.33, 0.66, 1]) {
         assert.ok(g.broke.y < S.BALL.r + 0.05, `宙で割れた ${tag} y=${g.broke.y}`);
         assert.ok(Math.abs(g.broke.x) < 12 && g.broke.z > -36, `遠くで割れた ${tag} ${g.broke.x},${g.broke.z}`);
         assert.ok(g.t - impact <= S.MISS.max + 0.05, `割れるまで長い ${tag}`);
+        // 外れた玉が跳ね返って櫓に触れると、起きた部品が結果の間は宙で止まって見える
+        assert.ok(Math.max(...g.parts.map(S.moved)) < 0.05, `外れたのに櫓が動いた ${tag}`);
       } else assert.ok(g.chosen && !g.broke, `木札が選ばれない ${tag}`);
       for (const p of g.parts) {
         const b = p.body.position;
