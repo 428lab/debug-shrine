@@ -31,7 +31,7 @@
       <div v-if="phase === 'loading'" class="sl-hint">境内を整えています<span class="dots"></span></div>
       <div v-else-if="phase === 'ritual'" class="sl-hint">
         御神玉を<b>引き絞って</b>、放つ
-        <small>引いた向きの反対へ飛ぶ。下へ引くほど櫓の上を狙う</small>
+        <small>引いた向きの反対へ飛ぶ。下へ引くほど高く飛ぶ。外すこともある</small>
         <button type="button" class="sl-fallback" @pointerdown.stop @click.stop="autoLaunch">うまく引けないときはここをタップ</button>
       </div>
       <div v-if="waitingHint" class="sl-hint sl-hint-small">結果を受け取っています<span class="dots"></span></div>
@@ -300,8 +300,8 @@ export default {
       let want = 1;
       if (!this.reducedMotion) {
         const front = S.TOWER.z + S.TOWER.halfD;
-        if (g.phase === "flight" && g.ball.position.z - front < 3.2) want = SLOW;
-        if (g.phase === "impact" && g.t - g.impactAt < 0.5) want = SLOW;
+        if (g.phase === "flight" && S.aimsAtTower(g.target) && g.ball.position.z - front < 3.2) want = SLOW;
+        if (g.phase === "impact" && !g.missed && g.t - g.impactAt < 0.5) want = SLOW;
       }
       this._scale = this._scale == null ? 1 : this._scale + (want - this._scale) * Math.min(1, dt * 8);
       const slow = this._scale < 0.6;
