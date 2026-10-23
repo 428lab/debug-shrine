@@ -1,156 +1,119 @@
-// おみくじ「弾き玉」装置(omikujiSlingshot.js)のヘッドレス検証。
-//
-// 引き絞りの方向と強さを掃引し、放った玉(または崩れた木札)が狐のセンサーに
-// 届くか、届くまでの秒数を計測する。GEO を調整したら必ずここを回す。
+// おみくじ演出「弾き玉」(3D。components/omikujiSlingshot.js)のヘッドレス検証。
 //
 // 使い方(web/ ディレクトリで実行):
-//   node scripts/simulate-omikuji-slingshot.js            角度×強さの格子を掃引
-//   node scripts/simulate-omikuji-slingshot.js --one -80 34   指定の引き(dx,dy)を1回
-//   node scripts/simulate-omikuji-slingshot.js --verbose  各点の結果を全部出す
+//   node scripts/simulate-omikuji-slingshot.js
 //
-// 合否: 放てて、狐に届くか、届かなくても数秒(SETTLE_LIMIT_SEC)以内に静まること。
-// 静まれば物音で狐が起きる(createSettleDetector)ので、演出としては完走扱い。
-// 放てない・場外へ抜ける・いつまでも転がり続ける、が失敗。
-const SETTLE_LIMIT_SEC = 8;
+// 確かめること:
+// - 放つ前は櫓が動かない(凍らせてある)。凍らせなくても、当てなければ自分では崩れない
+// - 引きの向き × 強さ(105 通り)のどれでも結果が出る。当たれば崩れた木札、外れれば玉が割れる
+// - 櫓の正面を狙えば当たる
+// - 外れた玉は近くに落ちて止まってから割れる(地面の上・境内の中・4 秒以内)
+// - 当たってから結果の木札が選ばれるまでの秒数、崩れた部品の数
+// - 当たった時に選ばれた木札は、崩れて動いたもの(どれも動かない時は一番上)
+// - 部品が飛び散りすぎない・地面にめり込まない・数値が壊れない(NaN)
 
 /* eslint-disable no-console */
-const Matter = require("matter-js");
-const machine = require("../components/omikujiSlingshot.js");
+const assert = require("assert");
+const CANNON = require("cannon-es");
+const S = require("../components/omikujiSlingshot");
 
-const STEPS_PER_SEC = 1000 / machine.GEO.FIXED_DELTA;
-
-function runOnce(dx, dy, maxSeconds) {
-  const built = machine.build(Matter);
-  const engine = built.engine;
-  const ritual = machine.createRitual(Matter, built);
-
-  let step = 0;
-  let hitStep = null;
-  let hitBy = null;
-  Matter.Events.on(engine, "collisionStart", (e) => {
-    for (const p of e.pairs) {
-      const labels = [p.bodyA.label, p.bodyB.label];
-      if (!labels.includes("fox-sensor")) continue;
-      const other = labels[0] === "fox-sensor" ? labels[1] : labels[0];
-      if (machine.wakeLabels.includes(other) && hitStep === null) {
-        hitStep = step;
-        hitBy = other;
-      }
-    }
-  });
-
-  // 儀式前に少し置く(櫓が勝手に動かないことの確認も兼ねる)
-  for (let i = 0; i < STEPS_PER_SEC; i++) {
-    Matter.Engine.update(engine, machine.GEO.FIXED_DELTA, 1);
-    step++;
-  }
-  const blocksBefore = Matter.Composite.allBodies(engine.world)
-    .filter((b) => b.label === "block")
-    .map((b) => ({ x: b.position.x, y: b.position.y }));
-
-  // 引いて放す
-  ritual.pull(dx, dy);
-  const settle = machine.createSettleDetector(Matter, built);
-  let launchStep = null;
-  let settledStep = null;
-  let speedAtLaunch = 0;
-  const maxSteps = step + Math.round(maxSeconds * STEPS_PER_SEC);
-  while (step < maxSteps && hitStep === null && settledStep === null) {
-    if (launchStep === null && ritual.step(false)) {
-      launchStep = step;
-      speedAtLaunch = Math.hypot(built.ball.velocity.x, built.ball.velocity.y);
-    }
-    Matter.Engine.update(engine, machine.GEO.FIXED_DELTA, 1);
-    step++;
-    if (launchStep !== null && settle.step()) settledStep = step;
-  }
-
-  const blocks = Matter.Composite.allBodies(engine.world).filter((b) => b.label === "block");
-  const moved = blocks.filter((b, i) => Math.hypot(b.position.x - blocksBefore[i].x, b.position.y - blocksBefore[i].y) > 6).length;
-
-  return {
-    launched: launchStep !== null,
-    hitSec: hitStep === null ? null : (hitStep - (launchStep || 0)) / STEPS_PER_SEC,
-    hitBy,
-    settledSec: settledStep === null ? null : (settledStep - (launchStep || 0)) / STEPS_PER_SEC,
-    blocksMoved: moved,
-    blockTotal: blocks.length,
-    ballX: Math.round(built.ball.position.x),
-    ballY: Math.round(built.ball.position.y),
-    speedAtLaunch: speedAtLaunch.toFixed(1),
-  };
+// 1) 放つ前: 10 秒たっても動かない
+{
+  const g = S.build(CANNON);
+  for (let i = 0; i < 600; i++) g.world.step(1 / 60);
+  const maxMove = Math.max(...g.parts.map(S.moved));
+  assert.ok(maxMove < 1e-6, `放つ前に櫓が動いた ${maxMove}`);
+}
+// 2) 凍らせなくても、自分では崩れない(当たった時に起きた部品が、ほかを道連れにしない)
+{
+  const g = S.build(CANNON);
+  g.parts.forEach((p) => p.body.wakeUp());
+  for (let i = 0; i < 240 * 6; i++) g.world.step(S.STEP);
+  const maxMove = Math.max(...g.parts.map(S.moved));
+  console.log(`起こしたまま 6 秒: 部品の最大移動 ${maxMove.toFixed(3)}m`);
+  assert.ok(maxMove < 0.08, `当てていないのに櫓が崩れた ${maxMove}`);
 }
 
-// 儀式中に櫓が勝手に崩れないこと(無操作で回して木札の変位を測る)
-function checkIdle(seconds) {
-  const built = machine.build(Matter);
-  const blocks = Matter.Composite.allBodies(built.world).filter((b) => b.label === "block");
-  const base = blocks.map((b) => ({ x: b.position.x, y: b.position.y, a: b.angle }));
-  let maxPos = 0;
-  let maxAng = 0;
-  for (let i = 0; i < seconds * STEPS_PER_SEC; i++) {
-    Matter.Engine.update(built.engine, machine.GEO.FIXED_DELTA, 1);
-    blocks.forEach((b, k) => {
-      maxPos = Math.max(maxPos, Math.hypot(b.position.x - base[k].x, b.position.y - base[k].y));
-      maxAng = Math.max(maxAng, Math.abs(b.angle - base[k].a));
-    });
-  }
-  const ballDrift = Math.hypot(built.ball.position.x - built.anchor.x, built.ball.position.y - built.anchor.y);
-  console.log(`無操作 ${seconds}s: 木札の最大変位 ${maxPos.toFixed(3)}px / 角度 ${maxAng.toFixed(4)}rad, 玉の支点からのずれ ${ballDrift.toFixed(2)}px`);
-  return maxPos < 1 && ballDrift < 3;
-}
-
-function main() {
-  const args = process.argv.slice(2);
-  const verbose = args.includes("--verbose");
-  const oneIdx = args.indexOf("--one");
-  if (oneIdx >= 0) {
-    const r = runOnce(parseFloat(args[oneIdx + 1]), parseFloat(args[oneIdx + 2]), 25);
-    console.log(r);
-    return;
-  }
-
-  const idleOk = checkIdle(20);
-
-  // 引きの方向: 左下(右上へ飛ぶ)を中心に、水平〜急角度まで。強さ: 弱〜最大。
-  const angles = [-10, 0, 10, 20, 30, 40, 50, 60, 70]; // 度。水平から下向きが正(右上へ飛ぶ)
-  const pulls = [30, 50, 70, 90, 110];
-  let fail = 0;
-  let total = 0;
-  let slowest = 0;
-  const failures = [];
-  for (const deg of angles) {
-    for (const pull of pulls) {
-      const rad = (deg * Math.PI) / 180;
-      const dx = -Math.cos(rad) * pull;
-      const dy = Math.sin(rad) * pull;
-      const r = runOnce(dx, dy, 25);
-      total++;
-      const ok = r.launched && (r.hitSec !== null || (r.settledSec !== null && r.settledSec <= SETTLE_LIMIT_SEC));
-      if (!ok) {
-        fail++;
-        failures.push({ deg, pull, ...r });
-      } else if (r.hitSec !== null) {
-        slowest = Math.max(slowest, r.hitSec);
+// 3) 掃引
+const rows = [];
+for (const ax of [-1, -0.66, -0.33, 0, 0.33, 0.66, 1]) {
+  for (const ay of [0, 0.25, 0.5, 0.75, 1]) {
+    for (const power of [0.2, 0.6, 1]) {
+      const g = S.build(CANNON);
+      S.setAim(g, { ax, ay, power });
+      S.launch(g);
+      let impact = null;
+      let missed = false;
+      let far = 0;
+      for (let f = 0; f < 60 * 12 && g.phase !== "reveal"; f++) {
+        S.step(g, 1 / 60);
+        for (const e of g.events.splice(0)) {
+          if (e.type === "impact") impact = e.t;
+          if (e.type === "miss") {
+            impact = e.t;
+            missed = true;
+          }
+        }
       }
-      if (verbose) {
-        const outcome = r.hitSec !== null
-          ? `狐到達 ${r.hitSec.toFixed(1)}s (${r.hitBy})`
-          : r.settledSec !== null
-            ? `未到達→静止 ${r.settledSec.toFixed(1)}s`
-            : "未到達";
-        console.log(
-          `角度${String(deg).padStart(3)}° 引き${String(pull).padStart(3)} ` +
-            `射出${r.speedAtLaunch} → ${outcome} 木札 ${r.blocksMoved}/${r.blockTotal} 玉(${r.ballX},${r.ballY})`
-        );
+      assert.strictEqual(g.phase, "reveal", `結果が選ばれない ax=${ax} ay=${ay} p=${power}`);
+      // 櫓の正面(x ±1.1・高さ 0.5〜5)を狙ったら当たる
+      const tg = S.targetOf({ ax, ay, power });
+      if (Math.abs(tg.x) < 1.1 && tg.y > 0.5 && tg.y < 5) assert.ok(!missed, `櫓の正面を狙ったのに外れた ax=${ax} ay=${ay} p=${power}`);
+      const tag = `ax=${ax} ay=${ay} p=${power}`;
+      if (missed) {
+        // 外れた時は玉が割れる(木札は選ばない)。地面の上で、境内の中、外れてから 4 秒以内
+        assert.ok(g.broke && !g.chosen, `外れたのに玉が割れない ${tag}`);
+        assert.ok(g.broke.y < S.BALL.r + 0.05, `宙で割れた ${tag} y=${g.broke.y}`);
+        assert.ok(Math.abs(g.broke.x) < 12 && g.broke.z > -36, `遠くで割れた ${tag} ${g.broke.x},${g.broke.z}`);
+        assert.ok(g.t - impact <= S.MISS.max + 0.05, `割れるまで長い ${tag}`);
+        // 外れた玉が跳ね返って櫓に触れると、起きた部品が結果の間は宙で止まって見える
+        assert.ok(Math.max(...g.parts.map(S.moved)) < 0.05, `外れたのに櫓が動いた ${tag}`);
+      } else assert.ok(g.chosen && !g.broke, `木札が選ばれない ${tag}`);
+      for (const p of g.parts) {
+        const b = p.body.position;
+        assert.ok(Number.isFinite(b.x + b.y + b.z), "NaN");
+        assert.ok(b.y > -0.3, `地面にめり込んだ ${p.kind} y=${b.y}`);
+        far = Math.max(far, Math.hypot(b.x, b.z - S.TOWER.z));
       }
+      const movedN = g.parts.filter((p) => S.moved(p) > 0.35).length;
+      const chosenMoved = !missed && S.moved(g.chosen) > 0.35;
+      rows.push({ missed, far, ax, ay, power, impact, reveal: g.t, settle: g.t - impact, movedN, chosenMoved, hits: g.hits });
     }
   }
-  console.log(`掃引 ${total} 点: 失敗 ${fail} / 最遅到達 ${slowest.toFixed(1)}s / 無操作静止 ${idleOk ? "OK" : "NG"} (静止は ${SETTLE_LIMIT_SEC}s 以内なら合格)`);
-  for (const f of failures.slice(0, 20)) {
-    console.log(`  角度${f.deg}° 引き${f.pull}: 射出${f.speedAtLaunch} 木札 ${f.blocksMoved}/${f.blockTotal} 玉(${f.ballX},${f.ballY}) launched=${f.launched} 静止=${f.settledSec === null ? "なし" : f.settledSec.toFixed(1) + "s"}`);
-  }
-  process.exitCode = fail > 0 || !idleOk ? 1 : 0;
 }
+// 5) 真下へいっぱいに引くと櫓に当たる(一番自然な引き方で外れない)
+for (const dy of [100, 150, 190]) {
+  const aim = S.aimFromDrag(0, dy);
+  const g = S.build(CANNON);
+  S.setAim(g, aim);
+  S.launch(g);
+  for (let f = 0; f < 60 * 12 && g.phase !== "reveal"; f++) S.step(g, 1 / 60);
+  assert.ok(!g.missed, `真下へ ${dy}px 引いたら外れた`);
+}
+console.log("OK 真下へいっぱいに引いても櫓に当たる");
+// 4) 遅い端末(1 フレーム 0.05 秒。1 フレームの歩数の上限に当たる)でも当たって結果が選ばれる
+for (const ay of [0.1, 0.4, 0.7]) {
+  const g = S.build(CANNON);
+  S.setAim(g, { ax: 0.2, ay, power: 0.7 });
+  S.launch(g);
+  for (let f = 0; f < 20 * 30 && g.phase !== "reveal"; f++) S.step(g, 0.05);
+  assert.strictEqual(g.phase, "reveal", `遅い端末で結果が選ばれない ay=${ay}`);
+  assert.ok(g.events.some((e) => e.type === "impact") && !g.missed, `遅い端末で外れた ay=${ay}`);
+}
+console.log("OK 遅い端末(20fps)でも当たって結果が選ばれる");
 
-main();
+const pct = (arr, q) => arr.slice().sort((a, b) => a - b)[Math.min(arr.length - 1, Math.floor(arr.length * q))];
+const hit = rows.filter((r) => !r.missed);
+const settle = hit.map((r) => r.settle);
+const movedN = hit.map((r) => r.movedN);
+console.log(`OK ${rows.length} 通りすべて結果が出た(当たって木札 ${hit.length}・外れて玉が割れた ${rows.length - hit.length})`);
+const miss = rows.filter((r) => r.missed);
+console.log(`外れた時: 外れてから割れるまで 中央 ${pct(miss.map((r) => r.settle), 0.5).toFixed(1)}s 最大 ${Math.max(...miss.map((r) => r.settle)).toFixed(1)}s / 放ってから 最大 ${Math.max(...miss.map((r) => r.reveal)).toFixed(1)}s`);
+console.log(`当たるまで ${Math.min(...hit.map((r) => r.impact)).toFixed(2)}〜${Math.max(...hit.map((r) => r.impact)).toFixed(2)}s / 当たってから選ぶまで 中央 ${pct(settle, 0.5).toFixed(1)}s 最大 ${Math.max(...settle).toFixed(1)}s`);
+console.log(`崩れた部品(52 個中): 最少 ${Math.min(...movedN)} / 中央 ${pct(movedN, 0.5)} / 最大 ${Math.max(...movedN)}`);
+console.log(`一番遠くへ飛んだ部品: 中央 ${pct(rows.map((r) => r.far), 0.5).toFixed(1)}m 最大 ${Math.max(...rows.map((r) => r.far)).toFixed(1)}m`, rows.filter((r) => r.far > 15).map((r) => `${r.ax},${r.ay},${r.power}:${r.far.toFixed(0)}`).join(" "));
+console.log(`当たった時に選ばれた木札が崩れて動いたもの: ${hit.filter((r) => r.chosenMoved).length}/${hit.length}`);
+for (const ay of [0, 0.25, 0.5]) {
+  const rs = hit.filter((r) => r.ay === ay);
+  console.log(`  高さ ${ay}: 崩れた部品 平均 ${(rs.reduce((a, r) => a + r.movedN, 0) / rs.length).toFixed(1)}`);
+}

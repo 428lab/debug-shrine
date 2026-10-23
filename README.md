@@ -46,4 +46,16 @@ Node を上げる時は `mise.toml` と `docker/*/Dockerfile` の `FROM` を一�
    gh run list --workflow prod-deploy.yml --limit 1
    ```
 
-デプロイの所要時間は dev / prod とも8分前後。
+デプロイの所要時間は、Go の関数を入れ直す時は dev / prod とも 8〜20 分(関数 22 本を Cloud Build で
+作り直すのが大半。GCP 側が混むと長くなる)。前回うまくいったデプロイから Go の関数に関わるファイル
+(`app/functions-go`・そのワークフロー・`mise.toml`)が変わっていなければ、Go のテストと関数の入れ直しは
+飛ばす(画面だけの変更なら2分ほど)。デプロイは 1 本ずつ動く(重なった時は後の push を待たせる)。
+
+リポジトリの外にある値を変えた時は、Actions の画面からそのワークフローを手で動かす
+(Run workflow で `env/dev` か `env/prod` を選ぶ。手で動かした時と Re-run は必ず Go も入れ直す)。
+- 関数の環境変数に入れている GitHub の Secret(`DEV_KUDA_API_KEY` / `PROD_KUDA_API_KEY`)
+- Firebase の `functions:config`(`github.client_id` / `github.client_secret` / `func.base_url`)
+- GCP の画面で関数・Cloud Scheduler・Pub/Sub などを手で変えた・消した時(手で動かすと元に戻る)
+```bash
+gh workflow run dev-deploy.yml --ref env/dev
+```

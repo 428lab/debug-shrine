@@ -1,365 +1,412 @@
-// おみくじ演出「弾き玉」(スリングショット)の装置モジュール(matter-js)。
+// おみくじ演出「弾き玉」(3D)のルールと物理(描画なし。Node でも動く)。
 //
-// 描画(Render)を含まない構築部分だけを切り出し、Node でもヘッドレスに
-// 「放った玉(または崩れた木札)が狐まで届くか」を検証できるようにする
-// (scripts/simulate-omikuji-slingshot.js)。
+// 見せ方は OmikujiSlingshot.vue(three.js)。物理は cannon-es(3D の剛体)で、
+// 使う側が build(CANNON) に渡す(ブラウザではこの演出の時だけ読み込む)。
+// 検証は scripts/simulate-omikuji-slingshot.js。
 //
-// 演出の流れ:
-//   左のY字の台に載った御神玉を、指でつまんで引き絞り、放す
-//   → 玉が放物線を描いて飛び、右の木札の櫓(やぐら)に直撃
-//   → 櫓が崩れ、飛んだ木札か玉そのものが、右端で寝ている狐に当たる
-//   → 狐が起きてビンを飛び移る(DOM側。OmikujiScene が担当)
+// 流れ:
+//   aim    : Y 字の台の御神玉を引き絞る(引いた向きの逆へ飛ぶ。引いた向きと強さで狙う点が決まる)
+//   flight : 放つ(rang)。玉は狙った点へ飛ぶ(放物線を解く)。櫓の外も狙えるので外れることもある
+//   impact : 櫓に当たる。崩れが収まるまで待つ
+//   miss   : 外れた。玉は勢いを失って地面に落ち、転がって止まる
+//   reveal : 当たった時は、崩れ落ちた木札のうち一番手前の 1 枚が浮き上がり、裏返ってレア度が出る。
+//            外れた時は、止まった玉が割れて、中から小さな木札が出て裏返る
+//            (レア度はサーバーが決めたもの。物理がどう転んでも、外れても結果は正しい)
 //
-// 設計の要:
-// - 抽選の正しさはこの装置に依存しない(狐の最終着地は omikujiFox.js で制御)。
-//   狙いが外れて何にも当たらなくても、タイムボックスで狐が起きる。
-// - 儀式中に装置が勝手に動かない。櫓の木札は最初からスリープで凍結し、
-//   触られるまで完全静止(鈴の緒装置で学んだ #199 の方針をそのまま踏襲)。
-// - 玉はゴム(拘束)で台に繋がれており、放して台を通り過ぎた瞬間に切り離す。
-//   引き絞りの距離は上限で頭打ちにする(強すぎる射出で画面外へ抜けないように)。
-//
-// OmikujiScene から使う共通インターフェース(omikujiMachines.js 参照):
-//   id, GEO, FOX, HINT, wakeLabels, grabFilter, build, pulseAt,
-//   createRitual, launchDefault, nudge
+// 座標はメートル。x 右、y 上、z 手前(台は z = 0、櫓は奥の z = TOWER.z)。
 
-const GEO = {
-  W: 480,
-  H: 760,
-  BIN_COUNT: 7,
-  FIXED_DELTA: 1000 / 60,
+const G = 9.82;
+const STEP = 1 / 240; // 物理の 1 歩(飛んでいる速い玉が薄い木札をすり抜けないように細かく)
+const STEP_AFTER = 1 / 120; // 当たった後(玉は遅くなっている。崩れの計算を軽くする)
+const MAX_STEPS = 8; // 1 フレームに進める歩数の上限(遅い端末で重くなって、さらに遅れるのを止める)
 
-  // collision categories(御神玉だけを指でつまめるようにする)
-  CAT_DEFAULT: 0x0001,
-  CAT_GRAB: 0x0002,
-  CAT_MOUSE: 0x0004,
+const SLING = { x: 0, y: 1.55, z: 0 }; // 玉の定位置(ゴムの支点)
+const BALL = { r: 0.28, mass: 7 };
+const PULL = { max: 1.1 }; // 引き絞りの最大(見た目。m)
+const TOWER = { z: -16, halfW: 1.5, halfD: 0.75, floors: 3, floorH: 1.45, beam: 0.1 };
+// 狙える範囲(櫓の正面の面での x と y)。櫓(幅 ±1.5・高さ 5.7)より広く、外すこともできる
+const AIM = { xMax: 3.2, yMin: 0.2, yMax: 7.4 };
+const FLIGHT = { slow: 0.95, fast: 0.62 }; // 飛ぶ時間(秒)。弱い引き → 山なり、強い引き → まっすぐ
+const SETTLE = { min: 2.4, max: 4.2 }; // 当たってから選ぶまで(秒)。待ちすぎると間延びする
+// 外れた玉: 横の勢いを空気で失って(何もしないと 70m 先に落ちて転がり続けた)近くに落ち、
+// 地面に着いたら転がりを止める。止まったら(遅くても着いて 1.6 秒・外れて 4 秒で)割れる
+const MISS = { air: 2.2, up: 6, roll: 0.8, stopV: 0.5, rollMax: 1.6, max: 4 };
+const PART_VMAX = 7.5; // 櫓の部品の速さの上限(m/s)。カメラの目の前まで飛んでくると、画面が部品で埋まった
 
-  // 地面(上面の y)。櫓も狐もこの上に置く。
-  GROUND_Y: 620,
+// 境内の動かない物(外れた玉や飛んだ部品が通り抜けないように、物理にも置く。見た目は slingshotView.js)
+const TORII = { z: TOWER.z - 11, x: 4.4, r: 0.5, h: 11 }; // 鳥居の柱(左右)
+const LANTERN = { x: 3.2, zs: [-1.5, TOWER.z - 5] }; // 石灯籠(左右)
+// 石灯籠の当たりの形(見た目の 台・竿・火袋・笠 に合わせた箱。[半分の大きさ x, y, z, 中心の高さ])
+// (1 つの大きな箱だと、見えない所で玉が跳ね返った)
+const LANTERN_SHAPES = [
+  [0.45, 0.15, 0.45, 0.15],
+  [0.18, 0.65, 0.18, 0.95],
+  [0.4, 0.3, 0.4, 1.9],
+  [0.42, 0.12, 0.42, 2.3],
+];
 
-  // Y字の台。ANCHOR が玉の定位置(ゴムの支点)。
-  // 左へ引き絞るので、台は画面左端から離しておく(x=72 だと最大引きで玉が
-  // canvas の外に出て、スマホでは指が画面の縁に当たって引き切れなかった)。
-  // 最大引き(maxPull)でも玉が x=60 に収まる位置。
-  SLING: { x: 130, anchorY: 440, forkTipY: 458, forkW: 30, postH: 160 },
-  // 玉。ゴムの stiffness と密度の組み合わせで射出速度が決まる。
-  BALL: { r: 12, density: 0.004, restitution: 0.3, friction: 0.05, frictionAir: 0.001 },
-  // ゴム(拘束)。引き絞りは MAX_PULL で頭打ち。RELEASE_MIN 未満の引きは
-  // 放しても射出せず、玉を台へ戻すだけ(誤タップで暴発しないように)。
-  // stiffness 0.045 だと引き30で 12px/step、最大引きで 45px/step に達し、
-  // 12px の玉が 16px の壁を突き抜けて場外へ落ちた(matter は連続衝突判定を
-  // しない)。柔らかくした上で、切り離し時の速度に上限も掛ける。
-  // 射出速度は引き60強で maxSpeed に頭打ちになるので、それ以上引いても
-  // 変わらない。maxPull を 70 に抑え、指を動かす距離(画面端までの余裕)を減らす。
-  ELASTIC: { stiffness: 0.012, maxPull: 70, releaseMin: 18, maxSpeed: 15 },
+// レア度(色はポートと同じ並び)
+const TIERS = ["超吉", "大吉", "中吉", "小吉", "末吉", "凶", "大凶"];
 
-  // 木札の櫓。x0 が左端の柱の中心。3層。
-  TOWER: {
-    x0: 318,
-    cols: 3,
-    colGap: 46,
-    levels: 3,
-    post: { w: 10, h: 52 },
-    beam: { h: 10 },
-    // 軽め・滑りやすめにして、当たれば気持ちよく崩れるように。
-    density: 0.0015,
-    friction: 0.3,
-    restitution: 0.05,
-  },
-
-  // 狐の寝床(地面の右端)と、おしりの当たり判定。
-  FOX_X: 446,
-  FOX_SENSOR: { x: 446, y: 590, w: 66, h: 58 },
-
-  BIN_TOP: 648,
-  FLOOR_Y: 744,
+// 櫓の部品の形(半分の大きさ)と重さ
+const PART = {
+  pillar: { half: [0.12, 0.0, 0.12], mass: 2.2 }, // 高さは階の高さから
+  beam: { half: [TOWER.halfW + 0.08, 0.1, 0.13], mass: 2.6 },
+  plank: { half: [TOWER.halfW + 0.05, 0.05, TOWER.halfD + 0.05], mass: 2.0 },
+  plaque: { half: [0.2, 0.36, 0.045], mass: 0.35 }, // 木札
+  ema: { half: [0.24, 0.17, 0.07], mass: 0.5 }, // 絵馬
+  ridge: { half: [TOWER.halfW + 0.3, 0.09, 0.14], mass: 1.6 },
 };
 
-// 狐の寝床(シーン内%)。OmikujiScene がDOMスプライトを置く位置。
-const FOX = {
-  sleepLeft: (GEO.FOX_X / GEO.W) * 100,
-  sleepBottom: ((GEO.H - GEO.GROUND_Y) / GEO.H) * 100,
-  flip: 1, // 右向きに寝る(おしりを左=玉の飛来方向に向ける)
-};
-
-const HINT = {
-  title: "御神玉をつまんで引き絞り、放って櫓を崩そう",
-  fallback: "うまく放てないときはここをタップ",
-  button: "玉を放つ",
-};
-
-// これらのラベルが fox-sensor に触れたら狐が起きる。
-const wakeLabels = ["ball", "block"];
-
-// 指でつまめるのは御神玉だけ。
-const grabFilter = { category: GEO.CAT_MOUSE, mask: GEO.CAT_GRAB };
-
-function buildWorld(Matter) {
-  const { Engine, World, Bodies, Constraint, Sleeping } = Matter;
-  const engine = Engine.create({ enableSleeping: true });
-  engine.gravity.scale = 0.001;
-  const world = engine.world;
-  const add = (b) => World.add(world, b);
-
-  const wood = { fillStyle: "#8a5a34" };
-  const stone = { fillStyle: "#3a3230" };
-
-  // 外壁・天井・床・地面。天井が無いと強く放った玉が上へ抜けて場外に落ちる。
-  // 壁は厚め(速い玉が突き抜けないように。matter は連続衝突判定をしない)。
-  const WALL = 60;
-  add([
-    Bodies.rectangle(GEO.W / 2, -WALL / 2, GEO.W + WALL * 2, WALL, { isStatic: true, render: stone }),
-    Bodies.rectangle(-WALL / 2, GEO.H / 2, WALL, GEO.H + WALL * 2, { isStatic: true, render: stone }),
-    Bodies.rectangle(GEO.W + WALL / 2, GEO.H / 2, WALL, GEO.H + WALL * 2, { isStatic: true, render: stone }),
-    Bodies.rectangle(GEO.W / 2, GEO.FLOOR_Y + WALL / 2, GEO.W + WALL * 2, WALL, { isStatic: true, render: stone }),
-    // 地面(上面 GROUND_Y〜BIN_TOP)。玉も木札もここで止まる。
-    Bodies.rectangle(GEO.W / 2, (GEO.GROUND_Y + GEO.BIN_TOP) / 2, GEO.W, GEO.BIN_TOP - GEO.GROUND_Y, {
-      isStatic: true,
-      friction: 0.6,
-      label: "ground",
-      render: { fillStyle: "#5a4a3a" },
-    }),
-  ]);
-
-  // Y字の台(柱と二又)。装飾なので玉と衝突しない(玉は台の間を抜けて飛ぶ)。
-  const s = GEO.SLING;
-  const deco = { isStatic: true, collisionFilter: { mask: 0 }, render: wood };
-  add(Bodies.rectangle(s.x, GEO.GROUND_Y - s.postH / 2, 12, s.postH, { ...deco, chamfer: { radius: 3 } }));
-  add(Bodies.rectangle(s.x - s.forkW / 2, s.forkTipY + 12, 8, 40, { ...deco, angle: 0.25, chamfer: { radius: 3 } }));
-  add(Bodies.rectangle(s.x + s.forkW / 2, s.forkTipY + 12, 8, 40, { ...deco, angle: -0.25, chamfer: { radius: 3 } }));
-
-  // 御神玉(指でつまめる)。
-  const anchor = { x: s.x, y: s.anchorY };
-  const ball = Bodies.circle(anchor.x, anchor.y, GEO.BALL.r, {
-    density: GEO.BALL.density,
-    restitution: GEO.BALL.restitution,
-    friction: GEO.BALL.friction,
-    frictionAir: GEO.BALL.frictionAir,
-    label: "ball",
-    collisionFilter: { category: GEO.CAT_GRAB, mask: GEO.CAT_DEFAULT | GEO.CAT_MOUSE },
-    render: { fillStyle: "#f2c14e" },
-  });
-  ball.sleepThreshold = Infinity; // 道中で眠って止まらないように
-  add(ball);
-
-  // ゴム(玉を台の支点に繋ぐ)。放して支点を通り過ぎたら createRitual が切り離す。
-  const elastic = Constraint.create({
-    pointA: anchor,
-    bodyB: ball,
-    stiffness: GEO.ELASTIC.stiffness,
-    length: 0,
-    render: { strokeStyle: "#b23a48", lineWidth: 3 },
-  });
-  add(elastic);
-  // ゴムに繋がっている間は玉の自重を打ち消す。柔らかいゴム(stiffness 0.012)は
-  // 重力で 3px ほどたわみ、玉が支点から下がったまま微振動して眠れない。
-  // 切り離した後は普通に重力が掛かる(放物線はそのまま)。
-  Matter.Events.on(engine, "beforeUpdate", () => {
-    if (elastic.bodyB === ball) {
-      ball.force.y -= ball.mass * engine.gravity.y * engine.gravity.scale;
+// 櫓の部品の並び(描画と物理で共有する)。{ kind, pos: [x,y,z], half: [..], mass, rotZ? }
+function towerLayout() {
+  const parts = [];
+  const { z, halfW, halfD, floors, floorH } = TOWER;
+  const px = halfW - 0.2;
+  const pz = halfD - 0.15;
+  let y = 0;
+  for (let f = 0; f < floors; f++) {
+    const h = floorH - f * 0.15; // 上の階ほど少し低く
+    // 柱 4 本
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) {
+        parts.push({ kind: "pillar", pos: [sx * px, y + h / 2, z + sz * pz], half: [0.12, h / 2, 0.12], mass: PART.pillar.mass, floor: f });
+      }
     }
-  });
+    // 梁 2 本(前後)と床板
+    const by = y + h + PART.beam.half[1];
+    for (const sz of [-1, 1]) parts.push({ kind: "beam", pos: [0, by, z + sz * pz], half: PART.beam.half, mass: PART.beam.mass, floor: f });
+    const py = by + PART.beam.half[1] + PART.plank.half[1];
+    parts.push({ kind: "plank", pos: [0, py, z], half: PART.plank.half, mass: PART.plank.mass, floor: f });
+    // 階の中に立てた木札(手前に 4 枚・奥に 3 枚)。その階の床(1 階は地面)に立てる
+    const plaqueY = y + PART.plaque.half[1];
+    for (let i = 0; i < 4; i++) {
+      parts.push({ kind: "plaque", pos: [-0.75 + i * 0.5, plaqueY, z + pz - 0.28], half: PART.plaque.half, mass: PART.plaque.mass, floor: f });
+    }
+    for (let i = 0; i < 3; i++) {
+      parts.push({ kind: "plaque", pos: [-0.5 + i * 0.5, plaqueY, z - pz + 0.3], half: PART.plaque.half, mass: PART.plaque.mass, floor: f });
+    }
+    // 絵馬は床板の上(次の階の床に載る形。最上階は屋根の下)
+    y = py + PART.plank.half[1];
+    for (const sx of [-1, 1]) {
+      parts.push({ kind: "ema", pos: [sx * 0.95, y + PART.ema.half[1], z + 0.1], half: PART.ema.half, mass: PART.ema.mass, floor: f + 1 });
+    }
+  }
+  // てっぺん: 棟木(絵馬の奥)と、その上の木札 3 枚
+  const rz = z - 0.38;
+  parts.push({ kind: "ridge", pos: [0, y + PART.ridge.half[1], rz], half: PART.ridge.half, mass: PART.ridge.mass, floor: floors });
+  const ty = y + PART.ridge.half[1] * 2 + PART.plaque.half[1];
+  for (let i = 0; i < 3; i++) parts.push({ kind: "plaque", pos: [-0.45 + i * 0.45, ty, rz], half: PART.plaque.half, mass: PART.plaque.mass, floor: floors });
+  return parts.map((p, id) => Object.assign({ id }, p));
+}
 
-  // 木札の櫓。柱(縦)と梁(横)を層ごとに積む。最初はスリープで凍結。
-  const t = GEO.TOWER;
-  const blockOpts = {
-    density: t.density,
-    friction: t.friction,
-    restitution: t.restitution,
-    label: "block",
+// 引き絞り(画面上のドラッグ px)→ 狙い。dx: 右が正、dy: 下が正
+function aimFromDrag(dx, dy) {
+  const len = Math.hypot(dx, dy);
+  const power = Math.max(0, Math.min(1, len / 190));
+  // 左へ引くと右へ、下へ引くと上へ(引いた向きの逆へ飛ぶ。スリングショットと同じ)
+  const ax = Math.max(-1, Math.min(1, -dx / 140));
+  // 真下へいっぱいに引く(強さ 1)と櫓のてっぺん辺り。それより上へ外すには、さらに大きく引く
+  const ay = Math.max(0, Math.min(1, (dy + 40) / 310));
+  return { power, ax, ay };
+}
+
+// 櫓のてっぺんの高さ
+const TOWER_TOP = Math.max(...towerLayout().map((p) => p.pos[1] + p.half[1]));
+
+// 狙った点が櫓の正面にあるか(外れる狙いなら、スローや当たりの演出をしない)
+function aimsAtTower(target) {
+  // (玉の大きさの分を足すと、かすめて外れる狙いまで入ってスローになった。実際に当たる範囲に合わせる)
+  return !!target && Math.abs(target.x) < TOWER.halfW + 0.15 && target.y < TOWER_TOP - 0.1;
+}
+
+// 狙い → 当たる点と飛ぶ時間
+function targetOf(aim) {
+  return {
+    x: aim.ax * AIM.xMax,
+    y: AIM.yMin + aim.ay * (AIM.yMax - AIM.yMin),
+    z: TOWER.z + TOWER.halfD + 0.05,
+    t: FLIGHT.slow + (FLIGHT.fast - FLIGHT.slow) * aim.power,
   };
-  const levelH = t.post.h + t.beam.h;
-  const beamW = t.colGap * (t.cols - 1) + t.post.w + 8;
-  for (let lv = 0; lv < t.levels; lv++) {
-    const baseY = GEO.GROUND_Y - lv * levelH;
-    for (let c = 0; c < t.cols; c++) {
-      const x = t.x0 + c * t.colGap;
-      const post = Bodies.rectangle(x, baseY - t.post.h / 2, t.post.w, t.post.h, {
-        ...blockOpts,
-        chamfer: { radius: 2 },
-        render: { fillStyle: c % 2 ? "#d9c9a8" : "#e8ddc8" },
-      });
-      Sleeping.set(post, true);
-      add(post);
+}
+
+// 玉の位置(引き絞り中)。指と同じ向きに動き、最大 PULL.max まで手前へ下がる
+// (ax は飛ぶ向き = 指の逆なので、横は -ax の向きへずらす)
+function pulledPos(aim) {
+  const k = PULL.max * aim.power;
+  return { x: SLING.x - aim.ax * 0.45 * k, y: SLING.y - aim.ay * 0.55 * k - 0.15 * k, z: SLING.z + k };
+}
+
+// 放つ速さ(狙った点へ、時間 t で届く放物線)
+function launchVelocity(from, target) {
+  const t = target.t;
+  return {
+    x: (target.x - from.x) / t,
+    y: (target.y - from.y) / t + 0.5 * G * t,
+    z: (target.z - from.z) / t,
+  };
+}
+
+// 予測の軌道(点の列。描画の目安)
+function trajectory(aim, n) {
+  const from = pulledPos(aim);
+  const target = targetOf(aim);
+  const v = launchVelocity(from, target);
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const t = (target.t * i) / n;
+    pts.push({ x: from.x + v.x * t, y: from.y + v.y * t - 0.5 * G * t * t, z: from.z + v.z * t });
+  }
+  return pts;
+}
+
+// ---- 物理の世界 ----
+function build(CANNON) {
+  const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -G, 0) });
+  world.allowSleep = true;
+  world.broadphase = new CANNON.SAPBroadphase(world);
+  world.broadphase.axisIndex = 1; // 櫓は縦に積んであるので、縦の軸で並べる方が速い
+  world.solver.iterations = 10;
+  world.defaultContactMaterial.friction = 0.5;
+  world.defaultContactMaterial.restitution = 0.15;
+
+  const ground = new CANNON.Body({ mass: 0, shape: new CANNON.Plane() });
+  ground.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+  world.addBody(ground);
+  for (const sx of [-1, 1]) {
+    const pillar = new CANNON.Body({ mass: 0, shape: new CANNON.Cylinder(TORII.r, TORII.r, TORII.h, 12) });
+    pillar.position.set(sx * TORII.x, TORII.h / 2, TORII.z);
+    world.addBody(pillar);
+    for (const z of LANTERN.zs) {
+      const lantern = new CANNON.Body({ mass: 0 });
+      for (const [hx, hy, hz, y] of LANTERN_SHAPES) lantern.addShape(new CANNON.Box(new CANNON.Vec3(hx, hy, hz)), new CANNON.Vec3(0, y, 0));
+      lantern.position.set(sx * LANTERN.x, 0, z);
+      world.addBody(lantern);
     }
-    const beamX = t.x0 + (t.colGap * (t.cols - 1)) / 2;
-    const beam = Bodies.rectangle(beamX, baseY - t.post.h - t.beam.h / 2, beamW, t.beam.h, {
-      ...blockOpts,
-      chamfer: { radius: 2 },
-      render: wood,
+  }
+
+  const layout = towerLayout();
+  const parts = layout.map((p) => {
+    const body = new CANNON.Body({
+      mass: p.mass,
+      shape: new CANNON.Box(new CANNON.Vec3(p.half[0], p.half[1], p.half[2])),
+      position: new CANNON.Vec3(p.pos[0], p.pos[1], p.pos[2]),
+      linearDamping: 0.05,
+      angularDamping: 0.08,
     });
-    Sleeping.set(beam, true);
-    add(beam);
-  }
+    body.sleepSpeedLimit = 0.2;
+    body.sleepTimeLimit = 0.3;
+    // 当たるまで凍らせておく(積んだだけの櫓が勝手に揺れたり崩れたりしない)
+    body.sleep();
+    world.addBody(body);
+    return Object.assign({}, p, { body, start: p.pos.slice() });
+  });
 
-  // 狐のおしりの当たり判定(寝床は地面そのもの)。
-  add(Bodies.rectangle(GEO.FOX_SENSOR.x, GEO.FOX_SENSOR.y, GEO.FOX_SENSOR.w, GEO.FOX_SENSOR.h, {
-    isStatic: true,
-    isSensor: true,
-    label: "fox-sensor",
-    render: { visible: false },
-  }));
+  const ball = new CANNON.Body({
+    mass: BALL.mass,
+    shape: new CANNON.Sphere(BALL.r),
+    position: new CANNON.Vec3(SLING.x, SLING.y, SLING.z),
+    type: CANNON.Body.KINEMATIC, // 放つまでは台に載ったまま
+    linearDamping: 0.01,
+  });
+  ball.allowSleep = false;
+  world.addBody(ball);
 
-  // ビン仕切り(見た目を鈴の緒装置と揃える)
-  const bw = GEO.W / GEO.BIN_COUNT;
-  for (let i = 1; i < GEO.BIN_COUNT; i++) {
-    add(Bodies.rectangle(i * bw, (GEO.BIN_TOP + GEO.FLOOR_Y) / 2, 6, GEO.FLOOR_Y - GEO.BIN_TOP, { isStatic: true, chamfer: { radius: 2 }, render: { fillStyle: "#8a6a3a" } }));
-  }
-
-  return { engine, world, ball, elastic, anchor };
-}
-
-// 儀式(引き絞って放す)の監視。毎ステップ step() を呼び、放った瞬間に true を返す。
-//
-// isDragging(): 指が玉をつまんでいるか(シーン側が MouseConstraint から判定)。
-// ヘッドレス検証では pull(dx,dy) → release() で同じ経路を通せる。
-function createRitual(Matter, built) {
-  const { ball, elastic, anchor, world } = built;
-  const { Body, Sleeping } = Matter;
-  let pulled = false;
-  let launched = false;
-
-  function clampPull() {
-    const dx = ball.position.x - anchor.x;
-    const dy = ball.position.y - anchor.y;
-    const d = Math.hypot(dx, dy);
-    if (d > GEO.ELASTIC.maxPull) {
-      const k = GEO.ELASTIC.maxPull / d;
-      Body.setPosition(ball, { x: anchor.x + dx * k, y: anchor.y + dy * k });
-      Body.setVelocity(ball, { x: 0, y: 0 });
-    }
-    return Math.min(d, GEO.ELASTIC.maxPull);
-  }
-
-  function detach() {
-    // 速度の上限(突き抜け防止)。
-    const v = ball.velocity;
-    const sp = Math.hypot(v.x, v.y);
-    if (sp > GEO.ELASTIC.maxSpeed) {
-      const k = GEO.ELASTIC.maxSpeed / sp;
-      Body.setVelocity(ball, { x: v.x * k, y: v.y * k });
-    }
-    // ゴムを世界から外す(以降は自由飛行)。bodyB も外す。外し忘れると
-    // 「繋がっている間は自重を打ち消す」処理が放った後も効き続け、玉が
-    // 無重力で漂って静止しない(掃引で静止 24.8s になって発覚)。
-    Matter.Composite.remove(world, elastic);
-    elastic.bodyB = null;
-    launched = true;
-  }
-
-  // 放した瞬間の「引いた向き」(支点→玉の単位ベクトル)。玉がこの向きの
-  // 反対側へ支点を通り過ぎた瞬間(=ゴムが伸び切って一番速い瞬間)に切り離す。
-  // 「x が支点より右」のような固定条件だと、垂直気味の引きで永久に切り離せず
-  // ぶら下がったままになる。
-  let pullDir = null;
-  function rememberPull() {
-    const dx = ball.position.x - anchor.x;
-    const dy = ball.position.y - anchor.y;
-    const d = Math.hypot(dx, dy) || 1;
-    pullDir = { x: dx / d, y: dy / d };
-  }
-
-  return {
-    // dragging: この瞬間に玉がつままれているか
-    step(dragging) {
-      if (launched) return false;
-      if (dragging) {
-        Sleeping.set(ball, false);
-        if (clampPull() >= GEO.ELASTIC.releaseMin) {
-          pulled = true;
-          rememberPull();
-        } else {
-          pulled = false;
-        }
-        return false;
-      }
-      if (!pulled || !pullDir) return false;
-      const along = (ball.position.x - anchor.x) * pullDir.x + (ball.position.y - anchor.y) * pullDir.y;
-      if (along <= 0) {
-        detach();
-        return true;
-      }
-      return false;
-    },
-    // ヘッドレス検証・フォールバック用: 支点から (dx,dy) だけ引いた位置に置く
-    pull(dx, dy) {
-      Sleeping.set(ball, false);
-      Body.setPosition(ball, { x: anchor.x + dx, y: anchor.y + dy });
-      Body.setVelocity(ball, { x: 0, y: 0 });
-      if (clampPull() >= GEO.ELASTIC.releaseMin) {
-        pulled = true;
-        rememberPull();
-      }
-    },
-    launched: () => launched,
+  const g = {
+    CANNON,
+    world,
+    parts,
+    ball,
+    phase: "aim", // aim | flight | impact | miss | reveal
+    aim: { power: 0, ax: 0, ay: 0.5 },
+    t: 0, // 放ってからの物理の時間
+    acc: 0,
+    impactAt: null,
+    missed: false,
+    missAt: null,
+    groundOut: false, // 櫓の横の地面に落ちた
+    landAt: null, // 外れた玉が地面に着いた時
+    broke: null, // 外れた玉が割れた所 { x, y, z }
+    chosen: null,
+    events: [],
+    hits: 0,
   };
-}
-
-// 放った後、玉も木札も動きが収まったか(狙いが外れて何にも当たらなかった時に、
-// 物音で狐が目を覚ますきっかけにする)。フォールバックのタイマーを待たずに
-// 数秒で先へ進めるための判定。
-const SETTLE = { speed: 0.15, steps: 45 }; // 全員 0.15px/step 未満が 45step(0.75s)続いたら静止
-function createSettleDetector(Matter, built) {
-  const { ball } = built;
-  const blocks = Matter.Composite.allBodies(built.world).filter((b) => b.label === "block");
-  let quiet = 0;
-  return {
-    step() {
-      let moving = Math.hypot(ball.velocity.x, ball.velocity.y) >= SETTLE.speed;
-      if (!moving) {
-        for (const b of blocks) {
-          if (!b.isSleeping && Math.hypot(b.velocity.x, b.velocity.y) >= SETTLE.speed) {
-            moving = true;
-            break;
-          }
-        }
+  ball.addEventListener("collide", (e) => {
+    if (e.body === ground) {
+      if (g.phase === "flight") {
+        emit(g, "ground", {});
+        // 櫓の横へ低く外れて地面に着いた(櫓の正面の手前に落ちた玉は、転がって当たるので外れではない)
+        if (Math.abs(g.ball.position.x) > TOWER.halfW + BALL.r + 0.3) g.groundOut = true;
       }
-      quiet = moving ? 0 : quiet + 1;
-      return quiet >= SETTLE.steps;
-    },
-  };
+      if (g.phase === "miss" && g.landAt == null) {
+        g.landAt = g.t;
+        g.ball.linearDamping = MISS.roll;
+        g.ball.angularDamping = MISS.roll;
+      }
+      return;
+    }
+    const part = parts.find((p) => p.body === e.body);
+    if (!part) return;
+    g.hits++;
+    if (g.impactAt == null && g.phase === "flight") {
+      g.impactAt = g.t;
+      g.phase = "impact";
+      emit(g, "impact", { id: part.id, kind: part.kind });
+    }
+  });
+  return g;
 }
 
-// シーン側のフォールバック時刻(ms)。鈴の緒装置より短い(旅が短いので)。
-const TIMELINE = { nudgeMs: 6000, wakeMs: 9000, failsafeMs: 20000 };
-
-// 「うまく放てないとき」のフォールバック。櫓に確実に当たる既定の引きで放つ。
-// 実際の切り離しは以降の step で起きるので、その場では完了しない(false)。
-function fallbackRitual(Matter, built, ritual) {
-  ritual.pull(-80, 34); // 左下へ引く = 右上へ飛ぶ
-  return false;
+function emit(g, type, data) {
+  g.events.push(Object.assign({ type, t: g.t }, data || {}));
 }
 
-// 儀式完了時に装置側でやることは無い(放った時点で玉は自由飛行)。
-function onRitualDone() {}
-
-// 詰まった時のフォールバック(玉が何にも当たらず止まった等)。
-// 玉を狐の方へそっと転がす。
-function nudge(Matter, built) {
-  const { ball } = built;
-  Matter.Sleeping.set(ball, false);
-  Matter.Body.setVelocity(ball, { x: 5, y: -4 });
+function setAim(g, aim) {
+  if (g.phase !== "aim") return;
+  g.aim = aim;
+  const p = pulledPos(aim);
+  g.ball.position.set(p.x, p.y, p.z);
 }
 
-// 儀式完了時の波紋の位置(射出点)。演出なし(reduced motion)では世界を組まないので
-// built が空でも答えられるようにしておく。
-function pulseAt(built) {
-  const a = (built && built.anchor) || { x: GEO.SLING.x, y: GEO.SLING.anchorY };
-  return { x: a.x, y: a.y };
+function launch(g) {
+  if (g.phase !== "aim") return;
+  const { CANNON } = g;
+  const from = pulledPos(g.aim);
+  const target = targetOf(g.aim);
+  const v = launchVelocity(from, target);
+  g.ball.type = CANNON.Body.DYNAMIC;
+  g.ball.mass = BALL.mass;
+  g.ball.updateMassProperties();
+  g.ball.position.set(from.x, from.y, from.z);
+  g.ball.velocity.set(v.x, v.y, v.z);
+  g.ball.angularVelocity.set(-8, 0, 0);
+  g.ball.wakeUp();
+  g.phase = "flight";
+  g.t = 0;
+  g.target = target;
+  emit(g, "launch", { power: g.aim.power });
+}
+
+// 部品がどれだけ動いたか
+function moved(p) {
+  const b = p.body.position;
+  return Math.hypot(b.x - p.start[0], b.y - p.start[1], b.z - p.start[2]);
+}
+
+// 結果にする木札を選ぶ: 崩れて動いた木札のうち一番手前(z が大きい)。どれも動いていなければ一番上
+function choosePlaque(g) {
+  const plaques = g.parts.filter((p) => p.kind === "plaque");
+  const fell = plaques.filter((p) => moved(p) > 0.35);
+  if (fell.length) return fell.reduce((a, b) => (b.body.position.z > a.body.position.z ? b : a));
+  return plaques.reduce((a, b) => (b.body.position.y > a.body.position.y ? b : a));
+}
+
+// 崩れが収まったか(動いている部品が無い)
+function settled(g) {
+  for (const p of g.parts) {
+    const v = p.body.velocity;
+    if (p.body.sleepState !== g.CANNON.Body.SLEEPING && v.x * v.x + v.y * v.y + v.z * v.z > 0.04) return false;
+  }
+  return true;
+}
+
+// dt 秒(スローモーションは呼ぶ側で dt を縮める)
+function step(g, dt) {
+  if (g.phase === "aim" || g.phase === "reveal") return;
+  g.acc += Math.min(dt, 0.05);
+  let n = 0;
+  for (;;) {
+    const h = g.phase === "flight" ? STEP : STEP_AFTER;
+    if (g.acc < h) break;
+    if (++n > MAX_STEPS) {
+      g.acc = 0; // 追いつけない分は捨てる(ゆっくりになるだけで、重くなり続けない)
+      break;
+    }
+    g.acc -= h;
+    if (g.phase === "miss" && g.landAt == null) {
+      // 外れた玉は横と上への勢いを失う(落ちる速さはそのまま。ふわふわ浮かない。
+      // 上への勢いが残ると、10m まで上がって鳥居の貫をくぐり抜けた)
+      const k = Math.exp(-MISS.air * h);
+      g.ball.velocity.x *= k;
+      g.ball.velocity.z *= k;
+      if (g.ball.velocity.y > 0) g.ball.velocity.y *= Math.exp(-MISS.up * h);
+    }
+    if (g.phase === "miss" && g.landAt != null) {
+      // 地面に着いた後は、転がりを止める(跳ねている間も)
+      g.ball.linearDamping = MISS.roll;
+      g.ball.angularDamping = MISS.roll;
+    }
+    g.world.step(h);
+    g.t += h;
+    // 軽い木札は重い玉に弾かれると 50m 先まで飛んで画面から消えた。崩れの見栄えのため速さに上限
+    for (const p of g.parts) {
+      const v = p.body.velocity;
+      const s2 = v.x * v.x + v.y * v.y + v.z * v.z;
+      if (s2 > PART_VMAX * PART_VMAX) v.scale(PART_VMAX / Math.sqrt(s2), v);
+    }
+  }
+  // 外れた(櫓に触れずに後ろへ抜けた・櫓の横の地面に落ちた・いつまでも当たらない)
+  const passed = g.ball.position.z < TOWER.z - TOWER.halfD - 1.5;
+  if (g.phase === "flight" && (passed || g.groundOut || g.t > (g.target ? g.target.t : 1) + 1.2)) {
+    g.missed = true;
+    g.missAt = g.t;
+    g.phase = "miss";
+    if (g.ball.position.y < BALL.r + 0.05) g.landAt = g.t; // 地面の上で外れになった
+    emit(g, "miss", {});
+  }
+  if (g.phase === "miss") {
+    const since = g.t - g.missAt;
+    const v = g.ball.velocity;
+    // 止まった(跳ねている途中の一番上で遅くなった時は、止まったとしない)
+    const onGround = g.ball.position.y < BALL.r + 0.04;
+    const stopped = g.landAt != null && ((onGround && v.length() < MISS.stopV) || g.t - g.landAt > MISS.rollMax);
+    if (stopped || since > MISS.max) {
+      const b = g.ball.position;
+      g.broke = { x: b.x, y: b.y, z: b.z };
+      g.chosen = null;
+      g.phase = "reveal";
+      emit(g, "break", g.broke);
+      emit(g, "reveal", { id: null, missed: true });
+    }
+  }
+  if (g.phase === "impact") {
+    const since = g.t - g.impactAt;
+    if ((since > SETTLE.min && settled(g)) || since > SETTLE.max) {
+      g.chosen = choosePlaque(g);
+      g.phase = "reveal";
+      emit(g, "reveal", { id: g.chosen.id });
+    }
+  }
 }
 
 module.exports = {
-  id: "slingshot",
-  GEO,
-  FOX,
-  HINT,
-  TIMELINE,
-  wakeLabels,
-  grabFilter,
-  build: buildWorld,
-  createRitual,
-  createSettleDetector,
-  fallbackRitual,
-  onRitualDone,
-  nudge,
-  pulseAt,
+  G,
+  STEP,
+  STEP_AFTER,
+  SLING,
+  BALL,
+  PULL,
+  TOWER,
+  TOWER_TOP,
+  AIM,
+  FLIGHT,
+  SETTLE,
+  MISS,
+  TORII,
+  LANTERN,
+  TIERS,
+  PART,
+  towerLayout,
+  aimFromDrag,
+  targetOf,
+  aimsAtTower,
+  pulledPos,
+  launchVelocity,
+  trajectory,
+  build,
+  setAim,
+  launch,
+  step,
+  moved,
+  choosePlaque,
 };
