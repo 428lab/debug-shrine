@@ -108,6 +108,8 @@ GitHub Events APIはテスト用の `httptest` モックサーバーに差し替
 ## デプロイ
 
 CI(`.github/workflows/dev-deploy.yml`)から以下相当のコマンドで自動デプロイされる。
+前回うまくいったデプロイからこのディレクトリ・ワークフロー・`mise.toml` が変わっていなければ飛ばす
+(手で動かした時は必ずデプロイする。ルートの README の「デプロイフロー」を参照)。
 
 ```bash
 gcloud functions deploy statusGo \
