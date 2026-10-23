@@ -7,6 +7,7 @@
 // 場面: 秋の夕方の神社の境内。手前に Y 字の台、奥に木札と絵馬を積んだ朱の櫓、その奥に鳥居。
 // カメラ: aim(台の後ろから櫓を見る)→ flight(玉の後ろについて飛ぶ)→ impact(横から引いて崩れを見る)
 //        → reveal(浮き上がった木札の正面)
+//        外れた時は flight → miss(落ちて転がる玉を追う)→ reveal(割れた玉から出た木札の正面)
 
 const S = require("./omikujiSlingshot");
 
@@ -124,8 +125,9 @@ function createView(lib, canvas, opts) {
 
     // ---- 鳥居(櫓の奥) ----
     {
-      const tz = S.TOWER.z - 11;
-      for (const sx of [-1, 1]) add(cyl(0.45, 0.5, 11, 20), mat.vermilion, sx * 4.4, 5.5, tz);
+      // 柱は物理にもある(外れた玉が通り抜けない。位置は S.TORII)
+      const tz = S.TORII.z;
+      for (const sx of [-1, 1]) add(cyl(S.TORII.r - 0.05, S.TORII.r, S.TORII.h, 20), mat.vermilion, sx * S.TORII.x, S.TORII.h / 2, tz);
       add(box(12.5, 0.7, 1.0), mat.black, 0, 11.3, tz); // 笠木
       add(box(11.5, 0.5, 0.8), mat.vermilion, 0, 10.6, tz);
       add(box(10.6, 0.5, 0.6), mat.vermilion, 0, 8.9, tz); // 貫
@@ -133,9 +135,10 @@ function createView(lib, canvas, opts) {
     }
     // ---- 石灯籠(参道の両脇) ----
     // 手前は台の脇、奥は櫓の向こう(カメラが回り込む道と、横から引いて櫓を見る線にかからない)
-    for (const z of [-1.5, S.TOWER.z - 5]) {
+    // 物理にもある(位置は S.LANTERN)
+    for (const z of S.LANTERN.zs) {
       for (const sx of [-1, 1]) {
-        const x = sx * 3.2;
+        const x = sx * S.LANTERN.x;
         add(box(0.9, 0.3, 0.9), mat.stone, x, 0.15, z);
         add(cyl(0.16, 0.2, 1.3, 10), mat.stone, x, 0.95, z);
         add(box(0.8, 0.6, 0.8), mat.stone, x, 1.9, z);
@@ -233,6 +236,17 @@ function createView(lib, canvas, opts) {
     );
     ballMesh.castShadow = true;
     scene.add(ballMesh);
+    // 外れた玉が割れた殻(左右の半球。内側も見えるように両面)
+    const shellMat = keep(ballMesh.material.clone());
+    shellMat.side = THREE.DoubleSide;
+    const shellGeo = keep(new THREE.SphereGeometry(S.BALL.r, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2));
+    const shells = [1, -1].map((side) => {
+      const m = new THREE.Mesh(shellGeo, shellMat);
+      m.castShadow = true;
+      m.visible = false;
+      scene.add(m);
+      return { m, side, v: new THREE.Vector3(), spin: 0, rest: false };
+    });
     // 尾
     const TRAIL = 40;
     const trailPos = new Float32Array(TRAIL * 3);
@@ -315,6 +329,7 @@ function createView(lib, canvas, opts) {
     const sparks = new THREE.Points(spGeo, keep(new THREE.PointsMaterial({ map: dustTex, color: 0xffe080, size: 0.22, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })));
     sparks.frustumCulled = false;
     scene.add(sparks);
+    let spNext = 0;
     let tierFace = null;
     let tierShown = null;
 
@@ -345,11 +360,24 @@ function createView(lib, canvas, opts) {
         trail.visible = true;
         trailInit = false;
         aimDots.visible = false;
-      } else if (e.type === "impact" && !e.missed) {
+      } else if (e.type === "impact") {
         puff({ x: b.x, y: b.y, z: b.z }, 70, 5);
         cam.shake = 0.35;
         shimenawa.visible = false;
-      } else if (e.type === "reveal") {
+      } else if (e.type === "break") {
+        // 外れた玉が割れる: 殻が左右へ飛び、光の粒と土煙
+        for (const sh of shells) {
+          sh.m.visible = true;
+          sh.m.position.set(e.x, e.y, e.z);
+          sh.m.rotation.set(0, 0, -sh.side * Math.PI / 2); // 丸い側を外へ向ける
+          sh.v.set(sh.side * (1.4 + Math.random() * 0.4), 2.4, 0.6);
+          sh.spin = sh.side * 5;
+          sh.rest = false;
+        }
+        puff({ x: e.x, y: e.y, z: e.z }, 40, 2.2);
+        burst({ x: e.x, y: e.y + 0.1, z: e.z }, 60, 1.6);
+        cam.shake = 0.15;
+      } else if (e.type === "reveal" && e.id != null) {
         const p = g.parts[e.id];
         puff({ x: p.body.position.x, y: p.body.position.y, z: p.body.position.z }, 30, 2);
       }
@@ -368,8 +396,18 @@ function createView(lib, canvas, opts) {
       });
       ballMesh.position.copy(g.ball.position);
       ballMesh.quaternion.copy(g.ball.quaternion);
-      // 外れた玉は結果の間は止まる(物理を止めるため)。宙に止まって見えないように消す
-      ballMesh.visible = !(g.missed && g.phase === "reveal");
+      ballMesh.visible = !g.broke; // 外れて割れたら殻に替わる
+      for (const sh of shells) {
+        if (!sh.m.visible || sh.rest) continue;
+        sh.v.y -= 9.8 * dt;
+        sh.m.position.addScaledVector(sh.v, dt);
+        sh.m.rotation.z += sh.spin * dt;
+        // 横倒しの半球は、縁が地面に着く高さ(玉の半径)で止める(めり込まない)
+        if (sh.m.position.y < S.BALL.r) {
+          sh.m.position.y = S.BALL.r;
+          sh.rest = true;
+        }
+      }
 
       // ゴム
       const bp = g.phase === "aim" ? g.ball.position : new THREE.Vector3(0, S.SLING.y, 0.05);
@@ -423,7 +461,7 @@ function createView(lib, canvas, opts) {
       dGeo.attributes.position.needsUpdate = true;
 
       // 結果の木札
-      if (ui && ui.reveal && g.chosen) updateReveal(g, ui.reveal, dt);
+      if (ui && ui.reveal && (g.chosen || g.broke)) updateReveal(g, ui.reveal, dt);
       for (let k = 0; k < SPARK; k++) {
         if (spLife[k] <= 0) continue;
         spLife[k] -= dt;
@@ -438,26 +476,115 @@ function createView(lib, canvas, opts) {
     }
 
     // 結果の木札: 落ちた所から浮き上がり、カメラの前へ来て回り、裏返るとレア度
+    // (外れた時は、割れた玉の中から小さな木札が出て、その上で大きくなる)
     const REVEAL_AT = new THREE.Vector3(0, 2.3, S.TOWER.z + 6.2);
+    const missPlaque = new THREE.Mesh(box(S.PART.plaque.half[0] * 2, S.PART.plaque.half[1] * 2, S.PART.plaque.half[2] * 2), [plaqueSide, plaqueSide, plaqueSide, plaqueSide, plaqueBack, plaqueBack]);
+    missPlaque.castShadow = true;
+    missPlaque.visible = false;
+    scene.add(missPlaque);
+    // 動かない物(櫓・石灯籠・鳥居の柱)の箱 { min, max }。外れた時の木札とカメラの置き場所を決める
+    const OBST = [{ min: new THREE.Vector3(-S.TOWER.halfW - 0.35, 0, S.TOWER.z - S.TOWER.halfD - 0.15), max: new THREE.Vector3(S.TOWER.halfW + 0.35, S.TOWER_TOP, S.TOWER.z + S.TOWER.halfD + 0.15) }];
+    for (const sx of [-1, 1]) {
+      for (const z of S.LANTERN.zs) OBST.push({ min: new THREE.Vector3(sx * S.LANTERN.x - 0.6, 0, z - 0.6), max: new THREE.Vector3(sx * S.LANTERN.x + 0.6, 2.8, z + 0.6) });
+      OBST.push({ min: new THREE.Vector3(sx * S.TORII.x - 0.6, 0, S.TORII.z - 0.6), max: new THREE.Vector3(sx * S.TORII.x + 0.6, S.TORII.h + 0.5, S.TORII.z + 0.6) });
+    }
+    const ray = new THREE.Ray();
+    const box3 = new THREE.Box3();
+    const hitPt = new THREE.Vector3();
+    // a から b への線が、どれかの箱(pad だけ大きくする)を通るか
+    function blocked(a, b, pad) {
+      const len = a.distanceTo(b);
+      ray.origin.copy(a);
+      ray.direction.subVectors(b, a).normalize();
+      return OBST.some((o) => {
+        box3.min.copy(o.min).subScalar(pad);
+        box3.max.copy(o.max).addScalar(pad);
+        if (box3.containsPoint(a)) return true;
+        return ray.intersectBox(box3, hitPt) && a.distanceTo(hitPt) < len;
+      });
+    }
+    // 外れた時の見せ方: 割れた所の上に木札を出し、木札もカメラも物に重ならず、見通しのよい向きから見る
+    // (正面 = 手前から。ふさがっていたら少しずつ横へ回る。木札はカメラの方を向く)
+    function missView(broke) {
+      const at = new THREE.Vector3(broke.x, 2.1, broke.z);
+      // 柱や灯籠のすぐ脇なら、木札(大きくなると幅 0.9m)が重ならない所まで離す
+      for (let i = 0; i < 4; i++) {
+        const o = OBST.find((b) => at.x > b.min.x - 0.7 && at.x < b.max.x + 0.7 && at.z > b.min.z - 0.7 && at.z < b.max.z + 0.7 && at.y < b.max.y + 0.9);
+        if (!o) break;
+        const cx = (o.min.x + o.max.x) / 2;
+        const cz = (o.min.z + o.max.z) / 2;
+        const dx = at.x - cx || 0.01;
+        const dz = at.z - cz || 0.01;
+        const d = Math.hypot(dx, dz);
+        const need = Math.hypot((o.max.x - o.min.x) / 2, (o.max.z - o.min.z) / 2) + 0.75;
+        at.x = cx + (dx / d) * need;
+        at.z = cz + (dz / d) * need;
+      }
+      const top = new THREE.Vector3();
+      const bottom = new THREE.Vector3();
+      for (const yaw of [0, 0.45, -0.45, 0.9, -0.9, 1.35, -1.35, 1.8, -1.8, 2.4, -2.4, Math.PI]) {
+        const cam = new THREE.Vector3(at.x + Math.sin(yaw) * 4.3, at.y + 0.25, at.z + Math.cos(yaw) * 4.3);
+        top.copy(at).y += 0.8;
+        bottom.copy(at).y -= 0.8;
+        if (!blocked(cam, at, 0.3) && !blocked(cam, top, 0.1) && !blocked(cam, bottom, 0.1)) return { at, cam, yaw };
+      }
+      return { at, cam: new THREE.Vector3(at.x, at.y + 0.25, at.z + 4.3), yaw: 0 };
+    }
+    function revealView(g) {
+      if (g.chosen) return { at: REVEAL_AT, cam: REVEAL_AT.clone().add(tmp.set(0, 0.25, 4.3)), yaw: 0 };
+      return missView(g.broke);
+    }
+    // 外れた玉を追うカメラが、櫓・鳥居・灯籠の中に入らない
+    function avoidScenery(p) {
+      const w = S.TOWER.halfW + 0.8;
+      if (Math.abs(p.x) < w && p.z > S.TOWER.z - S.TOWER.halfD - 0.8 && p.z < S.TOWER.z + S.TOWER.halfD + 0.8) p.x = (p.x < 0 ? -1 : 1) * w;
+      // 鳥居: 貫より下を通る。柱からは離れる
+      if (Math.abs(p.z - S.TORII.z) < 1.6 && Math.abs(p.x) < S.TORII.x + 1.4) p.y = Math.min(p.y, 7.6);
+      for (const sx of [-1, 1]) {
+        for (const z of S.LANTERN.zs) {
+          const lx = p.x - sx * S.LANTERN.x;
+          const lz = p.z - z;
+          const ld = Math.hypot(lx, lz);
+          if (ld < 1.3 && p.y < 3.4) {
+            p.x = sx * S.LANTERN.x + (ld < 1e-3 ? 1.3 : (lx / ld) * 1.3);
+            p.z = z + (ld < 1e-3 ? 0 : (lz / ld) * 1.3);
+          }
+        }
+        const dx = p.x - sx * S.TORII.x;
+        const dz = p.z - S.TORII.z;
+        const d = Math.hypot(dx, dz);
+        const min = S.TORII.r + 0.9;
+        if (d < min) {
+          const f = min / Math.max(d, 1e-3);
+          p.x = sx * S.TORII.x + (d < 1e-3 ? min : dx * f);
+          p.z = S.TORII.z + (d < 1e-3 ? 0 : dz * f);
+        }
+      }
+      return p;
+    }
     let revealFrom = null;
     let spinAngle = 0;
     let flipFrom = null;
     let flipTo = null;
     let burstDone = false;
     function updateReveal(g, r, dt) {
-      const i = g.chosen.id;
-      const m = partMeshes[i];
+      const m = g.chosen ? partMeshes[g.chosen.id] : missPlaque;
       if (!revealFrom) {
-        revealFrom = { pos: m.position.clone(), quat: m.quaternion.clone() };
+        if (!g.chosen) {
+          m.visible = true;
+          m.position.set(g.broke.x, g.broke.y, g.broke.z);
+          m.quaternion.identity();
+        }
+        const view = revealView(g);
+        revealFrom = { pos: m.position.clone(), quat: m.quaternion.clone(), at: view.at, cam: view.cam, upright: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), view.yaw), scale: g.chosen ? 1 : 0.25 };
       }
       const u = Math.min(1, r.u);
       const e = u * u * (3 - 2 * u);
       // 弧を描いて上がってくる
-      m.position.lerpVectors(revealFrom.pos, REVEAL_AT, e);
+      m.position.lerpVectors(revealFrom.pos, revealFrom.at, e);
       m.position.y += Math.sin(e * Math.PI) * 1.4 + Math.sin(time * 2) * 0.05 * e;
-      const upright = new THREE.Quaternion();
-      m.quaternion.slerpQuaternions(revealFrom.quat, upright, e);
-      // 待つ間はゆっくり回る。裏返す時は今の角度から 1 回転以上回って、正面(+z)に表を向ける
+      m.quaternion.slerpQuaternions(revealFrom.quat, revealFrom.upright, e);
+      // 待つ間はゆっくり回る。裏返す時は今の角度から 1 回転以上回って、正面(カメラの方)に表を向ける
       if (r.flip == null) spinAngle += dt * 1.4 * e;
       else {
         if (flipFrom == null) {
@@ -467,7 +594,7 @@ function createView(lib, canvas, opts) {
         spinAngle = flipFrom + (flipTo - flipFrom) * easeOut(Math.min(1, r.flip));
       }
       m.rotateY(spinAngle);
-      m.scale.setScalar(1 + e * 1.3);
+      m.scale.setScalar(revealFrom.scale + e * (2.3 - revealFrom.scale));
       // 表の文字は、表の面がカメラの反対を向いている間に貼り替える(替わる瞬間が見えない)
       if (r.flip != null && r.tier && tierShown !== r.tier && Math.cos(spinAngle) < -0.2) {
         tierFace = keep(new THREE.MeshStandardMaterial({ map: keep(makePlaqueTexture(THREE, r.tier)), roughness: 0.6, emissive: 0x3a2a10, emissiveIntensity: 0.25 }));
@@ -487,14 +614,20 @@ function createView(lib, canvas, opts) {
       // 裏返った瞬間に光の粒
       if (r.flip != null && r.flip > 0.7 && !burstDone) {
         burstDone = true;
-        for (let k = 0; k < SPARK; k++) {
-          spPos.set([m.position.x, m.position.y, m.position.z], k * 3);
-          const th = Math.random() * Math.PI * 2;
-          const ph = (Math.random() - 0.5) * Math.PI;
-          const sp = 1.5 + Math.random() * 2.5;
-          spVel.set([Math.cos(th) * Math.cos(ph) * sp, Math.sin(ph) * sp + 1, Math.sin(th) * Math.cos(ph) * sp * 0.4], k * 3);
-          spLife[k] = 0.8 + Math.random() * 0.8;
-        }
+        burst(m.position, SPARK, 1.5);
+      }
+    }
+    // 光の粒をはじけさせる
+    function burst(p, n, speed) {
+      for (let j = 0; j < n; j++) {
+        const k = spNext;
+        spNext = (spNext + 1) % SPARK;
+        spPos.set([p.x, p.y, p.z], k * 3);
+        const th = Math.random() * Math.PI * 2;
+        const ph = (Math.random() - 0.5) * Math.PI;
+        const sp = speed + Math.random() * 2.5;
+        spVel.set([Math.cos(th) * Math.cos(ph) * sp, Math.sin(ph) * sp + 1, Math.sin(th) * Math.cos(ph) * sp * 0.4], k * 3);
+        spLife[k] = 0.8 + Math.random() * 0.8;
       }
     }
     function easeOut(u) {
@@ -519,7 +652,17 @@ function createView(lib, canvas, opts) {
         wantPos = bp.clone().addScaledVector(dir, -3.2).add(tmp.set(bp.x < -0.8 ? -0.6 : 0.6, 0.9, 0));
         wantLook = bp.clone().addScaledVector(dir, 6);
         k = Math.min(1, dt * 10);
-      } else if (g.phase === "impact" || (g.phase === "flight" && o.reducedMotion)) {
+      } else if (g.phase === "miss" && !o.reducedMotion) {
+        // 外れた玉を、少し上・手前から追って、落ちて転がるのを見る
+        const bp = new THREE.Vector3(g.ball.position.x, g.ball.position.y, g.ball.position.z);
+        wantPos = avoidScenery(bp.clone().add(tmp.set(bp.x < -0.8 ? -0.5 : 0.5, 2.25, 4.3)));
+        // 櫓のすぐ後ろに玉がある間は、櫓の上から見下ろす(櫓の中をくぐらない)
+        if (Math.abs(wantPos.x) < S.TOWER.halfW + 1.8 && Math.abs(wantPos.z - S.TOWER.z) < S.TOWER.halfD + 2.5) wantPos.y = Math.max(wantPos.y, S.TOWER_TOP + 1.6);
+        // 鳥居の近くで動くので、追う位置も鳥居を避ける(カメラは追う位置へ遅れて動くので、着く先も避ける)
+        avoidScenery(wantPos);
+        wantLook = bp.clone().add(tmp.set(0, 0.3, 0));
+        k = Math.min(1, dt * 4);
+      } else if (g.phase === "impact" || ((g.phase === "flight" || g.phase === "miss") && o.reducedMotion)) {
         // 横へ回り込んで、崩れ全体を見せる
         if (cam.wideAt == null) cam.wideAt = time;
         wantPos = WIDE_POS.clone();
@@ -527,9 +670,10 @@ function createView(lib, canvas, opts) {
         k = Math.min(1, dt * (o.reducedMotion ? 6 : 2.2));
       } else {
         // 結果の木札の正面
-        wantPos = REVEAL_AT.clone().add(tmp.set(0, 0.25, 4.3));
-        wantLook = REVEAL_AT.clone().add(tmp.set(0, 0.15, 0));
-        k = Math.min(1, dt * 2.5);
+        const view = revealFrom || (g.chosen || g.broke ? revealView(g) : { at: REVEAL_AT, cam: REVEAL_AT.clone().add(tmp.set(0, 0.25, 4.3)) });
+        wantPos = view.cam.clone();
+        wantLook = view.at.clone().add(tmp.set(0, 0.15, 0));
+        k = Math.min(1, dt * (o.reducedMotion ? 6 : 2.5));
       }
       cam.pos.lerp(wantPos, k);
       cam.look.lerp(wantLook, k);
