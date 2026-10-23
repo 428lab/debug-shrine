@@ -345,7 +345,7 @@ function createView(lib, canvas, opts) {
         trail.visible = true;
         trailInit = false;
         aimDots.visible = false;
-      } else if (e.type === "impact") {
+      } else if (e.type === "impact" && !e.missed) {
         puff({ x: b.x, y: b.y, z: b.z }, 70, 5);
         cam.shake = 0.35;
         shimenawa.visible = false;

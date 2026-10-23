@@ -5,11 +5,12 @@
 // 検証は scripts/simulate-omikuji-slingshot.js。
 //
 // 流れ:
-//   aim    : Y 字の台の御神玉を引き絞る(引いた向きと強さで、櫓のどこに当たるかが決まる)
-//   flight : 放つ(rang)。玉は狙った点へ必ず飛ぶ(放物線を解く)
+//   aim    : Y 字の台の御神玉を引き絞る(引いた向きの逆へ飛ぶ。引いた向きと強さで狙う点が決まる)
+//   flight : 放つ(rang)。玉は狙った点へ飛ぶ(放物線を解く)。櫓の外も狙えるので外れることもある
 //   impact : 櫓に当たる。崩れが収まるまで待つ
-//   reveal : 崩れ落ちた木札のうち、一番手前の 1 枚が浮き上がり、裏返ってレア度が出る
-//            (レア度はサーバーが決めたもの。物理がどう転んでも結果は正しい)
+//   reveal : 崩れ落ちた木札のうち、一番手前の 1 枚が浮き上がり、裏返ってレア度が出る。
+//            外れて崩れなかった時は、てっぺんの木札が浮き上がる
+//            (レア度はサーバーが決めたもの。物理がどう転んでも、外れても結果は正しい)
 //
 // 座標はメートル。x 右、y 上、z 手前(台は z = 0、櫓は奥の z = TOWER.z)。
 
@@ -22,10 +23,10 @@ const SLING = { x: 0, y: 1.55, z: 0 }; // 玉の定位置(ゴムの支点)
 const BALL = { r: 0.28, mass: 7 };
 const PULL = { max: 1.1 }; // 引き絞りの最大(見た目。m)
 const TOWER = { z: -16, halfW: 1.5, halfD: 0.75, floors: 3, floorH: 1.45, beam: 0.1 };
-// 狙える範囲(櫓の正面の x と y)。必ず櫓のどこかに当たる
-const AIM = { xMax: 1.15, yMin: 0.5, yMax: 4.6 };
+// 狙える範囲(櫓の正面の面での x と y)。櫓(幅 ±1.5・高さ 5.7)より広く、外すこともできる
+const AIM = { xMax: 3.2, yMin: 0.2, yMax: 7.4 };
 const FLIGHT = { slow: 0.95, fast: 0.62 }; // 飛ぶ時間(秒)。弱い引き → 山なり、強い引き → まっすぐ
-const SETTLE = { min: 2.4, max: 4.2 }; // 当たってから選ぶまで(秒)。待ちすぎると間延びする
+const SETTLE = { min: 2.4, max: 4.2, miss: 1.2 }; // 当たってから選ぶまで(秒)。待ちすぎると間延びする
 const PART_VMAX = 7.5; // 櫓の部品の速さの上限(m/s)。カメラの目の前まで飛んでくると、画面が部品で埋まった
 
 // レア度(色はポートと同じ並び)
@@ -87,9 +88,9 @@ function towerLayout() {
 function aimFromDrag(dx, dy) {
   const len = Math.hypot(dx, dy);
   const power = Math.max(0, Math.min(1, len / 190));
-  // 左へ引くと右へ、下へ引くと上へ(引いた向きの逆へ飛ぶ)
-  const ax = Math.max(-1, Math.min(1, -dx / 150));
-  const ay = Math.max(0, Math.min(1, (dy + 30) / 200));
+  // 左へ引くと右へ、下へ引くと上へ(引いた向きの逆へ飛ぶ。スリングショットと同じ)
+  const ax = Math.max(-1, Math.min(1, -dx / 140));
+  const ay = Math.max(0, Math.min(1, (dy + 40) / 210));
   return { power, ax, ay };
 }
 
@@ -103,10 +104,11 @@ function targetOf(aim) {
   };
 }
 
-// 玉の位置(引き絞り中)。引いた向きに、最大 PULL.max まで下がる
+// 玉の位置(引き絞り中)。指と同じ向きに動き、最大 PULL.max まで手前へ下がる
+// (ax は飛ぶ向き = 指の逆なので、横は -ax の向きへずらす)
 function pulledPos(aim) {
   const k = PULL.max * aim.power;
-  return { x: SLING.x + aim.ax * 0.35 * k, y: SLING.y - aim.ay * 0.55 * k - 0.15 * k, z: SLING.z + k };
+  return { x: SLING.x - aim.ax * 0.45 * k, y: SLING.y - aim.ay * 0.55 * k - 0.15 * k, z: SLING.z + k };
 }
 
 // 放つ速さ(狙った点へ、時間 t で届く放物線)
@@ -183,6 +185,7 @@ function build(CANNON) {
     t: 0, // 放ってからの物理の時間
     acc: 0,
     impactAt: null,
+    missed: false,
     chosen: null,
     events: [],
     hits: 0,
@@ -279,15 +282,19 @@ function step(g, dt) {
       if (s2 > PART_VMAX * PART_VMAX) v.scale(PART_VMAX / Math.sqrt(s2), v);
     }
   }
-  // 当たらずに地面へ落ちた(狙いは必ず櫓だが、念のため)→ 当たったことにして進める
-  if (g.phase === "flight" && g.t > (g.target ? g.target.t : 1) + 1.2) {
+  // 外れた(櫓に触れずに後ろへ抜けた・いつまでも当たらない)→ 当たったことにして進める
+  // (崩れないので、てっぺんの木札が結果になる)
+  const passed = g.ball.position.z < TOWER.z - TOWER.halfD - 1.5;
+  if (g.phase === "flight" && (passed || g.t > (g.target ? g.target.t : 1) + 1.2)) {
+    g.missed = true;
     g.impactAt = g.t;
     g.phase = "impact";
     emit(g, "impact", { missed: true });
   }
   if (g.phase === "impact") {
     const since = g.t - g.impactAt;
-    if ((since > SETTLE.min && settled(g)) || since > SETTLE.max) {
+    // 外れた時は崩れを待たない(何も崩れていない櫓を眺める間を作らない)
+    if (g.missed ? since > SETTLE.miss : (since > SETTLE.min && settled(g)) || since > SETTLE.max) {
       g.chosen = choosePlaque(g);
       g.phase = "reveal";
       emit(g, "reveal", { id: g.chosen.id });
