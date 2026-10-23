@@ -15,27 +15,16 @@ const assert = require("assert");
 const CANNON = require("cannon-es");
 const S = require("../components/omikujiSlingshot");
 
-function mulberry(seed) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
 // 1) 放つ前: 10 秒たっても動かない
 {
-  const g = S.build(CANNON, { rnd: mulberry(1) });
+  const g = S.build(CANNON);
   for (let i = 0; i < 600; i++) g.world.step(1 / 60);
   const maxMove = Math.max(...g.parts.map(S.moved));
   assert.ok(maxMove < 1e-6, `放つ前に櫓が動いた ${maxMove}`);
 }
 // 2) 凍らせなくても、自分では崩れない(当たった時に起きた部品が、ほかを道連れにしない)
 {
-  const g = S.build(CANNON, { rnd: mulberry(2) });
+  const g = S.build(CANNON);
   g.parts.forEach((p) => p.body.wakeUp());
   for (let i = 0; i < 240 * 6; i++) g.world.step(S.STEP);
   const maxMove = Math.max(...g.parts.map(S.moved));
@@ -48,7 +37,7 @@ const rows = [];
 for (const ax of [-1, -0.5, 0, 0.5, 1]) {
   for (const ay of [0, 0.25, 0.5, 0.75, 1]) {
     for (const power of [0.2, 0.6, 1]) {
-      const g = S.build(CANNON, { rnd: mulberry(Math.round((ax + 2) * 100 + ay * 10 + power * 1000)) });
+      const g = S.build(CANNON);
       S.setAim(g, { ax, ay, power });
       S.launch(g);
       let impact = null;
@@ -77,6 +66,17 @@ for (const ax of [-1, -0.5, 0, 0.5, 1]) {
     }
   }
 }
+// 4) 遅い端末(1 フレーム 0.05 秒。1 フレームの歩数の上限に当たる)でも当たって結果が選ばれる
+for (const ay of [0, 0.5, 1]) {
+  const g = S.build(CANNON);
+  S.setAim(g, { ax: 0.3, ay, power: 0.7 });
+  S.launch(g);
+  for (let f = 0; f < 20 * 30 && g.phase !== "reveal"; f++) S.step(g, 0.05);
+  assert.strictEqual(g.phase, "reveal", `遅い端末で結果が選ばれない ay=${ay}`);
+  assert.ok(g.events.some((e) => e.type === "impact" && !e.missed), `遅い端末で外れた ay=${ay}`);
+}
+console.log("OK 遅い端末(20fps)でも当たって結果が選ばれる");
+
 const pct = (arr, q) => arr.slice().sort((a, b) => a - b)[Math.min(arr.length - 1, Math.floor(arr.length * q))];
 const settle = rows.map((r) => r.settle);
 const movedN = rows.map((r) => r.movedN);

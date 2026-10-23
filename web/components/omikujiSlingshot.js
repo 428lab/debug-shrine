@@ -14,7 +14,9 @@
 // 座標はメートル。x 右、y 上、z 手前(台は z = 0、櫓は奥の z = TOWER.z)。
 
 const G = 9.82;
-const STEP = 1 / 240; // 物理の 1 歩(速い玉が薄い木札をすり抜けないように細かく)
+const STEP = 1 / 240; // 物理の 1 歩(飛んでいる速い玉が薄い木札をすり抜けないように細かく)
+const STEP_AFTER = 1 / 120; // 当たった後(玉は遅くなっている。崩れの計算を軽くする)
+const MAX_STEPS = 8; // 1 フレームに進める歩数の上限(遅い端末で重くなって、さらに遅れるのを止める)
 
 const SLING = { x: 0, y: 1.55, z: 0 }; // 玉の定位置(ゴムの支点)
 const BALL = { r: 0.28, mass: 7 };
@@ -131,12 +133,12 @@ function trajectory(aim, n) {
 }
 
 // ---- 物理の世界 ----
-function build(CANNON, opts) {
-  const rnd = (opts && opts.rnd) || Math.random;
+function build(CANNON) {
   const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -G, 0) });
   world.allowSleep = true;
   world.broadphase = new CANNON.SAPBroadphase(world);
-  world.solver.iterations = 12;
+  world.broadphase.axisIndex = 1; // 櫓は縦に積んであるので、縦の軸で並べる方が速い
+  world.solver.iterations = 10;
   world.defaultContactMaterial.friction = 0.5;
   world.defaultContactMaterial.restitution = 0.15;
 
@@ -153,8 +155,8 @@ function build(CANNON, opts) {
       linearDamping: 0.05,
       angularDamping: 0.08,
     });
-    body.sleepSpeedLimit = 0.15;
-    body.sleepTimeLimit = 0.4;
+    body.sleepSpeedLimit = 0.2;
+    body.sleepTimeLimit = 0.3;
     // 当たるまで凍らせておく(積んだだけの櫓が勝手に揺れたり崩れたりしない)
     body.sleep();
     world.addBody(body);
@@ -173,7 +175,6 @@ function build(CANNON, opts) {
 
   const g = {
     CANNON,
-    rnd,
     world,
     parts,
     ball,
@@ -242,7 +243,7 @@ function moved(p) {
 // 結果にする木札を選ぶ: 崩れて動いた木札のうち一番手前(z が大きい)。どれも動いていなければ一番上
 function choosePlaque(g) {
   const plaques = g.parts.filter((p) => p.kind === "plaque");
-  const fell = plaques.filter((p) => moved(p) > 0.35 && p.body.position.y > -0.5);
+  const fell = plaques.filter((p) => moved(p) > 0.35);
   if (fell.length) return fell.reduce((a, b) => (b.body.position.z > a.body.position.z ? b : a));
   return plaques.reduce((a, b) => (b.body.position.y > a.body.position.y ? b : a));
 }
@@ -260,10 +261,17 @@ function settled(g) {
 function step(g, dt) {
   if (g.phase === "aim" || g.phase === "reveal") return;
   g.acc += Math.min(dt, 0.05);
-  while (g.acc >= STEP) {
-    g.acc -= STEP;
-    g.world.step(STEP);
-    g.t += STEP;
+  let n = 0;
+  for (;;) {
+    const h = g.phase === "flight" ? STEP : STEP_AFTER;
+    if (g.acc < h) break;
+    if (++n > MAX_STEPS) {
+      g.acc = 0; // 追いつけない分は捨てる(ゆっくりになるだけで、重くなり続けない)
+      break;
+    }
+    g.acc -= h;
+    g.world.step(h);
+    g.t += h;
     // 軽い木札は重い玉に弾かれると 50m 先まで飛んで画面から消えた。崩れの見栄えのため速さに上限
     for (const p of g.parts) {
       const v = p.body.velocity;
@@ -290,6 +298,7 @@ function step(g, dt) {
 module.exports = {
   G,
   STEP,
+  STEP_AFTER,
   SLING,
   BALL,
   PULL,

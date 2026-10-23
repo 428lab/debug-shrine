@@ -55,7 +55,8 @@ function createView(lib, canvas, opts) {
     // 映り込み(御神玉の照り)
     const pmrem = new THREE.PMREMGenerator(renderer);
     const room = new lib.RoomEnvironment(renderer);
-    const envTex = pmrem.fromScene(room, 0.04).texture;
+    const envRT = pmrem.fromScene(room, 0.04);
+    const envTex = envRT.texture;
     pmrem.dispose();
     if (room.dispose) room.dispose();
 
@@ -406,14 +407,15 @@ function createView(lib, canvas, opts) {
         }
       }
       leafGeom.attributes.position.needsUpdate = true;
-      // 粉塵
+      // 粉塵(スローモーションの間は粉塵もゆっくり)
+      const sdt = ui && ui.simDt != null ? ui.simDt : dt;
       for (let k = 0; k < DUST; k++) {
         if (dLife[k] <= 0) continue;
-        dLife[k] -= dt;
-        dVel[k * 3 + 1] -= 3 * dt;
-        dPos[k * 3] += dVel[k * 3] * dt;
-        dPos[k * 3 + 1] = Math.max(0.05, dPos[k * 3 + 1] + dVel[k * 3 + 1] * dt);
-        dPos[k * 3 + 2] += dVel[k * 3 + 2] * dt;
+        dLife[k] -= sdt;
+        dVel[k * 3 + 1] -= 3 * sdt;
+        dPos[k * 3] += dVel[k * 3] * sdt;
+        dPos[k * 3 + 1] = Math.max(0.05, dPos[k * 3 + 1] + dVel[k * 3 + 1] * sdt);
+        dPos[k * 3 + 2] += dVel[k * 3 + 2] * sdt;
         if (dLife[k] <= 0) dPos[k * 3 + 1] = -99;
       }
       dGeo.attributes.position.needsUpdate = true;
@@ -466,9 +468,7 @@ function createView(lib, canvas, opts) {
       m.scale.setScalar(1 + e * 1.3);
       // 表の文字は、表の面がカメラの反対を向いている間に貼り替える(替わる瞬間が見えない)
       if (r.flip != null && r.tier && tierShown !== r.tier && Math.cos(spinAngle) < -0.2) {
-        if (tierFace) tierFace.map.dispose();
-        tierFace = keep(new THREE.MeshStandardMaterial({ map: makePlaqueTexture(THREE, r.tier), roughness: 0.6, emissive: 0x3a2a10, emissiveIntensity: 0.25 }));
-        tierFace.map.colorSpace = THREE.SRGBColorSpace;
+        tierFace = keep(new THREE.MeshStandardMaterial({ map: keep(makePlaqueTexture(THREE, r.tier)), roughness: 0.6, emissive: 0x3a2a10, emissiveIntensity: 0.25 }));
         m.material = [plaqueSide, plaqueSide, plaqueSide, plaqueSide, tierFace, plaqueBack];
         tierShown = r.tier;
       }
@@ -506,7 +506,7 @@ function createView(lib, canvas, opts) {
       if (g.phase === "aim") {
         wantPos = AIM_POS.clone();
         wantLook = AIM_LOOK.clone();
-        // 引き絞ると少し寄る
+        // 引き絞ると、玉と一緒に少し下がる
         wantPos.z += g.aim.power * 0.6;
       } else if (g.phase === "flight" && !o.reducedMotion) {
         // 玉の後ろについて飛ぶ(少し上・少し右から)
@@ -559,9 +559,12 @@ function createView(lib, canvas, opts) {
     }
     function dispose() {
       for (const d of disposables) d.dispose && d.dispose();
-      envTex.dispose();
+      envRT.dispose();
+      if (sun.dispose) sun.dispose();
       renderer.dispose();
-      renderer.forceContextLoss && renderer.forceContextLoss();
+      // 失われた後(contextlost)にもう一度失わせると、警告が出る
+      const gl = renderer.getContext();
+      if (renderer.forceContextLoss && gl && !gl.isContextLost()) renderer.forceContextLoss();
     }
     return { render, resize, onEvent, degrade, warmUp, dispose, renderer, camera };
   }

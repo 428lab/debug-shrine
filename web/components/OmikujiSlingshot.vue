@@ -101,6 +101,7 @@ export default {
   },
   watch: {
     targetTier(t) {
+      // 知らないレア度(木札に書けない)なら、放った後は閉じる(ページが結果を出す)
       if (t && !S.TIERS.includes(t) && this.phase !== "ritual" && this.phase !== "loading") this.finish();
     },
   },
@@ -108,7 +109,9 @@ export default {
     this.game = null;
     this.view = null;
     this._timers = [];
-    this._ui = { reveal: null };
+    this._ui = { reveal: null, simDt: 0 };
+    // 引き具合(物理が読めなかった時も、これで放つかどうかを決める)
+    this._aim = { power: 0, ax: 0, ay: 0.5 };
   },
   mounted() {
     this.reducedMotion = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -177,6 +180,8 @@ export default {
           // 捨てるだけ
         }
       }
+      // 放った後なら、木札が裏返るだけの見せ方で続ける(止まったままにしない)
+      if ((this.phase === "play" || this.phase === "reveal") && !this.banner) this.startFlat();
     },
 
     // ---- 引き絞り ----
@@ -190,14 +195,18 @@ export default {
       }
     },
     onMove(e) {
-      if (this.phase !== "ritual" || !this._drag || this._drag.id !== e.pointerId || !this.game) return;
-      S.setAim(this.game, S.aimFromDrag(e.clientX - this._drag.x0, e.clientY - this._drag.y0));
+      if (this.phase !== "ritual" || !this._drag || this._drag.id !== e.pointerId) return;
+      this.setAim(S.aimFromDrag(e.clientX - this._drag.x0, e.clientY - this._drag.y0));
     },
     onUp(e) {
       if (this.phase !== "ritual" || !this._drag || this._drag.id !== e.pointerId) return;
       this._drag = null;
-      if (this.game && this.game.aim.power >= PULL_MIN) this.launch();
+      if (this._aim.power >= PULL_MIN) this.launch();
       else this.resetAim();
+    },
+    setAim(aim) {
+      this._aim = aim;
+      if (this.game) S.setAim(this.game, aim);
     },
     onCancel(e) {
       if (this._drag && this._drag.id === e.pointerId) {
@@ -216,7 +225,7 @@ export default {
       }
     },
     resetAim() {
-      if (this.game) S.setAim(this.game, { power: 0, ax: 0, ay: 0.5 });
+      this.setAim({ power: 0, ax: 0, ay: 0.5 });
     },
     onKey(e) {
       if (this.phase !== "ritual" || !(e.code === "Space" || e.code === "Enter")) return;
@@ -225,19 +234,20 @@ export default {
         if (!this._keyAt) this._keyAt = performance.now();
       } else if (this._keyAt) {
         this._keyAt = null;
-        if (this.game && this.game.aim.power >= PULL_MIN) this.launch();
+        if (this._aim.power >= PULL_MIN) this.launch();
         else this.resetAim();
       }
     },
     autoLaunch() {
       if (this.phase !== "ritual") return;
-      if (this.game) S.setAim(this.game, { power: 0.6, ax: 0, ay: 0.45 });
+      this.setAim({ power: 0.6, ax: 0, ay: 0.45 });
       this.launch();
     },
     launch() {
       if (this.phase !== "ritual") return;
       this.phase = "play";
       this._rangAt = performance.now();
+      this._perf = { n: 0, sum: 0, checked: false };
       this.$emit("rang");
       if (this.game && this.view) S.launch(this.game);
       else this.startFlat();
@@ -250,23 +260,40 @@ export default {
       const dt = Math.min(0.05, Math.max(0, (now - this._last) / 1000));
       this._last = now;
       const g = this.game;
-      if (g && this.phase === "ritual" && this._keyAt) {
-        S.setAim(g, { power: Math.min(1, (now - this._keyAt) / 900), ax: 0, ay: 0.5 });
+      if (this.phase === "ritual" && this._keyAt) {
+        this.setAim({ power: Math.min(1, (now - this._keyAt) / 900), ax: 0, ay: 0.5 });
       }
       if (this.phase === "play" || this.phase === "reveal" || this.phase === "done") {
         const since = (now - this._rangAt) / 1000;
         const waiting = !this.targetTier && since > 3;
         if (this.waitingHint !== waiting) this.waitingHint = waiting;
         if (!this.canSkip && this.targetTier && since > 2) this.canSkip = true;
-        if ((!this.targetTier && since > RESULT_WAIT_MAX) || since > HARD_CAP) this.finish();
+        // 届かない・知らないレア度・どんな場合も上限 → 閉じる(ページが状態を取り直す・結果を出す)
+        const unknown = this.targetTier && !S.TIERS.includes(this.targetTier);
+        if ((!this.targetTier && since > RESULT_WAIT_MAX) || unknown || since > HARD_CAP) this.finish();
       }
-      if (g && this.view && (this.phase === "play" || this.phase === "reveal" || this.phase === "done")) {
+      this._ui.simDt = dt;
+      if (g && this.view && (this.phase === "play" || this.phase === "reveal")) {
         const scale = this.timeScale(g, dt);
+        this._ui.simDt = dt * scale;
         S.step(g, dt * scale);
         for (const e of g.events.splice(0)) this.onEvent(e);
         if (this._ui.reveal) this.advanceReveal(dt);
+        this.measure(dt);
       }
-      if (g && this.view) this.view.render(g, this.phase === "ritual" || this.phase === "loading" ? dt : dt, this._ui);
+      if (g && this.view) this.view.render(g, dt, this._ui);
+    },
+    // 遅い端末なら、影を止めて解像度を下げる(放ってから 2 秒ほどの平均で決める)
+    measure(dt) {
+      const p = this._perf;
+      if (!p || p.checked || !this.view) return;
+      p.n++;
+      if (p.n < 20) return;
+      p.sum += dt;
+      if (p.n >= 140) {
+        p.checked = true;
+        if (p.sum / (p.n - 19) > 1 / 40) this.view.degrade();
+      }
     },
     // 当たる瞬間だけゆっくり(動きを減らす設定ではしない)
     timeScale(g, dt) {
@@ -283,7 +310,7 @@ export default {
     },
     onEvent(e) {
       if (this.view) this.view.onEvent(e, this.game);
-      if (e.type === "reveal") {
+      if (e.type === "reveal" && this.phase !== "done") {
         this.phase = "reveal";
         this._ui.reveal = { u: 0, flip: null, tier: null };
       }
