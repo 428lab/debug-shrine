@@ -21,7 +21,7 @@
 
     <div class="dr-hud">
       <div v-if="phase === 'loading'" class="dr-hint">境内を整えています<span class="dots"></span></div>
-      <div v-else-if="phase === 'ritual' || (phase === 'play' && idleHint)" class="dr-hint">
+      <div v-else-if="phase === 'ritual'" class="dr-hint">
         <b>タップ</b>で、だるまを打ち抜く
         <small>一番下の段から一つずつ。どこかにおみくじが潜んでいる</small>
         <button type="button" class="dr-fallback" @pointerdown.stop @click.stop="autoPlay">うまくできないときはここをタップ</button>
@@ -79,7 +79,6 @@ export default {
       phase: "loading", // loading | ritual | play | reveal | done
       hasView: false,
       waitingHint: false,
-      idleHint: false,
       canSkip: false,
       banner: null,
       flatTier: null,
@@ -101,7 +100,8 @@ export default {
     this.view = null;
     this._timers = [];
     this._ui = { reveal: null, simDt: 0 };
-    this._auto = false;
+    this._auto = false; // 自動で打つ(「うまくできないとき」を押した)
+    this._idleAuto = false; // しばらく打たなかったので自動で打っている(タップしたら止める)
     this._lastTapAt = 0;
   },
   mounted() {
@@ -118,6 +118,13 @@ export default {
           this.resize();
           this.view.warmUp();
         } catch (e) {
+          if (this.view) {
+            try {
+              this.view.dispose();
+            } catch (err) {
+              // 捨てるだけ
+            }
+          }
           this.view = null;
         }
         this.hasView = !!this.view;
@@ -172,7 +179,9 @@ export default {
     },
 
     // ---- 打つ ----
-    onDown() {
+    onDown(e) {
+      // 1 本目の指・左クリックだけ(右クリックや 2 本目の指では打たない)
+      if (e && (e.isPrimary === false || (e.pointerType === "mouse" && e.button !== 0))) return;
       this.hit();
     },
     onKey(e) {
@@ -199,7 +208,7 @@ export default {
       }
       if (this.phase !== "play" || !this.game || !this.view) return;
       this._lastTapAt = performance.now();
-      if (this.idleHint) this.idleHint = false;
+      this._idleAuto = false;
       D.tap(this.game);
     },
 
@@ -223,12 +232,8 @@ export default {
       if (g && this.view && (this.phase === "play" || this.phase === "reveal")) {
         if (this.phase === "play") {
           // 自動(うまくできない時・しばらく打たなかった時)
-          const idle = (now - this._lastTapAt) / 1000 > IDLE_S;
-          if (idle && !this._auto) {
-            this._auto = true;
-            this.idleHint = true;
-          }
-          if (this._auto && D.canHit(g)) D.tap(g);
+          if (!this._idleAuto && (now - this._lastTapAt) / 1000 > IDLE_S) this._idleAuto = true;
+          if ((this._auto || this._idleAuto) && D.canHit(g)) D.tap(g);
         }
         const scale = this.timeScale(g, dt);
         this._ui.simDt = dt * scale;
@@ -265,7 +270,6 @@ export default {
       if (this.view) this.view.onEvent(e, this.game);
       if (e.type === "reveal" && this.phase !== "done") {
         this.phase = "reveal";
-        this.idleHint = false;
         this._ui.reveal = { u: 0, flip: null, tier: null };
       }
     },

@@ -296,13 +296,21 @@ function createView(lib, canvas, opts) {
 
     // ---- カメラ ----
     const cam = { pos: new THREE.Vector3(), look: new THREE.Vector3(), shake: 0, zoomUntil: -1 };
-    const BASE_POS = new THREE.Vector3(1.5, 2.3, 4.1);
-    const BASE_LOOK = new THREE.Vector3(0, 1.45, 0);
-    // 打つ瞬間: 木槌と打つ段が並んで見える、左手前から(縦長の画面でも頭まで入る)
-    const HIT_POS = new THREE.Vector3(-1.3, 1.6, 3.0);
-    const HIT_LOOK = new THREE.Vector3(-0.35, 1.3, 0);
-    cam.pos.copy(BASE_POS);
-    cam.look.copy(BASE_LOOK);
+    // 普段と、打つ瞬間(木槌と打つ段が並んで見える左手前から寄る)。縦長の画面は横幅が狭いので、
+    // もっと左から、木槌の振りかぶりまで入る向きで見る(横長の向きのままだと木槌が画面の外だった)
+    const VIEWS = {
+      wide: {
+        base: [new THREE.Vector3(-0.6, 2.4, 4.6), new THREE.Vector3(-0.45, 1.45, 0)],
+        hit: [new THREE.Vector3(-2.6, 1.6, 2.8), new THREE.Vector3(-0.4, 1.35, 0)],
+      },
+      tall: {
+        base: [new THREE.Vector3(-1.6, 2.6, 5.4), new THREE.Vector3(-0.7, 1.5, 0)],
+        hit: [new THREE.Vector3(-3.6, 1.7, 1.6), new THREE.Vector3(-0.5, 1.3, 0)],
+      },
+    };
+    let views = VIEWS.tall;
+    cam.pos.copy(views.base[0]);
+    cam.look.copy(views.base[1]);
     let width = 1;
     let height = 1;
     function resize(w, h) {
@@ -311,8 +319,10 @@ function createView(lib, canvas, opts) {
       renderer.setSize(width, height, false);
       camera.aspect = width / height;
       // 縦長の画面では引いて、だるまが上下に収まるように
-      camera.fov = camera.aspect < 0.8 ? 62 : 48;
+      const tall = camera.aspect < 0.8;
+      camera.fov = tall ? 62 : 48;
       camera.updateProjectionMatrix();
+      views = tall ? VIEWS.tall : VIEWS.wide;
     }
 
     // ---- 出来事 ----
@@ -408,9 +418,11 @@ function createView(lib, canvas, opts) {
     function updateReveal(g, r, dt) {
       const m = slip;
       if (!revealFrom) {
-        const p = g.chosen.body.position;
+        // 打った瞬間の段の位置から出す(紙が出る頃には段は画面の外まで飛んでいる)。
+        // 崩れた時は、潜んでいた段の今の位置から
+        const p = g.found ? g.found.pos : g.chosen.body.position;
         m.visible = true;
-        revealFrom = { pos: new THREE.Vector3(p.x, p.y, p.z) };
+        revealFrom = { pos: new THREE.Vector3(p.x + (g.found ? 0.35 : 0), p.y, p.z) };
         burst(revealFrom.pos, 50, 1.4);
       }
       const u = Math.min(1, r.u);
@@ -465,15 +477,15 @@ function createView(lib, canvas, opts) {
         k = Math.min(1, dt * (o.reducedMotion ? 6 : 2.4));
       } else if (g.t < cam.zoomUntil) {
         // 打つ瞬間は、打つ段に寄る
-        wantPos = HIT_POS.clone();
-        wantLook = HIT_LOOK.clone();
+        wantPos = views.hit[0].clone();
+        wantLook = views.hit[1].clone();
         k = Math.min(1, dt * 7);
       } else {
-        wantPos = BASE_POS.clone();
-        wantLook = BASE_LOOK.clone();
+        wantPos = views.base[0].clone();
+        wantLook = views.base[1].clone();
         // 残りが低くなったら、少し下を見る
         const top = g.pieces[g.pieces.length - 1].body.position.y;
-        wantLook.y = Math.min(BASE_LOOK.y, 0.6 + top * 0.45);
+        wantLook.y = Math.min(views.base[1].y, 0.6 + top * 0.45);
         k = Math.min(1, dt * 2.5);
       }
       cam.pos.lerp(wantPos, k);

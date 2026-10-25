@@ -9,6 +9,7 @@
 // - 打つたびに一番下の段だけが抜け、残りは真下に落ちて積みのまま(崩れない)
 // - おみくじの段を打つと結果の段が選ばれる。どの段に潜ませても、打ち続ければ必ず出る
 // - 打ち方(止まったらすぐ打つ・連打・のんびり)に関係なく出る。崩れた時(押して倒す)も出る
+// - 積みのずれは 6cm 未満
 // - 遅い端末(20fps)でも同じ
 // - 数値が壊れない(NaN)・地面にめり込まない
 
@@ -69,7 +70,7 @@ function run(seed, style, dt) {
   const st = {};
   let t = 0;
   let collapse = false;
-  let stackOk = true;
+  let drift = 0;
   for (let f = 0; f < 60 / dt && g.phase !== "reveal"; f++) {
     STYLES[style](g, t, st);
     D.step(g, dt);
@@ -93,10 +94,11 @@ function run(seed, style, dt) {
     for (const p of g.pieces) {
       if (p.out) continue;
       const b = p.body.position;
-      if (Math.hypot(b.x, b.z) > 0.12) stackOk = false;
+      drift = Math.max(drift, Math.hypot(b.x, b.z));
     }
+    assert.ok(drift < DRIFT_MAX, `積みがずれた ${drift.toFixed(3)}m seed=${seed} ${style}`);
   }
-  return { t, hits: g.hits, collapse, stackOk, secret: g.secret };
+  return { t, hits: g.hits, collapse, drift, secret: g.secret };
 }
 
 // 2) 崩れた時: 積みを横から押して倒すと、潜ませた段からおみくじが出る
@@ -119,6 +121,19 @@ for (const secret of [2, 5]) {
 }
 console.log("OK 崩れた時も、潜ませた段からおみくじが出る");
 
+// 3) 潜ませる段の指定がおかしくても(文字・小数・範囲外)、乱数で選び直して必ず出る
+for (const secret of ["2", 2.5, -1, 9, null]) {
+  const g = D.build(CANNON, { rnd: mulberry(5), secret });
+  assert.ok(Number.isInteger(g.secret) && g.secret >= 0 && g.secret < g.pieces.length, `潜ませる段 ${g.secret}`);
+  for (let f = 0; f < 60 * 20 && g.phase !== "reveal"; f++) {
+    if (D.canHit(g)) D.tap(g);
+    D.step(g, 1 / 60);
+  }
+  assert.strictEqual(g.phase, "reveal", `指定 ${secret} で結果が出ない`);
+}
+console.log("OK 潜ませる段の指定がおかしくても出る");
+
+const DRIFT_MAX = 0.06; // 積みのずれの上限(m)。胴の半径 0.42 に対して見た目で崩れかけに見えない程度
 const rows = [];
 for (let s = 1; s <= seeds; s++) {
   for (const style of Object.keys(STYLES)) rows.push(Object.assign({ style }, run(s, style, 1 / 60)));
@@ -134,6 +149,6 @@ for (const style of Object.keys(STYLES)) {
   const rs = rows.filter((r) => r.style === style);
   console.log(`  ${style.padEnd(5)} 結果まで 中央 ${pct(rs.map((r) => r.t), 0.5).toFixed(1)}s 最大 ${Math.max(...rs.map((r) => r.t)).toFixed(1)}s / 崩れた ${rs.filter((r) => r.collapse).length}`);
 }
-console.log(`積みのずれ(12cm 超)が残った回: ${rows.filter((r) => !r.stackOk).length}`);
+console.log(`積みの最大のずれ: ${Math.max(...rows.map((r) => r.drift)).toFixed(3)}m`);
 console.log(`遅い端末(20fps): ${slow.length} 回すべて結果が出た(崩れた ${slow.filter((r) => r.collapse).length} 回)`);
 assert.ok(collapses.length <= rows.length * 0.02, `崩れすぎ ${collapses.length}/${rows.length}`);

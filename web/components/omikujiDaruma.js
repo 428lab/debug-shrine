@@ -98,7 +98,7 @@ function build(CANNON, opts) {
 
   const count = pieces.length;
   let secret = o.secret;
-  if (!(secret >= 0 && secret < count)) secret = Math.min(count - 1, Math.floor(rnd() * count));
+  if (!(Number.isInteger(secret) && secret >= 0 && secret < count)) secret = Math.min(count - 1, Math.floor(rnd() * count));
 
   return {
     CANNON,
@@ -114,7 +114,7 @@ function build(CANNON, opts) {
     lastHitAt: -9,
     queued: false, // 振っている間にもう一度タップされた(止まったら打つ)
     hits: 0,
-    found: null, // { id, at } おみくじの段を打った
+    found: null, // { id, at, pos } おみくじの段を打った(pos は打った瞬間の段の位置)
     collapsed: false,
     chosen: null, // おみくじが出る段
     events: [],
@@ -183,7 +183,8 @@ function strike(g, id) {
   if (above) above.body.velocity.x += HIT.drag * rnd();
   emit(g, "hit", { id, kind: p.kind, secret: id === g.secret });
   if (id === g.secret) {
-    g.found = { id, at: g.t };
+    const b = p.body.position;
+    g.found = { id, at: g.t, pos: { x: b.x, y: b.y, z: b.z } };
     emit(g, "found", { id });
   }
 }
@@ -242,6 +243,12 @@ function step(g, dt) {
     return;
   }
   if (g.queued && canHit(g)) tap(g);
+  // 念のため: 全部打ち抜いたのに出ていない(潜ませる段がおかしい等)→ 最後の段から出す
+  if (g.phase === "play" && !g.found && !g.swing && !nextPiece(g)) {
+    g.chosen = g.pieces[g.pieces.length - 1];
+    g.phase = "reveal";
+    emit(g, "reveal", { id: g.chosen.id });
+  }
 }
 
 module.exports = {
