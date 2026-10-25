@@ -49,7 +49,7 @@ type profileBadge struct {
 	Achieved bool   `json:"achieved"`
 }
 
-// profileCrown はランキング1位で得た称号(入賞アチーブメント)。
+// profileCrown はランキング1〜3位で得た称号(入賞アチーブメント)。
 // 既存の称号(事実から毎回判定できる)と違い、過去のイベントなので獲得を
 // users/{id}.crowns に記録しておき、獲得回数つきで見せる。
 type profileCrown struct {
@@ -57,6 +57,7 @@ type profileCrown struct {
 	Label        string `json:"label"`
 	Icon         string `json:"icon"`
 	Desc         string `json:"desc"`
+	Place        int    `json:"place"` // 1〜3(画面で金・銀・銅に塗り分ける)
 	Count        int64  `json:"count"`
 	LatestPeriod string `json:"latest_period"`
 }
@@ -261,7 +262,7 @@ func loadOmikujiStats(ctx context.Context, userDoc *firestore.DocumentSnapshot) 
 // キャッシュされた status.level ではなく status.total から引き直すのは、
 // 閾値テーブルを直したときにキャッシュ作り直しを待たずに正しいレベルを出すため
 // (Lv50超えが0になっていた #215)。レベルは total の純関数なので等価。
-// readCrowns は users/{id}.crowns(ランキング1位の獲得記録)を、定義順に並べて
+// readCrowns は users/{id}.crowns(ランキング1〜3位の獲得記録)を、定義順に並べて
 // 返す。未獲得のものは載せない(称号一覧と同じく獲得済みだけ見せる #195)。
 func readCrowns(userDoc *firestore.DocumentSnapshot) []profileCrown {
 	crowns := make([]profileCrown, 0, len(crownDefs))
@@ -288,6 +289,7 @@ func readCrowns(userDoc *firestore.DocumentSnapshot) []profileCrown {
 			Label:        def.Label,
 			Icon:         def.Icon,
 			Desc:         def.Desc,
+			Place:        def.Place,
 			Count:        count,
 			LatestPeriod: latest,
 		})
