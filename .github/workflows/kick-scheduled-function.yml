@@ -37,6 +37,8 @@ on:
           - ranking-close-retry-go
           # 一度きり。2026年7月の月間ランキングを後から作る(#226)
           - ranking-close-july-go
+          # 一度きり。入賞称号の2位・3位を過去の締めにさかのぼって付ける
+          - crown-backfill-go
 
 jobs:
   kick:
