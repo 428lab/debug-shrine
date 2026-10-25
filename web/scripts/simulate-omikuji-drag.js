@@ -1,4 +1,5 @@
-// おみくじ装置を「指でつまんで動かして放す」経路で検証する(賽銭落とし・だるま落とし)。
+// おみくじ装置を「指でつまんで動かして放す」経路で検証する(賽銭落とし)。
+// (だるま落としは 3D になり、タップで打つだけになったので対象外。scripts/simulate-omikuji-daruma.js)
 //
 // 各装置の simulate-omikuji-*.js は ritual.dropAt()/pull() で位置を直接置くため、
 // MouseConstraint を通らない。実機では、ドラッグ中に MouseConstraint が溜めた
@@ -16,7 +17,6 @@
 /* eslint-disable no-console */
 const Matter = require("matter-js");
 const saisen = require("../components/omikujiSaisen.js");
-const daruma = require("../components/omikujiDaruma.js");
 
 const STEPS_PER_SEC = 60;
 
@@ -126,33 +126,6 @@ function main() {
       }
     }
     console.log(`賽銭: ${n - ng}/${n} 到達 / 放した3ステップ後の最大落下 ${maxDrop.toFixed(1)}px`);
-    failures += ng;
-  }
-
-  // だるま: 木槌の頭をつまみ、左右・上下・画面の外まで動かして放す。
-  // 引きが minPullDeg 未満なら放しても発火しない(誤タップ防止)ので数えない。
-  {
-    const H = daruma.GEO.HAMMER;
-    const from = { x: H.pivotX, y: daruma.GEO.SHELF.top - daruma.GEO.STACK.blockH / 2 };
-    let n = 0;
-    let ng = 0;
-    for (let x = -100; x <= 400; x += 50) {
-      for (const y of [0, 150, 300, 450, 600, 760]) {
-        const r = dragRun(daruma, (b) => b.hammer, from, { x, y });
-        if (!r.grabbed) {
-          ng++;
-          console.log("  NG だるま つかめない", x, y);
-          continue;
-        }
-        if (!r.done) continue;
-        n++;
-        if (r.hitSec === null) {
-          ng++;
-          console.log("  NG だるま", JSON.stringify({ to: { x, y }, ...r }));
-        }
-      }
-    }
-    console.log(`だるま: ${n - ng}/${n} 到達(放しても発火しない引きは除く)`);
     failures += ng;
   }
 
