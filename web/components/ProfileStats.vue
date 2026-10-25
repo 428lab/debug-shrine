@@ -38,7 +38,7 @@
         </div>
       </div>
 
-      <!-- ランキング1位の称号。獲得回数つきで、通常の称号より先に見せる -->
+      <!-- ランキング1〜3位の称号(金・銀・銅に塗り分け)。獲得回数つきで、通常の称号より先に見せる -->
       <template v-if="crowns.length > 0">
         <div class="stats-sub mt-3 mb-1">ランキング入賞</div>
         <div class="badges">
@@ -46,6 +46,7 @@
             v-for="c in crowns"
             :key="c.id"
             class="badge-chip crown-chip"
+            :class="'crown-place-' + (c.place || 1)"
             :title="c.desc + '(最新: ' + c.latest_period + ')'"
           >
             <i class="fas fa-fw" :class="c.icon"></i>
@@ -228,6 +229,15 @@ export default {
 .crown-chip {
   border-color: rgba(255, 196, 120, 0.6);
   background: rgba(255, 196, 120, 0.12);
+}
+/* 2位は銀、3位は銅 */
+.crown-chip.crown-place-2 {
+  border-color: rgba(214, 222, 232, 0.6);
+  background: rgba(214, 222, 232, 0.1);
+}
+.crown-chip.crown-place-3 {
+  border-color: rgba(205, 140, 90, 0.6);
+  background: rgba(205, 140, 90, 0.12);
 }
 /* ミニゲームの実績は朱寄り */
 .minigame-chip {

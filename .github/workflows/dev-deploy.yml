@@ -237,7 +237,7 @@ jobs:
       - name: create Pub/Sub topics for scheduled Go functions
         if: steps.go.outputs.deploy == 'true'
         run: |
-          for TOPIC in ranking-update-go ranking-cache-go status-cache-backfill-go scheduled-ogp-delete-go battle-log-backfill-go ranking-close-retry-go ranking-close-july-go; do
+          for TOPIC in ranking-update-go ranking-cache-go status-cache-backfill-go scheduled-ogp-delete-go battle-log-backfill-go ranking-close-retry-go ranking-close-july-go crown-backfill-go; do
             gcloud pubsub topics describe "$TOPIC" --project=d-shrine-dev \
               || gcloud pubsub topics create "$TOPIC" --project=d-shrine-dev
           done
@@ -388,6 +388,9 @@ jobs:
           # 一度きり。締め機能より前に過ぎた2026年7月を後から作る(#226)
           deploy rankingCloseJulyGo RankingCloseJulyGo \
             --trigger-topic=ranking-close-july-go --memory=512Mi --timeout=540s
+          # 一度きり。入賞称号の2位・3位を過去の締めにさかのぼって付ける(何度動かしても同じ結果)
+          deploy crownBackfillGo CrownBackfillGo \
+            --trigger-topic=crown-backfill-go --memory=512Mi --timeout=300s
           deploy statusCacheBackfillGo StatusCacheBackfillGo \
             --trigger-topic=status-cache-backfill-go --memory=512Mi --timeout=300s
           deploy scheduledOgpDeleteGo ScheduledOgpDeleteGo \
