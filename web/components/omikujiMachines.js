@@ -33,13 +33,13 @@
 //   pitagora : 和風ピタゴラ(OmikujiPitagora.vue)
 //   pinball  : サイバー弾き盤(OmikujiPinball.vue。three.js で玉の視点)
 //   slingshot: 弾き玉(OmikujiSlingshot.vue。three.js + cannon-es で櫓を崩す)
+//   daruma   : だるま落とし(OmikujiDaruma.vue。three.js + cannon-es。潜んだおみくじの段を打つ)
 const bell = require("./omikujiMachine");
 const saisen = require("./omikujiSaisen");
-const daruma = require("./omikujiDaruma");
 
-const ALL = { bell, saisen, daruma };
+const ALL = { bell, saisen };
 const IDS = Object.keys(ALL);
-const REVEALS = ["amida", "tube", "pitagora", "pinball", "slingshot"];
+const REVEALS = ["amida", "tube", "pitagora", "pinball", "slingshot", "daruma"];
 // 演出の全種類(物理の装置 + 演出が結果を見せる種類)
 const ALL_IDS = IDS.concat(REVEALS);
 
