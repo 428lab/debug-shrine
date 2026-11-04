@@ -46,7 +46,11 @@ export default {
 
     ],
     link: [
-      { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' }
+      { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
+      // 和文 Web フォント(font.css 参照)。JS に同梱すると初回ロードが重くなるため Google Fonts から配信
+      { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+      { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
+      { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap' }
     ],
     script: [
       { src: "/js/bootstrap.bundle.min.js" },
@@ -58,6 +62,7 @@ export default {
   // Global CSS (https://go.nuxtjs.dev/config-css)
   css: [
     '~/assets/css/bootstrap.min.css',
+    // 和文 Web フォント(自前配信。font.css の --font-family-sans-serif 先頭)
     '~/assets/css/font.css',
     '~/assets/css/color.css',
     '~/assets/css/common.css',

@@ -9,7 +9,7 @@
     </div>
     <div v-else-if="state === 'error'" class="py-2">
       <span class="notice-danger"><i class="fas fa-fw fa-exclamation-triangle"></i> 記録を読み込めませんでした。</span>
-      <button class="btn btn-sm btn-outline-light mt-2" @click="fetchStats">
+      <button class="btn btn-sm btn-ghost mt-2" @click="fetchStats">
         再読み込み
       </button>
     </div>

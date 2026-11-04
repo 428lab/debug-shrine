@@ -1,123 +1,113 @@
 <template>
-  <main class="container p-3">
-    <div class="d-md-flex justify-content-between align-items-end" v-if="!isLoading">
-      <h1 class="fs-1 flex-fill mb-0">マイページ</h1>
-      <div class="text-end mt-2 ms-3">
-        <nuxt-link :to="`/u/` + user.screen_name"
-          >公開プロフィールを確認 ></nuxt-link
-        >
+  <main class="container pt-4 pt-lg-5">
+    <!-- 読み込み失敗。Loading を閉じて理由と戻り先を出す(行き止まりにしない) -->
+    <div v-if="loadError" class="content-wide">
+      <h1 class="fs-2 mb-3">マイページ</h1>
+      <div class="notice-danger">
+        <i class="fas fa-fw fa-exclamation-triangle"></i>
+        {{
+          loadError === "notfound"
+            ? "参拝者の情報が見つかりませんでした。トップページからログインし直してください。"
+            : "マイページを読み込めませんでした。時間をおいてもう一度お試しください。"
+        }}
       </div>
-      <div class="text-end mt-2 ms-3">
-        <a href="javascript:void(0)" @click="logout">ログアウト ></a>
+      <div class="d-flex flex-wrap gap-2 mt-4">
+        <nuxt-link to="/" class="btn btn-lg btn-accent">トップへ戻る</nuxt-link>
+        <nuxt-link to="/ranking" class="btn btn-lg btn-ghost">ランキングを見る</nuxt-link>
       </div>
     </div>
-    <div class="p-3 profile-outline mt-3">
+    <template v-else>
+      <div
+        class="d-flex flex-wrap align-items-baseline gap-3 mb-3"
+        v-if="!isLoading"
+      >
+        <h1 class="fs-2 mb-0 me-auto">マイページ</h1>
+        <nuxt-link :to="`/u/` + user.screen_name" class="link-more small"
+          >公開プロフィールを確認 <i class="fas fa-fw fa-chevron-right"></i
+        ></nuxt-link>
+      </div>
       <div class="row">
-        <div class="col-12 col-md-6 col-lg-8 mb-4">
-          <div class="p-3 bg-dark">
-            <div class="d-lg-flex align-items-center">
-              <div class="fs-4 me-4">{{ user.display_name }}</div>
-              <div class="align-items-center">
-                <img src="/brandlogo/github.svg" width="16px" alt="" />
-                <span class="">{{ user.screen_name }}</span>
-              </div>
-            </div>
-            <div class="d-flex mt-3">
-              <div class="w-35">
-                <img
-                  :src="user.image_path"
-                  alt="userName"
-                  class="rounded-icon img-fluid w-100"
-                />
-              </div>
-              <div class="ms-4 flex-fill">
-                <div class="">れべる：{{ profile.level }}</div>
-                <div class="">ぽいんと：{{ profile.point }}</div>
-                <div class="">せんとうりょく：{{ profile.total }}</div>
-                <div class="progress mt-2">
-                  <div
-                    class="progress-bar p-2"
-                    role="progressbar"
-                    :style="`width:` + progressPercent + `%`"
-                    :aria-valuenow="profile.total"
-                    aria-valuemin="0"
-                    :aria-valuemax="profile.next"
-                  >
-                    {{ profile.exp }} exp
-                  </div>
+        <div class="col-12 col-lg-8 mb-3 mb-lg-0">
+          <div class="card-shrine p-3 h-100">
+            <div class="d-flex align-items-center gap-3">
+              <img
+                :src="user.image_path"
+                alt=""
+                class="avatar-lg"
+              />
+              <div class="min-w-0">
+                <div class="fs-5 fw-bold">{{ user.display_name }}</div>
+                <div class="small text-muted">
+                  <i class="fab fa-github fa-fw"></i>{{ user.screen_name }}
                 </div>
-                <p class="text-end w-100 mt-2">NEXT {{ profile.next }} exp</p>
-                <table class="mt-3">
-                  <tr>
-                    <td>たいりょく</td>
-                    <td>：</td>
-                    <td class="text-end">{{ profile.hp }}</td>
-                  </tr>
-                  <tr>
-                    <td>ちから</td>
-                    <td>：</td>
-                    <td class="text-end">{{ profile.power }}</td>
-                  </tr>
-                  <tr>
-                    <td>かしこさ</td>
-                    <td>：</td>
-                    <td class="text-end">{{ profile.intelligence }}</td>
-                  </tr>
-                  <tr>
-                    <td>しゅびりょく</td>
-                    <td>：</td>
-                    <td class="text-end">{{ profile.defence }}</td>
-                  </tr>
-                  <tr>
-                    <td>すばやさ</td>
-                    <td>：</td>
-                    <td class="text-end">{{ profile.agility }}</td>
-                  </tr>
-                </table>
-                <!-- <div>たいりょく：{{ profile.hp }}</div>
-                <div>ちから：{{ profile.power }}</div>
-                <div>かしこさ：{{ profile.intelligence }}</div>
-                <div>しゅびりょく：{{ profile.defence }}</div>
-                <div>すばやさ：{{ profile.agility }}</div>                 -->
               </div>
             </div>
-          </div>
-          <div class="text-center text-md-end mt-3">
+            <div class="stat-tiles mt-3">
+              <div class="tile"><small>れべる</small><b>{{ profile.level }}</b></div>
+              <div class="tile"><small>ぽいんと</small><b>{{ profile.point }}</b></div>
+              <div class="tile"><small>せんとうりょく</small><b>{{ profile.total }}</b></div>
+            </div>
+            <div class="progress mt-3">
+              <div
+                class="progress-bar p-2"
+                role="progressbar"
+                :style="`width:` + progressPercent + `%`"
+                :aria-valuenow="profile.total"
+                aria-valuemin="0"
+                :aria-valuemax="profile.next"
+              >
+                {{ profile.exp }} exp
+              </div>
+            </div>
+            <div class="small text-muted text-end mt-1 num">NEXT {{ profile.next }} exp</div>
+            <div class="stat-tiles mt-3">
+              <div class="tile"><small>たいりょく</small><b>{{ profile.hp }}</b></div>
+              <div class="tile"><small>ちから</small><b>{{ profile.power }}</b></div>
+              <div class="tile"><small>かしこさ</small><b>{{ profile.intelligence }}</b></div>
+              <div class="tile"><small>しゅびりょく</small><b>{{ profile.defence }}</b></div>
+              <div class="tile"><small>すばやさ</small><b>{{ profile.agility }}</b></div>
+            </div>
             <Share
+              class="mt-3"
+              align="start"
               title="プロフィールをSNSでシェアしよう"
               :url="shareUrl"
               :message="shareMessage"
             ></Share>
           </div>
         </div>
-        <div class="col-12 col-md-6 col-lg-4">
-          <div class="mb-3">前回の参拝：{{ profile.last_sanpai }}</div>
-          <div class="p-2 text-center label-accent">
-            でばっぐのうりょく
+        <div class="col-12 col-lg-4">
+          <div class="card-shrine p-3 h-100 d-flex flex-column text-center">
+            <div class="p-2 label-accent">でばっぐのうりょく</div>
+            <div class="radar-box mx-auto w-100">
+              <RadarChart :chartData="chartData" />
+            </div>
+            <div class="mt-auto pt-2 small text-muted">
+              前回の参拝：{{ profile.last_sanpai }}
+            </div>
           </div>
-          <RadarChart :chartData="chartData" />
         </div>
       </div>
       <!-- ポートフォリオ: 参拝の記録(累計・ストリーク・称号)/GitHub実績/草 -->
       <ProfileStats
         v-if="user && user.screen_name"
-        class="mt-4"
+        class="mt-3"
         :screen-name="user.screen_name"
       />
       <GithubStats
         v-if="user && user.screen_name"
-        class="mt-4"
+        class="mt-3"
         :screen-name="user.screen_name"
         :github-id="user.github_id"
         editable
       />
       <SanpaiGrass
         v-if="user && user.screen_name"
-        class="mt-4"
+        class="mt-3"
         :screen-name="user.screen_name"
       />
       <!-- README埋め込みバッジ(自分のプロフィールへの導線をGitHubに貼れる) -->
-      <div v-if="user && user.screen_name" class="badge-section p-3 rounded mt-4">
+      <div v-if="user && user.screen_name" class="card-shrine p-3 mt-3">
         <div class="fw-bold mb-2"><i class="fas fa-fw fa-bookmark"></i> READMEに貼れるバッジ</div>
         <p class="badge-note mb-2">
           GitHubのプロフィールREADMEに貼ると、レベルと戦闘力のバッジから
@@ -126,7 +116,7 @@
         <img :src="badgeUrl" alt="でばっぐ神社バッジ" height="20" class="mb-3" />
         <ShareText title="" :text="badgeMarkdown"></ShareText>
       </div>
-    </div>
+    </template>
     <Loading v-if="isLoading" message="ヨミコミチュウ..."></Loading>
   </main>
 </template>
@@ -141,6 +131,8 @@ export default {
   data() {
     return {
       isLoading: true,
+      // 読み込み失敗の理由。"" / "notfound"(404) / "failed"
+      loadError: "",
       profile: {},
       chartData: {
         labels: [
@@ -166,10 +158,19 @@ export default {
   async mounted() {
     // Go版(statusGo)はコールドスタートが短くマイページ表示が速くなるため使用する
     // (Node版のstatusとレスポンス形式は同一。docs/backend.md参照)
-    let response = await this.$axios.get(
-      `statusGo?user=${this.user.screen_name}`
-    );
-    // 登録してなかったらエラーが出るのでエラー対応よろ
+    let response;
+    try {
+      response = await this.$axios.get(
+        `statusGo?user=${this.user.screen_name}`
+      );
+    } catch (e) {
+      // 未登録(404)・通信断で全画面の Loading が消えないままにならないよう、
+      // 閉じてから理由を出す
+      const statusCode = e.response && e.response.status;
+      this.loadError = statusCode === 404 ? "notfound" : "failed";
+      this.isLoading = false;
+      return;
+    }
     // レーダーは絶対値でなく「最も高い能力に対する割合(%)」で描く。
     // 最強能力=100%=外周で、全能力同値なら満点の五角形になる
     // (powerChart.vue のスケール0〜100%・OGPカードと同じ正規化)。
@@ -202,11 +203,6 @@ export default {
     if(response){
       this.isLoading = false;
     }
-  },
-  methods: {
-    logout: function () {
-      this.$store.dispatch("logout");
-    },
   },
   computed: {
     ...mapGetters(["user"]),
@@ -246,21 +242,14 @@ export default {
 </script>
 
 <style scoped>
-.profile-outline {
-  background-color: #000;
-  border-radius: 15px;
-}
-
-.badge-section {
-  background: var(--color-surface);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
 .badge-note {
   color: var(--color-text-muted);
   font-size: 0.85rem;
 }
-
-.debug-title {
-  border-radius: 10px;
+.radar-box {
+  max-width: 320px;
+}
+.min-w-0 {
+  min-width: 0;
 }
 </style>

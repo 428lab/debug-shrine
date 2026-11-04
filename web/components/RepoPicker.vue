@@ -2,7 +2,7 @@
   <div class="repo-picker rounded p-3">
     <div class="d-flex justify-content-between align-items-center mb-2">
       <div class="picker-title"><i class="fas fa-fw fa-thumbtack"></i> 表示するリポジトリを選ぶ</div>
-      <button class="btn btn-sm btn-outline-light" @click="$emit('close')">
+      <button class="btn btn-sm btn-ghost" @click="$emit('close')">
         閉じる
       </button>
     </div>
@@ -15,7 +15,7 @@
     </div>
     <div v-else-if="state === 'error'" class="py-2">
       <span class="notice-danger"><i class="fas fa-fw fa-exclamation-triangle"></i> 一覧を取得できませんでした(GitHub APIの制限の可能性)。</span>
-      <button class="btn btn-sm btn-outline-light mt-2" @click="fetchCandidates">
+      <button class="btn btn-sm btn-ghost mt-2" @click="fetchCandidates">
         もう一度
       </button>
     </div>
@@ -63,7 +63,7 @@
           {{ saveState === "saving" ? "保存中..." : `この${selected.length}件を表示する` }}
         </button>
         <button
-          class="btn btn-sm btn-outline-light me-2"
+          class="btn btn-sm btn-ghost me-2"
           :disabled="saveState === 'saving'"
           @click="save([])"
         >

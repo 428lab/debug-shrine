@@ -1,12 +1,44 @@
+/* 背景: 三角パターン(63x72px)を原寸のまま repeat する(画面幅で拡縮しない) */
 body {
+    background-color: var(--color-bg);
     background-image: url(/background.png);
     background-repeat: repeat;
-    background-size: 8%;
+    background-size: 63px 72px;
     color: var(--color-text);
 }
 
 a {
     color: var(--color-link);
+}
+/* 下線を細く離す。既定の太い下線が古く見えるため */
+a:not(.btn) {
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.18em;
+}
+a:not(.btn):hover {
+    color: var(--color-text);
+}
+
+/* 状態変化は色だけを短く遷移させる */
+a, .btn, .seg-btn, .nav-link, .rank-row, .card-shrine.is-link {
+    transition: color 0.15s, background-color 0.15s, border-color 0.15s;
+}
+
+/* Nuxt のページ遷移(既定の name: page) */
+.page-enter-active,
+.page-leave-active {
+    transition: opacity 0.15s;
+}
+.page-enter,
+.page-leave-to {
+    opacity: 0;
+}
+/* 動きを減らす設定では遷移を止める。演出(おみくじ・拍手等)の animation は
+   各コンポーネントが個別に扱うので、ここでは触らない */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        transition-duration: 0.01ms !important;
+    }
 }
 
 /* インラインコード(aboutの`でばっぐ神社とは`等)。
@@ -34,6 +66,13 @@ code {
     margin-right: auto;
 }
 
+/* 一覧・結果系の幅(ranking・games・参拝結果など) */
+.content-wide {
+    max-width: var(--width-content-wide);
+    margin-left: auto;
+    margin-right: auto;
+}
+
 /* ダークカード(GitHub実績カード・参拝の草と同系のサーフェス) */
 .card-shrine {
     background-color: var(--color-surface);
@@ -41,14 +80,102 @@ code {
     border-radius: 0.5rem;
     color: var(--color-text);
 }
+/* カードのヘッダー帯 */
+.card-shrine > .card-header,
+.card-shrine-head {
+    background: var(--color-surface-raised);
+    border-bottom: 1px solid var(--color-surface-border);
+    padding: 0.6rem 1rem;
+    font-weight: 700;
+    font-size: 0.95rem;
+}
+/* リンクになっているカード。hover は面を 1 段上げる(影は使わない) */
+.card-shrine.is-link:hover {
+    border-color: var(--color-line-strong);
+    background: #10151c;
+}
+/* カード内のタイル(箱の入れ子は .card-shrine > .tile の 1 段まで) */
+.tile {
+    background: var(--color-surface-raised);
+    border-radius: 0.5rem;
+    padding: 8px 10px;
+}
+.tile small {
+    display: block;
+    color: var(--color-text-muted);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+}
+.tile b {
+    font-size: 1.2rem;
+    font-variant-numeric: tabular-nums;
+}
+/* ステータスのタイル並び(dashboard / u/) */
+.stat-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+    gap: 8px;
+}
+
+/* プロフィールのアバター(% 指定をやめて固定 px) */
+.avatar-lg {
+    width: 72px;
+    height: 72px;
+    flex: none;
+    border-radius: 50%;
+}
+@media (min-width: 576px) {
+    .avatar-lg {
+        width: 96px;
+        height: 96px;
+    }
+}
 
 /* セクション見出し(実績カード群の見出しと同じ、太字ゴシック) */
 .section-title {
-    font-size: 1.35rem;
+    font-size: 1.25rem;
     font-weight: 700;
+    margin-bottom: 0.75rem;
+}
+/* 見出し前のアイコンは琥珀(見出しの文字は白のまま) */
+.section-title > i {
+    color: var(--color-accent-soft);
 }
 
-/* 主要アクション(参拝・おみくじ・鈴)は琥珀のボタン。汎用はBootstrap標準のまま */
+/* ボタンは 4 種(主 .btn-accent / 副 .btn-ghost / アイコンのみ .btn-icon / 文字 .link-more)。
+   Bootstrap 既定の角丸・青いフォーカスリングを揃える */
+.btn {
+    border-radius: 0.5rem;
+    min-height: 40px;
+    padding: 0.4rem 1rem;
+    font-weight: 600;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s, transform 0.05s;
+}
+.btn-lg {
+    min-height: 48px;
+    padding: 0.55rem 1.25rem;
+    font-size: 1.1rem;
+    border-radius: 0.5rem;
+}
+.btn-sm {
+    min-height: 32px;
+    padding: 0.2rem 0.7rem;
+    font-size: 0.875rem;
+    border-radius: 0.5rem;
+}
+.btn:active {
+    transform: translateY(1px);
+}
+.btn:focus {
+    box-shadow: none;
+}
+.btn:focus-visible {
+    box-shadow: none;
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+}
+
+/* 主要アクション(参拝・おみくじ・鈴)は琥珀のボタン。1 画面 1 つ */
 .btn-accent {
     color: #1a1206;
     font-weight: 700;
@@ -61,6 +188,49 @@ code {
     color: #1a1206;
     background-color: var(--color-accent-hover);
     border-color: var(--color-accent-hover);
+}
+
+/* 副ボタン(btn-outline-light / btn-secondary の置き換え)。薄い透過面+薄い枠 */
+.btn-ghost {
+    color: var(--color-text);
+    background: var(--color-surface-raised);
+    border: 1px solid var(--color-line-strong);
+}
+.btn-ghost:hover,
+.btn-ghost:active {
+    color: var(--color-text);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+.btn-ghost:focus {
+    color: var(--color-text);
+}
+
+/* アイコンだけのボタン(フッター SNS・共有)。ブランド色はベタ塗りでなくアイコンの色で出す */
+.btn-icon {
+    width: 36px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0;
+    display: inline-grid;
+    place-items: center;
+    color: var(--color-text);
+    background: var(--color-surface-raised);
+    border: 1px solid var(--color-line-soft);
+}
+.btn-icon:hover,
+.btn-icon:focus {
+    color: var(--color-text);
+    border-color: var(--color-line-strong);
+}
+
+/* 文字だけの導線(「もっと詳しく ›」等)。下線なし、hover で下線 */
+.link-more {
+    color: var(--color-link);
+    text-decoration: none;
+}
+.link-more:hover {
+    text-decoration: underline;
 }
 
 /* ボタンに見えない強調ラベル(「でばっぐのうりょく」等) */
@@ -103,4 +273,124 @@ code {
     width: 1.1rem;
     height: 1.1rem;
     border-width: 0.15em;
+}
+
+/* ダークのフォーム部品(Bootstrap 既定の白い textarea が暗い画面に浮くため) */
+.form-control,
+.form-control:focus {
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+.form-control {
+    border: 1px solid var(--color-surface-border);
+    border-radius: 0.5rem;
+}
+.form-control:focus {
+    border-color: var(--color-accent);
+    box-shadow: none;
+    outline: 2px solid rgba(224, 168, 60, 0.35);
+    outline-offset: 0;
+}
+.form-control::placeholder {
+    color: var(--color-text-muted);
+}
+
+/* ランキングの行(Ranking.vue)。順位は固定幅で 1 位と 10 位のアイコン位置を揃える */
+.rank-row {
+    display: grid;
+    grid-template-columns: 3.2em 32px minmax(0, 1fr) auto 1em;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    border-top: 1px solid var(--color-line-soft);
+    color: var(--color-text);
+    text-decoration: none;
+}
+.rank-row:first-child {
+    border-top: 0;
+}
+.rank-row:hover {
+    background: var(--color-surface-raised);
+    color: var(--color-text);
+}
+.rank-no {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    text-align: right;
+    color: var(--color-text-muted);
+}
+.rank-row.is-top .rank-no {
+    color: var(--color-accent-soft);
+}
+.rank-row.is-me {
+    background: var(--color-accent-tint);
+}
+.rank-ava {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--color-line-soft);
+}
+.rank-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.rank-val {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+}
+.rank-val small {
+    color: var(--color-text-muted);
+    font-weight: 400;
+    margin-left: 0.2em;
+}
+.rank-ch {
+    color: var(--color-text-muted);
+    font-size: 0.8em;
+}
+
+/* ヘッダー(CommonHeader.vue)。サイトで唯一の半透明+ぼかしの面(DESIGN.md の例外) */
+.site-header {
+    position: sticky;
+    top: 0;
+    z-index: 1020;
+    background: rgba(13, 17, 23, 0.82);
+    border-bottom: 1px solid var(--color-line-soft);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .site-header {
+        background: var(--color-surface);
+    }
+}
+.site-header .navbar-brand {
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+.site-header .nav-link {
+    color: rgba(255, 255, 255, 0.72);
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+}
+.site-header .nav-link:hover,
+.site-header .nav-link:focus {
+    color: var(--color-text);
+    background: var(--color-surface-raised);
+}
+/* 現在地。固定の active はやめ、router の exact-active に任せる */
+.site-header .nav-link.nuxt-link-exact-active {
+    color: var(--color-text);
+    box-shadow: inset 0 -2px 0 var(--color-accent);
+    border-radius: 0;
+}
+.site-header .navbar-toggler {
+    border: 0;
+    padding: 0.25rem 0.5rem;
+}
+.site-header .navbar-toggler:focus {
+    box-shadow: none;
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
 }

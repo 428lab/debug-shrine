@@ -3,11 +3,16 @@
 # 実体は web/assets/css/color.css / common.css / font.css。値を変えるときは
 # 必ずCSS側と本ファイルの両方を更新すること。
 colors:
+  bg: "#15110d" # ページ背景(琥珀と同系の暖色の黒)
+  band: "#1a1511" # 帯を残す所だけに使う面(旧 bg-dark の代替)
   text: "#ffffff"
   text-muted: "#9a9a9a"
   link: "#cccccc"
   surface: "#0d1117"
   surface-border: "#30363d"
+  surface-raised: "rgba(255, 255, 255, 0.04)" # カード内タイル・カードヘッダー帯
+  line-soft: "rgba(255, 255, 255, 0.08)" # ヘッダー/フッター/行区切りの薄い線
+  line-strong: "rgba(255, 255, 255, 0.18)" # hover・ゴーストボタンの枠
   accent: "#e0a83c"
   accent-hover: "#c98f2a"
   accent-soft: "#ffcf6b"
@@ -15,11 +20,19 @@ colors:
   on-accent: "#1a1206" # 琥珀の上に載せる文字色
   danger: "#ff6b6b" # 注意喚起(エラー・警告)。暗い背景で読めるよう純赤より明るく
 typography:
-  font-family-sans: '"Helvetica Neue", Helvetica, Arial, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif'
+  font-family-sans: '"Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, system-ui, sans-serif'
+  font-family-serif: '"Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif' # 口上(.quote)専用
   font-family-mono: 'SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
-  line-height: 1.75
+  webfont: "Zen Kaku Gothic New 400/500/700(Google Fonts。nuxt.config.js の head.link)"
+  line-height:
+    body: 1.7
+    prose: 1.85   # about / 利用規約など長文(.prose)
+    heading: 1.3
+  h1:
+    size: "2rem"   # 575.98px 以下は 1.6rem
+    weight: 700
   section-title:
-    size: "1.35rem"
+    size: "1.25rem"
     weight: 700
 rounded:
   card: "0.5rem"     # card-shrine・セグメント切替など面の角丸
@@ -27,10 +40,20 @@ rounded:
   pill: null         # ピル型(999px)はこのサイトでは使わない
 spacing:
   content-width: "600px" # 本文系の標準幅(.content-narrow)
+  content-width-wide: "800px" # 一覧・結果系の幅(.content-wide)
+background:
+  image: "/background.png" # 63x72px の三角パターン
+  size: "63px 72px"        # 原寸で repeat(画面幅依存の % 指定はしない)
 components:
   card: ".card-shrine"
+  card-tile: ".tile / .stat-tiles"
   section-title: ".section-title"
   primary-button: ".btn-accent"
+  secondary-button: ".btn-ghost"
+  icon-button: ".btn-icon"
+  text-link: ".link-more"
+  ranking-row: ".rank-row"
+  header: ".site-header" # 半透明+blur の sticky(唯一の例外)
   accent-label: ".label-accent"
   segmented-control: ".ranking-seg / .seg-btn" # web/components/Ranking.vue
 ---
@@ -51,6 +74,11 @@ GitHubのダークUIに寄せたカード(`--color-surface: #0d1117`)を置き�
 
 ## Colors
 
+- ページ背景: `--color-bg`(#15110d、琥珀と同系の暖色の黒)。三角パターン
+  `/background.png`(63×72px)を**原寸で repeat** する。色は乗せず画像のまま使う。背景を `#000` や青黒にしない。パターンは消さない
+- 帯が要る所だけ `--color-band`(#1a1511)。Bootstrap の `bg-dark` は使わない
+- 面の上の 1 段上げ: `--color-surface-raised`(タイル・カードヘッダー帯)。
+  線: `--color-line-soft`(ヘッダー/フッター/行区切り)/ `--color-line-strong`(hover・ゴーストボタンの枠)
 - 文字: `--color-text`(#fff)/ 補足・非アクティブ: `--color-text-muted`(#9a9a9a)
 - 面: `--color-surface`(#0d1117)+ 枠線 `--color-surface-border`(#30363d)
 - アクセント(琥珀): ボタン面は `--color-accent`、hoverは `--color-accent-hover`、
@@ -63,10 +91,16 @@ GitHubのダークUIに寄せたカード(`--color-surface: #0d1117`)を置き�
 
 ## Typography
 
-- 和文ゴシック中心のシステムフォントスタック(font.css)。`line-height: 1.75`
+- 和文は Web フォント **Zen Kaku Gothic New**(Google Fonts から 400/500/700 を配信。
+  JS に同梱すると初回ロードが重くなるため)。読み込み前・失敗時はヒラギノ / メイリオに落とす(font.css)
+- 行間は 3 段: 本文 1.7 / 長文(`.prose`)1.85 / 見出し 1.3。見出しは `palt` + 字間 0.02em
+- ページの h1 は 2rem(スマホ 1.6rem)、1 ページに 1 つ
+- 口上・台詞(「殊勝なことじゃ…」等)は見出しではない。`.quote`(明朝・600)で `fs-3` まで
+- 桁を揃えたい数字(ランキング・ステータス)は `font-variant-numeric: tabular-nums`(`.num`)
 - **游ゴシック(游ゴシック体 / Yu Gothic / YuGothic)は使わない**。日本語表示が
   細く崩れるため、和文は Hiragino Kaku Gothic ProN(mac)/ メイリオ(Windows)に落とす
-- セクション見出しは `.section-title`(1.35rem / 700)
+- セクション見出しは `.section-title`(1.25rem / 700)。前に置く FontAwesome アイコンは
+  `--color-accent-soft`
 - **絵文字は使わない**(機種依存でOS・ブラウザごとに見た目が変わるため)。
   既存の見出し等に残っている絵文字は置き換え対象(#183 で管理)
 - 唯一の例外: **ユーザーが投稿する文字列テンプレ(参拝・おみくじの共有文言)の
@@ -75,7 +109,11 @@ GitHubのダークUIに寄せたカード(`--color-surface: #0d1117`)を置き�
 
 ## Layout
 
-- 本文系コンテンツは `.content-narrow`(max-width 600px・中央寄せ)
+- 幅は 3 段: `.content-narrow`(600px: おみくじ・about・規約・儀式)/
+  `.content-wide`(800px: ランキング・ミニゲーム・参拝結果)/ `.container`(全幅: トップ・マイページ・公開プロフィール)
+- ヘッダーとページ本文はどちらも `.container`(左端を揃える)
+- 本文の最下端からフッターまでの 48px は `layouts/default.vue` で一括して取る
+- ボタン・チップの並びは `d-flex flex-wrap gap-2`(個々に `me-2` を付けない)
 - カード間の余白はBootstrapのユーティリティ(`mt-3` 等)で統一
 
 ## Elevation
@@ -83,6 +121,10 @@ GitHubのダークUIに寄せたカード(`--color-surface: #0d1117`)を置き�
 - 影は使わない。面の区別は背景色(`--color-surface`)と1pxの枠線
   (`--color-surface-border`)で行う。hoverは `rgba(255,255,255,.06)` 程度の
   明度変化で示す
+- 例外 1: **ヘッダー(`.site-header`)だけ**半透明(`rgba(13,17,23,.82)`)+
+  `backdrop-filter: blur(10px)` の sticky。カード・フッター・モーダルには使わない
+  (非対応ブラウザは `--color-surface` のベタ)
+- 例外 2: 演出(おみくじ札・レベルアップ・拍手)の影・グローは残してよい
 
 ## Shapes
 
@@ -94,8 +136,19 @@ GitHubのダークUIに寄せたカード(`--color-surface: #0d1117`)を置き�
 
 - **ダークカード** `.card-shrine`: 面+枠線+0.5rem。card-header は
   `rgba(255,255,255,.04)` の帯+太字(Ranking.vue の `.ranking-header` 参照)
-- **主要アクション** `.btn-accent`: 琥珀面+焦げ茶文字。参拝・おみくじ等の
-  1画面1つの主ボタンに限る。汎用ボタンは `btn-outline-light` 等Bootstrap標準
+- **ボタンは 4 種**(`.btn` の角丸 0.5rem・高さ 40px / lg 48px / sm 32px。
+  フォーカスは琥珀の outline で、Bootstrap の青いリングは出さない)
+  - 主 `.btn-accent`: 琥珀面+焦げ茶文字。参拝・おみくじ等の1画面1つの主ボタンに限る
+  - 副 `.btn-ghost`: 薄い透過面(`--color-surface-raised`)+`--color-line-strong` の枠
+  - アイコンのみ `.btn-icon`: 36×36。フッター SNS・共有。ブランド色はベタ塗りでなく
+    アイコンの色で出す
+  - 文字 `.link-more`: 「もっと詳しく ›」等。下線なし、hover で下線
+  - `btn-outline-light` / `btn-outline-warning` / `btn-secondary` と、ブランド色ベタ塗りの
+    ボタン(`bg-discord` 等)は使わない
+- **タイル** `.tile`(`.stat-tiles` で並べる): カード内のステータス表示。箱の入れ子は
+  `.card-shrine > .tile` の 1 段まで
+- **ランキング行** `.rank-row`: 順位(固定幅・右寄せ)/ アイコン / 名前 / 値 / › の 5 列。
+  1〜3 位の順位は `--color-accent-soft`、自分の行は琥珀ティント
 - **セグメント切替**(Ranking.vue `.ranking-seg`): 結合ボタン。カードと同じ
   枠線・角丸0.5rem、activeは琥珀ティント+太字。タブ的な表示切替はこれを使う
 - **アイコンはFontAwesome単色**(`fas fa-fw fa-*`)で文字色に追従させる。
@@ -105,6 +158,7 @@ GitHubのダークUIに寄せたカード(`--color-surface: #0d1117`)を置き�
   食い違いなど、読み飛ばされると困る知らせ。赤字+同色ボーダー+薄い面+
   `fa-exclamation-triangle`。Bootstrapの `alert` は白背景なので使わない
 - **進捗バー**: `.progress-bar` は琥珀
+- **フォーム**: `.form-control` は `--color-surface` の面+枠線、フォーカスは琥珀の枠
 
 ## Do's and Don'ts
 

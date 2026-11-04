@@ -65,7 +65,7 @@
         <i class="fas fa-fw fa-exclamation-triangle"></i>
         ランキングを読み込めませんでした。
       </span>
-      <button class="btn btn-sm btn-outline-light mt-2" @click="load">再読み込み</button>
+      <button class="btn btn-sm btn-ghost mt-2" @click="load">再読み込み</button>
     </div>
     <template v-else>
       <div class="p-3 card-shrine mb-3">

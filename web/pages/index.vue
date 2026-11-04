@@ -1,14 +1,11 @@
 <template>
   <div class="">
-    <div class="container pt-5 mt-5">
-      <div class="row">
-        <div class="col-12 col-md-6 col-lg-8 mb-5">
-          <img src="/torii.svg" alt="でばっぐ神社" class="main-logo" style="" />
-          <!-- <div class="text-end mt-4" style="">
-            <nuxt-link to="/about" class="">でばっぐ神社とは ></nuxt-link>
-          </div> -->
+    <div class="container pt-4 pt-lg-5 pb-4 pb-lg-5">
+      <div class="row align-items-center">
+        <div class="col-12 col-md-6 col-lg-7 mb-3 mb-md-0 text-center">
+          <img src="/torii.svg" alt="でばっぐ神社" class="main-logo d-block mx-auto" />
         </div>
-        <div class="col-12 col-md-6 col-lg-4 mb-5 text-center align-self-end">
+        <div class="col-12 col-md-6 col-lg-5 text-center">
           <!-- 看板娘らぼみ(セリフの口調は docs/character.md 参照) -->
           <div class="labomi-stage">
             <div v-if="labomiLine" class="labomi-bubble" role="note">
@@ -22,131 +19,124 @@
               height="480"
             />
           </div>
-          <div class="mt-4" v-if="!isLogin">
-            <button
-              @click="GitHubAuth"
-              class="btn btn-lg btn-accent"
-              :disabled="false"
-            >
-              GitHubと連携して<br class="d-md-none" />参拝しよう
-            </button>
-            <div v-if="registerError" class="notice-danger mt-3">
-              <i class="fas fa-fw fa-exclamation-triangle"></i> 登録に失敗しました。時間をおいて、もう一度GitHub連携からやり直してください。
+          <template v-if="!isLogin">
+            <!-- 何のサイトか・連携すると何が起きるかを、連携ボタンの直前に置く -->
+            <p class="hero-lead mt-3 mb-0">
+              <span class="d-inline-block">GitHub のコミットや PR を「参拝」で経験値に。</span>
+              <span class="d-inline-block">ランキング・おみくじ・ミニゲームで遊べます。</span>
+            </p>
+            <div class="hero-actions mx-auto mt-3">
+              <div class="d-grid">
+                <button
+                  @click="GitHubAuth"
+                  class="btn btn-lg btn-accent"
+                  :disabled="false"
+                >
+                  GitHubと連携して参拝しよう
+                </button>
+              </div>
+              <!-- ミニゲームはログインしなくても遊べる(games/index.vue) -->
+              <div class="d-flex flex-wrap gap-2 justify-content-center mt-2">
+                <nuxt-link to="/games" class="btn btn-ghost flex-fill">
+                  <i class="fas fa-fw fa-gamepad"></i> ミニゲームで遊ぶ(ログイン不要)
+                </nuxt-link>
+              </div>
+              <div v-if="registerError" class="notice-danger mt-3">
+                <i class="fas fa-fw fa-exclamation-triangle"></i> 登録に失敗しました。時間をおいて、もう一度GitHub連携からやり直してください。
+              </div>
             </div>
-          </div>
-          <div class="mt-4" v-else>
-            <div>
+          </template>
+          <div class="hero-actions mx-auto mt-3" v-else>
+            <div class="d-grid">
               <button
                 @click="sanpai"
-                class="btn btn-lg btn-accent me-2"
+                class="btn btn-lg btn-accent"
                 :disabled="false"
               >
                 参拝する
               </button>
+            </div>
+            <div class="d-flex flex-wrap gap-2 justify-content-center mt-2">
               <!-- 引けないと分かっているときは「前回のおみくじ」。押せば
                    前回の結果がその場で出る(通信を待たない)。 -->
-              <nuxt-link to="/omikuji" class="btn btn-lg btn-outline-light">
+              <nuxt-link to="/omikuji" class="btn btn-ghost flex-fill">
                 {{ omikujiRemaining > 0 ? "前回のおみくじ" : "おみくじを引く" }}
+              </nuxt-link>
+              <nuxt-link to="/games" class="btn btn-ghost flex-fill">
+                <i class="fas fa-fw fa-gamepad"></i> ミニゲーム
               </nuxt-link>
             </div>
             <div v-if="omikujiRemaining > 0" class="mt-2 small text-muted">
               次のおみくじまで
               <span class="fw-bold">{{ omikujiRemainingText }}</span>
             </div>
-            <!-- ミニゲームへの入口(ログイン後に見える) -->
-            <div class="mt-3">
-              <nuxt-link to="/games" class="btn btn-lg btn-outline-warning">
-                <i class="fas fa-fw fa-gamepad"></i> ミニゲームで遊ぶ
-              </nuxt-link>
-            </div>
-            <div class="mt-4 p-2 d-inline-block">
-              <div class="rounded border p-2 w-100 mb-2" v-if="isLogin">
-                <img
-                  :src="user.image_path"
-                  class="rounded-icon img-fluid"
-                  width="30px"
-                />
-                {{ user.display_name }} でログイン中
-              </div>
-              <a
-                href="javascript:void(0)"
-                class="btn btn-secondary"
-                @click="logout"
-                >ログアウト</a
-              >
-              <nuxt-link to="/dashboard" class="btn text-white"
-                >マイページへ ></nuxt-link
-              >
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="bg-dark">
-      <div class="container py-4 mt-4">
-        <div class="row flex-row-reverse">
-          <div class="col-12 col-md-6 col-lg-4 px-4">
-            <h2 class="section-title mb-3"><i class="fas fa-fw fa-trophy"></i> ランキング</h2>
-            <!-- 幅が狭いのでタブは出さず週間だけ見せる(未集計の間はトータル
-                 に自動フォールバック)。全期間の切替は /ranking で -->
-            <ranking max="10" :show-tabs="false" class="mt-3"></ranking>
-            <div class="text-end px-4 mt-3 mb-4">
-              <nuxt-link to="/ranking">
-                ランキングの続き <i class="fas fa-fw fa-chevron-right"></i>
-              </nuxt-link>
-            </div>
-          </div>
-          <div class="col-12 col-md-6 col-lg-8 px-4 mb-4">
-            <h2 class="section-title mb-3"><i class="fas fa-fw fa-torii-gate"></i> でばっぐ神社とは</h2>
-            <p class="fs-4">
-              <span class="text-danger"
-                ><strong>露御読把和流（ろおどはわる）</strong></span
-              >をご神体とする仮想神社。<br />
-              参拝するためには<strong
-                >GitHubへの<span class="text-danger">コントリビューション</span
-                >が必須</strong
-              >である。<br />
-              参拝することで御神体の御業により、参拝者の能力が具体化される。<br />
-              自身の能力を把握することで改善の円環に身を投じることができよう。<br />
-            </p>
-            <div class="text-end px-4 mt-3">
-              <nuxt-link to="/about" class=""
-                >もっと詳しく <i class="fas fa-fw fa-chevron-right"></i
+            <!-- ログイン中の表示は補足 1 行。ログアウトはヘッダーに集約 -->
+            <div
+              class="mt-3 small text-muted d-flex flex-wrap align-items-center justify-content-center gap-2"
+            >
+              <img
+                :src="user.image_path"
+                class="rounded-icon"
+                width="24"
+                height="24"
+                alt=""
+              />
+              <span>{{ user.display_name }}</span>
+              <span aria-hidden="true">・</span>
+              <nuxt-link to="/dashboard" class="link-more"
+                >マイページへ <i class="fas fa-fw fa-chevron-right"></i
               ></nuxt-link>
             </div>
-            <h2 class="section-title mt-5 mb-3"><i class="fas fa-fw fa-comments"></i> 開発コミュニティ</h2>
-            <div class="">
-              <a href="https://discord.gg/HTdSVdgEXJ" target="_blank" class="btn btn-lg bg-discord text-white mt-2 me-2">
-                <i class="fab fa-discord fa-fw fa-lg"></i> 四谷ラボ Discord
-              </a>
-              <a href="https://github.com/428lab" target="_blank" class="btn btn-lg bg-github text-white mt-2">
-                <i class="fab fa-github fa-fw fa-lg"></i> 四谷ラボ GitHub
-              </a>
-            </div>
-            <h2 class="section-title mt-5 mb-3"><i class="fas fa-fw fa-box"></i> でばっぐ神社リポジトリ</h2>
-            <div class="mt-2">
-              <a href="https://github.com/428lab/debug-shrine" target="_blank">
-                <i class="fab fa-github fa-fw fa-lg"></i> 428lab/debug-shrine
-              </a>
-            </div>
           </div>
         </div>
       </div>
     </div>
-    <!-- <div class="container py-5">
-      <h1>レーダーチャートであなたの活動を可視化</h1>
-    </div>
     <div class="container py-5">
-      <h1>プロフィールがそのまま名刺になる</h1>
-    </div> -->
-    <!-- <div class="py-5 px-5">
-      <div class="text-center">
-        <button @click="GitHubAuth" class="btn btn-lg btn-accent">
-          GitHubでログインして<br />
-          参拝する
-        </button>
+      <div class="row">
+        <div class="col-12 col-md-6 col-lg-8 mb-4 mb-md-0">
+          <h2 class="section-title mb-3"><i class="fas fa-fw fa-torii-gate"></i> でばっぐ神社とは</h2>
+          <p class="fs-5">
+            <span class="text-danger"
+              ><strong>露御読把和流（ろおどはわる）</strong></span
+            >をご神体とする仮想神社。参拝するためには<strong
+              >GitHubへの<span class="text-danger">コントリビューション</span
+              >が必須</strong
+            >である。参拝することで御神体の御業により、参拝者の能力が具体化される。自身の能力を把握することで改善の円環に身を投じることができよう。
+          </p>
+          <div class="text-end mt-3">
+            <nuxt-link to="/about" class="link-more"
+              >もっと詳しく <i class="fas fa-fw fa-chevron-right"></i
+            ></nuxt-link>
+          </div>
+          <h2 class="section-title mt-4 mt-lg-5 mb-3"><i class="fas fa-fw fa-comments"></i> 開発コミュニティ</h2>
+          <div class="d-flex flex-wrap gap-2">
+            <a href="https://discord.gg/HTdSVdgEXJ" target="_blank" class="btn btn-lg btn-ghost">
+              <i class="fab fa-discord fa-fw brand-discord"></i> 四谷ラボ Discord
+            </a>
+            <a href="https://github.com/428lab" target="_blank" class="btn btn-lg btn-ghost">
+              <i class="fab fa-github fa-fw"></i> 四谷ラボ GitHub
+            </a>
+          </div>
+          <h2 class="section-title mt-4 mt-lg-5 mb-3"><i class="fas fa-fw fa-box"></i> でばっぐ神社リポジトリ</h2>
+          <div>
+            <a href="https://github.com/428lab/debug-shrine" target="_blank">
+              <i class="fab fa-github fa-fw fa-lg"></i> 428lab/debug-shrine
+            </a>
+          </div>
+        </div>
+        <div class="col-12 col-md-6 col-lg-4">
+          <h2 class="section-title mb-3"><i class="fas fa-fw fa-trophy"></i> ランキング</h2>
+          <!-- 幅が狭いのでタブは出さず週間だけ見せる(未集計の間はトータル
+               に自動フォールバック)。全期間の切替は /ranking で -->
+          <ranking max="10" :show-tabs="false"></ranking>
+          <div class="text-end mt-3">
+            <nuxt-link to="/ranking" class="link-more">
+              ランキングの続き <i class="fas fa-fw fa-chevron-right"></i>
+            </nuxt-link>
+          </div>
+        </div>
       </div>
-    </div> -->
+    </div>
   </div>
 </template>
 
@@ -307,9 +297,6 @@ export default {
     sanpai() {
       this.$router.push({ path: "/sanpai" });
     },
-    logout() {
-      this.$store.dispatch("logout");
-    },
   },
   computed: {
     ...mapGetters(["isLogin", "user"]),
@@ -323,7 +310,18 @@ export default {
 <style scoped>
 .main-logo {
   width: 100%;
-  max-width: 600px;
+  max-width: 560px;
+}
+
+/* ヒーローの説明とボタン群。ボタンは 320px の枠に入れ、スマホは全幅 */
+.hero-lead {
+  font-size: 0.95rem;
+}
+.hero-actions {
+  max-width: 320px;
+}
+.brand-discord {
+  color: var(--color-discord);
 }
 
 /* 看板娘らぼみ */
@@ -342,7 +340,7 @@ export default {
   font-size: 0.95rem;
   font-weight: 700;
   line-height: 1.55;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  border: 1px solid #e7dcc4;
 }
 /* 吹き出しのしっぽ(下向き) */
 .labomi-bubble::after {
@@ -358,9 +356,8 @@ export default {
 .labomi-img {
   margin-top: 14px;
   /* 元画像 360x480(3:4)。高さ基準で可変にする */
-  height: clamp(200px, 30vw, 280px);
+  height: clamp(160px, 28vw, 300px);
   width: auto;
-  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.45));
   animation: labomi-float 3.2s ease-in-out infinite;
   user-select: none;
   -webkit-user-drag: none;

@@ -13,7 +13,7 @@
     </div>
     <div v-else-if="state === 'error'" class="py-2">
       <span class="notice-danger"><i class="fas fa-fw fa-exclamation-triangle"></i> 参拝履歴を読み込めませんでした。</span>
-      <button class="btn btn-sm btn-outline-light mt-2" @click="fetchRecent">
+      <button class="btn btn-sm btn-ghost mt-2" @click="fetchRecent">
         再読み込み
       </button>
     </div>
@@ -33,7 +33,7 @@
       <div class="mt-3">
         <button
           v-if="allState === 'idle'"
-          class="btn btn-sm btn-outline-light"
+          class="btn btn-sm btn-ghost"
           @click="loadAll"
         >
           <i class="fas fa-fw fa-scroll"></i> 全期間を解析する
@@ -43,7 +43,7 @@
         </div>
         <div v-else-if="allState === 'error'" class="py-2">
           <span class="notice-danger"><i class="fas fa-fw fa-exclamation-triangle"></i> 全期間の解析に失敗しました。</span>
-          <button class="btn btn-sm btn-outline-light mt-2" @click="loadAll">
+          <button class="btn btn-sm btn-ghost mt-2" @click="loadAll">
             もう一度
           </button>
         </div>

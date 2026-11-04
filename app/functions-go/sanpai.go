@@ -474,8 +474,15 @@ func runSanpai(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 	if hasLastSanpai {
 		// Node版は Firestore Timestamp の整数秒(.seconds、ナノ秒切り捨て)同士を比較するため、
 		// Go側も time.Time の丸め込みではなく Unix()(整数秒)で揃える。
-		if userData.LastSanpai.Unix()+int64(cfg.NextTime) > time.Now().Unix() {
-			writeJSON(w, http.StatusOK, map[string]interface{}{"status": "expire", "add_exp": 0, "next_time": cfg.NextTime})
+		nextAvailable := userData.LastSanpai.Unix() + int64(cfg.NextTime)
+		if now := time.Now().Unix(); nextAvailable > now {
+			// next_time はクールダウン全体の秒数(Node版互換)。画面の残り時間表示には remaining_seconds を使う
+			writeJSON(w, http.StatusOK, map[string]interface{}{
+				"status":            "expire",
+				"add_exp":           0,
+				"next_time":         cfg.NextTime,
+				"remaining_seconds": nextAvailable - now,
+			})
 			return nil
 		}
 	}

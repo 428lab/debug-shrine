@@ -1,14 +1,51 @@
 :root{
-  /* 游ゴシックは日本語表示が細く崩れるため使わない(Windowsはメイリオに落とす) */
-  --font-family-sans-serif: "Helvetica Neue", Helvetica, Arial, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+  /* 和文は Web フォント Zen Kaku Gothic New(Google Fonts から配信。nuxt.config.js の head.link で読み込む)。
+     游ゴシックは日本語表示が細く崩れるため使わない(読み込み前・失敗時はヒラギノ/メイリオに落とす) */
+  --font-family-sans-serif: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, system-ui, sans-serif;
+  /* 口上(「殊勝なことじゃ…」)専用。Web フォント化はしない */
+  --font-family-serif: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
   --font-family-monospace: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
+/* 行間は 3 段: 本文 1.7 / 長文(.prose)1.85 / 見出し 1.3 */
 body {
   font-family: var(--font-family-sans-serif);
-  line-height: 1.75;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
 }
 
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-family-sans-serif);
+}
+
+h1, h2, h3, .section-title, .label-accent {
+  font-feature-settings: "palt";
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+}
+
+h1 {
+  font-size: 2rem;
+  font-weight: 700;
+}
+@media (max-width: 575.98px) {
+  h1 {
+    font-size: 1.6rem;
+  }
+}
+
+/* about / 利用規約など長文だけ行間を広く */
+.prose {
+  line-height: 1.85;
+}
+
+/* ランキング・ステータス・カウントアップなど桁を揃えたい数字 */
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 口上・台詞(見出しではない)。Android では serif がゴシックに落ちる端末があるので太字で補う */
+.quote {
+  font-family: var(--font-family-serif);
+  font-weight: 600;
 }

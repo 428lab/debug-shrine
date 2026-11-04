@@ -31,7 +31,7 @@
       >
         {{ phase === "over" ? "もう1回" : "はじめる" }}
       </button>
-      <button v-if="phase === 'over'" type="button" class="btn btn-outline-light" @click="onButton($event, saveImage)">
+      <button v-if="phase === 'over'" type="button" class="btn btn-ghost" @click="onButton($event, saveImage)">
         <i class="fas fa-download fa-fw"></i> 画像を保存
       </button>
     </div>

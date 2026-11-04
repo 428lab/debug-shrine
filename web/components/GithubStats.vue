@@ -12,7 +12,7 @@
     </div>
     <div v-else-if="state === 'error'" class="py-2">
       <span class="notice-danger"><i class="fas fa-fw fa-exclamation-triangle"></i> GitHubの実績を読み込めませんでした。</span>
-      <button class="btn btn-sm btn-outline-light mt-2" @click="fetchStats">
+      <button class="btn btn-sm btn-ghost mt-2" @click="fetchStats">
         再読み込み
       </button>
     </div>
@@ -70,7 +70,7 @@
           </div>
           <button
             v-if="editable && !pickerOpen"
-            class="btn btn-sm btn-outline-light ms-2 pick-btn"
+            class="btn btn-sm btn-ghost ms-2 pick-btn"
             @click="pickerOpen = true"
           >
             <i class="fas fa-fw fa-thumbtack"></i> 選ぶ

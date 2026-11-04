@@ -1,7 +1,7 @@
 <template>
-  <main class="container p-3">
-    <h1 class="fs-1 mb-0">過去のランキング</h1>
-    <p class="history-lead mt-2 mb-3">
+  <main class="container pt-4 pt-lg-5 content-wide">
+    <h1 class="fs-2 mb-3">過去のランキング</h1>
+    <p class="history-lead mb-3">
       締め切った週・月の最終結果です。順位はもう変わりません。
     </p>
 
@@ -29,7 +29,7 @@
         <i class="fas fa-fw fa-exclamation-triangle"></i>
         過去のランキングを読み込めませんでした。
       </span>
-      <button class="btn btn-sm btn-outline-light mt-2" @click="fetchList">
+      <button class="btn btn-sm btn-ghost mt-2" @click="fetchList">
         再読み込み
       </button>
     </div>
@@ -65,7 +65,7 @@
           <i class="fas fa-fw fa-exclamation-triangle"></i>
           この期間の結果を読み込めませんでした。
         </span>
-        <button class="btn btn-sm btn-outline-light mt-2" @click="fetchDetail">
+        <button class="btn btn-sm btn-ghost mt-2" @click="fetchDetail">
           再読み込み
         </button>
       </div>

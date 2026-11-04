@@ -32,7 +32,7 @@
     </div>
     <div v-if="phase === 'over'" class="tg-actions">
       <button type="button" class="btn btn-warning" @click="onButton($event, start)">もう1回</button>
-      <button type="button" class="btn btn-outline-light" @click="onButton($event, saveImage)">
+      <button type="button" class="btn btn-ghost" @click="onButton($event, saveImage)">
         <i class="fas fa-download fa-fw"></i> 画像を保存
       </button>
     </div>
