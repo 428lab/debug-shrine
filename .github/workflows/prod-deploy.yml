@@ -304,6 +304,9 @@ jobs:
             --trigger-http --allow-unauthenticated --memory=256Mi --timeout=60s \
             --set-env-vars="GITHUB_CLIENT_ID=$SANPAI_GH_CLIENT_ID,GITHUB_CLIENT_SECRET=$SANPAI_GH_CLIENT_SECRET"
           # ピン留め保存(GitHubでリポジトリを検証するため同じ資格情報を使う)
+          # Hugging Face の実績(表示とひも付け。HF の公開 API を読む)
+          deploy hfStatsGo HfStatsGo \
+            --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s
           deploy pinnedReposGo PinnedReposGo \
             --trigger-http --allow-unauthenticated --memory=256Mi --timeout=30s \
             --set-env-vars="GITHUB_CLIENT_ID=$SANPAI_GH_CLIENT_ID,GITHUB_CLIENT_SECRET=$SANPAI_GH_CLIENT_SECRET"
