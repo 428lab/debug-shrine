@@ -92,6 +92,7 @@
       <!-- ポートフォリオ: 参拝の記録(累計・ストリーク・称号)/GitHub実績/草 -->
       <ProfileStats class="mt-4" :screen-name="$route.params.userName" />
       <GithubStats class="mt-4" :screen-name="$route.params.userName" />
+      <HfStats class="mt-4" :screen-name="$route.params.userName" />
       <SanpaiGrass class="mt-4" :screen-name="$route.params.userName" />
     </div>
     <div v-if="!isLogin" class="text-center">

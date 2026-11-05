@@ -111,6 +111,13 @@
         :github-id="user.github_id"
         editable
       />
+      <HfStats
+        v-if="user && user.screen_name"
+        class="mt-4"
+        :screen-name="user.screen_name"
+        :github-id="user.github_id"
+        editable
+      />
       <SanpaiGrass
         v-if="user && user.screen_name"
         class="mt-4"
