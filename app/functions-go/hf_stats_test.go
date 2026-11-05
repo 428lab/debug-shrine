@@ -170,6 +170,18 @@ func TestHfLinkAndStats(t *testing.T) {
 	if res := get(); res.Linked || !res.Mismatch {
 		t.Errorf("GitHub 名が変わったのに表示された: %+v", res)
 	}
+	// 記録されるので、次は HF に問い合わせずに止めたまま(HF 側が戻っていても 6 時間は止める)
+	fakeHf(t, map[string]string{"hfok": "hfScreen"})
+	if res := get(); res.Linked || !res.Mismatch {
+		t.Errorf("記録した不一致が残っていない: %+v", res)
+	}
+	// ひも付け直せば戻る
+	if res := post("hfok", "uid1"); res["status"] != "success" {
+		t.Fatalf("ひも付け直せない: %v", res)
+	}
+	if res := get(); !res.Linked || res.Mismatch {
+		t.Errorf("ひも付け直した後 = %+v", res)
+	}
 	if res := post("", "uid1"); res["status"] != "success" {
 		t.Errorf("外せない: %v", res)
 	}

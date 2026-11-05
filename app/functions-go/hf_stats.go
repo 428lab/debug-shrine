@@ -9,7 +9,7 @@
 // (screen_name)が一致したら認める。HF のプロフィールを書き換えられるのは HF の
 // 本人だけ、このサイトの GitHub ログインは GitHub 側で本人確認済みなので、両方が
 // 一致すればなりすましはできない(HF 側が GitHub 名を検証していなくてもよい)。
-// 実績を取り直すたびに確かめ直し、合わなくなったら表示しない。
+// 実績を取り直すたびに確かめ直し、合わなくなったら実績を消して表示しない(hf_mismatch)。
 //
 // ランキング(せんとうりょく)には入れない(使っている人が少なく不公平になるため)。
 // HF の公開 API はレート制限があるので、結果はユーザードキュメントに 6 時間キャッシュする。
@@ -178,6 +178,7 @@ func runHfLink(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 			{Path: "hf_user", Value: firestore.Delete},
 			{Path: "hf_stats", Value: firestore.Delete},
 			{Path: "hf_stats_fetched_at", Value: firestore.Delete},
+			{Path: "hf_mismatch", Value: firestore.Delete},
 		})
 		if err != nil {
 			return err
@@ -218,6 +219,7 @@ func runHfLink(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 		{Path: "hf_user", Value: hfUser},
 		{Path: "hf_stats", Value: stats},
 		{Path: "hf_stats_fetched_at", Value: now},
+		{Path: "hf_mismatch", Value: firestore.Delete},
 	}); err != nil {
 		return err
 	}
@@ -243,6 +245,16 @@ func runHfStats(ctx context.Context, w http.ResponseWriter, client *firestore.Cl
 		return nil
 	}
 
+	// 前に確かめた時に GitHub 名が合わなかった: 次に確かめる時まで表示しない
+	if mismatch, _ := userDoc.DataAt("hf_mismatch"); mismatch == true {
+		if v, err := userDoc.DataAt("hf_stats_fetched_at"); err == nil {
+			if at, ok := v.(time.Time); ok && now.Sub(at) < hfStatsTTL {
+				writeHfStatsResponse(w, hfStatsResponse{Linked: false, HfUser: hfUser, Mismatch: true})
+				return nil
+			}
+		}
+	}
+
 	cached, fetchedAt := readHfStatsCache(userDoc)
 	if cached != nil && now.Sub(fetchedAt) < hfStatsTTL {
 		writeHfStatsResponse(w, hfStatsResponse{Linked: true, HfUser: hfUser, Stats: cached, FetchedAt: fetchedAt.UTC().Format(time.RFC3339)})
@@ -252,6 +264,15 @@ func runHfStats(ctx context.Context, w http.ResponseWriter, client *firestore.Cl
 	// 取り直す時は、ひも付けが今も正しいか確かめ直す
 	github, found, err := fetchHfGithubHandle(ctx, hfUser)
 	if err == nil && (!found || !hfGithubMatches(github, screenName)) {
+		// 合わなくなった: 実績を消して記録する(同じ HF のアカウントが 2 人に出ない。
+		// 表示のたびに HF に問い合わせない)。ひも付け(hf_user)は残し、マイページに理由を出す
+		if _, err := userDoc.Ref.Update(ctx, []firestore.Update{
+			{Path: "hf_stats", Value: firestore.Delete},
+			{Path: "hf_stats_fetched_at", Value: now},
+			{Path: "hf_mismatch", Value: true},
+		}); err != nil {
+			return err
+		}
 		writeHfStatsResponse(w, hfStatsResponse{Linked: false, HfUser: hfUser, Mismatch: true})
 		return nil
 	}
@@ -280,9 +301,9 @@ func runHfStats(ctx context.Context, w http.ResponseWriter, client *firestore.Cl
 }
 
 func writeHfStatsResponse(w http.ResponseWriter, res hfStatsResponse) {
-	// 公開データ・user でキー分離。Firestore で 6h キャッシュするので CDN は短め
-	// (ひも付けた直後に公開ページへ早く出るように)
-	w.Header().Set("Cache-Control", "public, max-age=60, s-maxage=600, stale-while-revalidate=3600")
+	// 公開データ・user でキー分離。Firestore で 6h キャッシュするので CDN は短く
+	// (ひも付け・外した後、公開ページに 2 分ほどで出る/消える)
+	w.Header().Set("Cache-Control", "public, max-age=60, s-maxage=120")
 	writeJSON(w, http.StatusOK, res)
 }
 
