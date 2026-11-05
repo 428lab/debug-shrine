@@ -821,6 +821,25 @@ GitHub からも返らなくなるので、後から拾い直せない。活発�
 - `web/components/SanpaiGrass.vue` … 取得と状態管理。直近1年+「全期間を解析する」
   ボタンで年ごとの草を縦に並べる。設置場所は `/u/{userName}`(公開)と `/dashboard`。
 
+## Hugging Face の実績 hfStatsGo
+
+マイページと公開プロフィールに「Hugging Face の実績」を出す(`web/components/HfStats.vue`)。
+**ランキング(せんとうりょく)には入れない**(使っている人が少なく、入れると不公平になるため)。
+
+- `GET ?user={screen_name}` → `{linked, hf_user, stats, fetched_at}`。ひも付けていなければ `linked: false`
+  (公開プロフィールではカードごと出さない)。`stats` はモデル・データセット・Space の数、いいねと
+  ダウンロード(累計)の合計、フォロワー、最近更新した 5 件。HF の公開 API(認証なし)を読み、
+  `users/{id}.hf_stats` に 6 時間キャッシュする。HF 側の失敗時は古いキャッシュを返す。
+  合計は一覧の最大 100 件(最近更新した順)から出すので、それ以上持つ人は少なめに出る。
+- `POST {github_id, hf_user}`(Bearer 必須。pinnedReposGo と同じく ID トークンの UID と
+  `auth_user_uid` の一致を確かめる)→ ひも付け。`hf_user` が空なら外す。
+- **本人確認**: HF のプロフィール設定の「GitHub username」は `GET /api/users/{hf_user}/socials` の
+  `socialHandles.github` で公開されている(公式ドキュメントには無く、試して見つけた入口)。
+  そこの GitHub 名とログイン中の GitHub アカウント(screen_name)が一致したら認める(大文字・小文字・
+  `@`・URL 形式は区別しない)。HF のプロフィールを書き換えられるのは HF の本人だけ、こちらの GitHub
+  ログインは GitHub で本人確認済みなので、両方が一致すればなりすましはできない。キャッシュを取り直す
+  たびに確かめ直し、合わなくなったら実績を消して表示を止める(`hf_mismatch` に記録し、6 時間は HF に問い合わせない。マイページに理由を出す。ひも付け直せば戻る)。CDN は 2 分(外した・止めた後、公開ページから 2 分ほどで消える)。
+
 ## プロフィール統計(ストリーク・称号)エンドポイント profileStatsGo
 
 ポートフォリオ第二弾。`GET profileStatsGo?user={screen_name}` が
