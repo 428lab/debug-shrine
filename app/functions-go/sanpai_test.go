@@ -363,9 +363,16 @@ func TestSanpai_NoAction(t *testing.T) {
 		"last_sanpai":  past,
 	})
 
-	// last_sanpaiより前のイベントしかない -> noaction
+	// last_sanpaiより前の、集計済みのイベントと、遡る幅より前のイベントしかない -> noaction
+	counted := past.Add(-1 * time.Hour).UTC().Format(time.RFC3339)
+	if _, err := client.Collection("users").Doc(githubID).Collection("github_activities").Doc("1").Set(ctx, map[string]interface{}{
+		"id": "1", "type": "PushEvent", "created_at": counted, "raw": `{"id":"1","type":"PushEvent","created_at":"` + counted + `"}`,
+	}); err != nil {
+		t.Fatal(err)
+	}
 	events := []map[string]interface{}{
-		mockEvent("1", "PushEvent", "someone/bar", past.Add(-1*time.Hour).UTC().Format(time.RFC3339)),
+		mockEvent("1", "PushEvent", "someone/bar", counted),
+		mockEvent("2", "PushEvent", "someone/bar", past.Add(-sanpaiLookback-time.Hour).UTC().Format(time.RFC3339)),
 	}
 	withMockGitHub(t, newMockGitHubServer(t, events))
 
@@ -638,5 +645,61 @@ func TestFetchGitHubFeed_FailsWhenLaterPageFails(t *testing.T) {
 
 	if _, err := fetchGitHubFeed(context.Background(), "octocat", time.Time{}); err == nil {
 		t.Errorf("2ページ目が失敗したらエラーを返すべき(部分的に進めない)")
+	}
+}
+
+// TestSanpai_PicksUpLateEvents は、前回の参拝より前の時刻で遅れて出てきたイベント
+// (GitHub の公開イベントは反映が遅れる)を次の参拝で拾い、集計済みは二重に数えないことを確かめる。
+func TestSanpai_PicksUpLateEvents(t *testing.T) {
+	client := emulatorClient(t)
+	ctx := context.Background()
+	githubID := fmt.Sprintf("sanpai-late-%d", time.Now().UnixNano())
+	now := time.Now().UTC()
+	at := func(d time.Duration) string { return now.Add(-d).Format(time.RFC3339) }
+
+	setupTestUser(t, ctx, client, githubID, map[string]interface{}{
+		"display_name": "Late User",
+		"screen_name":  githubID,
+		"exp":          10,
+		"last_sanpai":  now.Add(-3 * time.Hour),
+	})
+	userRef := client.Collection("users").Doc(githubID)
+	// 前回の参拝で集計済みのイベント
+	if _, err := userRef.Collection("github_activities").Doc("counted-1").Set(ctx, map[string]interface{}{
+		"id": "counted-1", "type": "PushEvent", "created_at": at(5 * time.Hour),
+		"raw": `{"id":"counted-1","type":"PushEvent","created_at":"` + at(5*time.Hour) + `"}`,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	events := []map[string]interface{}{
+		mockEvent("new-1", "PushEvent", "zenryokukikai/app", at(time.Hour)),
+		mockEvent("late-1", "PushEvent", "zenryokukikai/app", at(4*time.Hour)), // 前回の参拝の時点では見えていなかった
+		mockEvent("counted-1", "PushEvent", "someone/bar", at(5*time.Hour)),
+		mockEvent("too-old", "PushEvent", "someone/bar", at(30*time.Hour)), // 遡る幅より前
+	}
+	withMockGitHub(t, newMockGitHubServer(t, events))
+
+	if out := postSanpai(t, ctx, client, githubID, githubID); out["status"] != "success" {
+		t.Fatalf("参拝が成功していない: %+v", out)
+	}
+	docs, err := userRef.Collection("github_activities").Documents(ctx).GetAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, d := range docs {
+		got[d.Ref.ID] = true
+	}
+	if !got["new-1"] || !got["late-1"] || !got["counted-1"] || got["too-old"] || len(got) != 3 {
+		t.Errorf("集計したイベント = %v(new-1・late-1 を足し、too-old は数えない)", got)
+	}
+	// 3 件(counted-1, late-1, new-1)から全件計算: プッシュ 3 回分のちから(+2 ずつ)
+	snap, err := userRef.Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p, _ := snap.DataAt("status.power"); p != int64(6) {
+		t.Errorf("ちから = %v, want 6", p)
 	}
 }
