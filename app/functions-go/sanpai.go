@@ -274,6 +274,61 @@ func fetchGitHubFeed(ctx context.Context, username string, since time.Time) ([]f
 	return all, nil
 }
 
+// sanpaiLookback は前回の参拝より前に遡って読む幅(GitHub の公開イベントの遅れより長く)。
+const sanpaiLookback = 24 * time.Hour
+
+// newFeedItems は取得したイベントから、まだ集計していないものを選ぶ。
+// since(前回の参拝)より後は新着。fetchSince〜since の重なりは、保存済み
+// (github_activities に同じ ID がある)なら集計済みとして飛ばす。
+func newFeedItems(ctx context.Context, client *firestore.Client, userRef *firestore.DocumentRef, feed []feedItem, since, fetchSince time.Time) ([]feedItem, error) {
+	var fresh, overlap []feedItem
+	for _, it := range feed {
+		created, err := time.Parse(time.RFC3339, it.Event.CreatedAt)
+		if err != nil || !created.After(fetchSince) {
+			continue
+		}
+		if created.After(since) {
+			fresh = append(fresh, it)
+		} else if it.Event.ID != "" {
+			overlap = append(overlap, it)
+		}
+	}
+	if len(overlap) == 0 {
+		return fresh, nil
+	}
+	refs := make([]*firestore.DocumentRef, len(overlap))
+	for i, it := range overlap {
+		refs[i] = userRef.Collection("github_activities").Doc(it.Event.ID)
+	}
+	snaps, err := client.GetAll(ctx, refs)
+	if err != nil {
+		return nil, err
+	}
+	for i, snap := range snaps {
+		if !snap.Exists() {
+			fresh = append(fresh, overlap[i])
+		}
+	}
+	return fresh, nil
+}
+
+// hasLateItem は、累積済みの最大時刻(lastCreatedAt)以前のイベントがあるか(純関数)。
+func hasLateItem(items []feedItem, lastCreatedAt string) bool {
+	if lastCreatedAt == "" {
+		return false
+	}
+	last, err := time.Parse(time.RFC3339, lastCreatedAt)
+	if err != nil {
+		return false
+	}
+	for _, it := range items {
+		if t, err := time.Parse(time.RFC3339, it.Event.CreatedAt); err == nil && !t.After(last) {
+			return true
+		}
+	}
+	return false
+}
+
 // reachedSince はページ内に since 以前のイベントが含まれるかを返す(純関数)。
 // Events API は新しい順に返すので、1件でも含まれていればそれ以上遡る必要はない。
 func reachedSince(items []feedItem, since time.Time) bool {
@@ -488,21 +543,23 @@ func runSanpai(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 		since, _ = time.Parse(time.RFC3339, "2008-04-01T00:00:00Z")
 	}
 
-	feed, err := fetchGitHubFeed(ctx, userData.ScreenName, since)
+	// GitHub の公開イベントは反映が遅れる(公式に 30 秒〜6 時間)。前回の参拝の時点で
+	// まだ見えていなかったイベントは、created_at が前回の参拝より前なので、
+	// 「前回より後」だけを数えると永久に取りこぼした。前回の参拝の sanpaiLookback 前
+	// から読み、その重なりの分は保存済み(github_activities のドキュメント ID)を飛ばす。
+	fetchSince := since
+	if hasLastSanpai {
+		fetchSince = since.Add(-sanpaiLookback)
+	}
+	feed, err := fetchGitHubFeed(ctx, userData.ScreenName, fetchSince)
 	if err != nil {
 		// Node版はGitHub取得失敗時に例外化し外側catchで "missing server error." になる。
 		return err
 	}
 
-	var splited []feedItem
-	for _, it := range feed {
-		created, err := time.Parse(time.RFC3339, it.Event.CreatedAt)
-		if err != nil {
-			continue
-		}
-		if created.After(since) {
-			splited = append(splited, it)
-		}
+	splited, err := newFeedItems(ctx, client, userRef, feed, since, fetchSince)
+	if err != nil {
+		return err
 	}
 
 	addExp, bonus := computeAddExp(cfg.AddPoint, splited)
@@ -572,7 +629,11 @@ func runSanpai(ctx context.Context, w http.ResponseWriter, client *firestore.Cli
 	// 詳細は battleGain のコメントを参照。
 	battleBase := 0
 	incrementalBase := false
-	if statusCacheIsCurrent(cachedStatus, userData.StatusVersion) && userData.LastActivityCreatedAt != "" {
+	// 遅れて出てきたイベントが累積済みの最大時刻より前にあると、増分計算の前提
+	// (新着は累積分より後)が崩れる(すばやさ・たいりょくの間隔の計算がずれる)。
+	// その時は全件から計算し直す(遅れて出た時だけなので、読み取りは増えにくい)。
+	late := hasLateItem(splited, userData.LastActivityCreatedAt)
+	if !late && statusCacheIsCurrent(cachedStatus, userData.StatusVersion) && userData.LastActivityCreatedAt != "" {
 		// 保存済みステータスに新着分だけを加算(全件再集計しない)。
 		// splited は「created_at > last_sanpai」で抽出した未集計イベントのみ、
 		// last_activity_created_at は累積済みイベントの最大時刻であり、
